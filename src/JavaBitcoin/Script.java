@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import java.io.IOException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Arrays;
 
@@ -189,7 +188,7 @@ public class Script {
      * @throws      EOFException    Script is too short
      */
     public static List<byte[]> getData(byte[] scriptBytes) throws EOFException {
-        List<byte[]> dataList = new LinkedList<>();
+        List<byte[]> dataList = new ArrayList<>();
         int offset = 0;
         int length = scriptBytes.length;
         while (offset<length) {

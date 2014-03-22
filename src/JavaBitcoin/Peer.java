@@ -19,7 +19,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -51,7 +51,7 @@ public class Peer {
     private ByteBuffer inputBuffer;
 
     /** Output message list */
-    private final List<Message> outputList = new LinkedList<>();
+    private final List<Message> outputList = new ArrayList<>();
 
     /** Current output buffer */
     private ByteBuffer outputBuffer;

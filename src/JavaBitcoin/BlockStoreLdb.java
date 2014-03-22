@@ -32,10 +32,10 @@ import java.io.IOException;
 
 import java.math.BigInteger;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -306,7 +306,7 @@ public class BlockStoreLdb extends BlockStore {
      */
     @Override
     public List<Alert> getAlerts() throws BlockStoreException {
-        List<Alert> alerts = new LinkedList<>();
+        List<Alert> alerts = new ArrayList<>();
         try {
             try (DBIterator it = dbAlert.iterator()) {
                 it.seekToFirst();
@@ -498,7 +498,7 @@ public class BlockStoreLdb extends BlockStore {
      */
     @Override
     public List<BlockStatus> getBlockStatus(int maxCount) throws BlockStoreException {
-        List<BlockStatus> blockList = new LinkedList<>();
+        List<BlockStatus> blockList = new ArrayList<>(maxCount);
         synchronized(lock) {
             try {
                 byte[] entryData;
@@ -621,7 +621,7 @@ public class BlockStoreLdb extends BlockStore {
                         if (!txID.getTxHash().equals(txHash))
                             break;
                         if (outputList == null)
-                            outputList = new LinkedList<>();
+                            outputList = new ArrayList<>();
                         TransactionEntry txEntry = new TransactionEntry(dbEntry.getValue());
                         output = new StoredOutput(txID.getTxIndex(), txEntry.getValue(),
                                                   txEntry.getScriptBytes());
@@ -680,7 +680,7 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public List<Sha256Hash> getChainList(int startHeight, Sha256Hash stopBlock)
                                         throws BlockStoreException {
-        List<Sha256Hash> chainList = new LinkedList<>();
+        List<Sha256Hash> chainList = new ArrayList<>(InventoryMessage.MAX_INV_ENTRIES);
         synchronized(lock) {
             try {
                 try (DBIterator it = dbBlockChain.iterator()) {
@@ -714,7 +714,7 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public List<byte[]> getHeaderList(Sha256Hash startBlock, Sha256Hash stopBlock)
                                         throws BlockStoreException {
-        List<byte[]> headerList = new LinkedList<>();
+        List<byte[]> headerList = new ArrayList<>(2000);
         synchronized(lock) {
             try {
                 //
@@ -849,7 +849,7 @@ public class BlockStoreLdb extends BlockStore {
     public void deleteSpentTxOutputs() throws BlockStoreException {
         long ageLimit = chainTime - MAX_TX_AGE;
         int txPurged = 0;
-        List<byte[]> purgeList = new LinkedList<>();
+        List<byte[]> purgeList = new ArrayList<>(5000);
         synchronized(lock) {
             try {
                 //
@@ -932,7 +932,7 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public List<StoredBlock> getJunction(Sha256Hash chainHash)
                          throws BlockNotFoundException, BlockStoreException, ChainTooLongException {
-        List<StoredBlock> chainList = new LinkedList<>();
+        List<StoredBlock> chainList = new ArrayList<>(150);
         Sha256Hash blockHash = chainHash;
         StoredBlock chainStoredBlock;
         synchronized (lock) {

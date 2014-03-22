@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import java.math.BigInteger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -42,7 +41,7 @@ public class BlockChain {
     private boolean verifyBlocks;
 
     /** Chain listeners */
-    private List<ChainListener> listeners = new LinkedList<>();
+    private final List<ChainListener> listeners = new ArrayList<>();
 
     /**
      * Creates a new block chain
@@ -285,7 +284,7 @@ public class BlockChain {
                     //
                     // Get any orphan transactions that are waiting for transactions in this block
                     //
-                    List<StoredTransaction> retryList = new LinkedList<>();
+                    List<StoredTransaction> retryList = new ArrayList<>(50);
                     List<Transaction> txList = updatedBlock.getTransactions();
                     synchronized(Parameters.lock) {
                         for (Transaction tx : txList) {

@@ -34,7 +34,6 @@ import java.nio.channels.*;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Collections;
 import java.util.Set;
@@ -75,10 +74,10 @@ public class NetworkListener implements Runnable {
     };
 
     /** Connection listeners */
-    private final List<ConnectionListener> connectionListeners = new LinkedList<>();
+    private final List<ConnectionListener> connectionListeners = new ArrayList<>();
 
     /** Alert listeners */
-    private final List<AlertListener> alertListeners = new LinkedList<>();
+    private final List<AlertListener> alertListeners = new ArrayList<>();
 
     /** Network listener thread */
     private Thread listenerThread;
@@ -105,10 +104,10 @@ public class NetworkListener implements Runnable {
     private Selector networkSelector;
 
     /** Connections list */
-    private final List<Peer> connections = new LinkedList<>();
+    private final List<Peer> connections = new ArrayList<>(128);
 
     /** Banned list */
-    private final List<InetAddress> bannedAddresses = new LinkedList<>();
+    private final List<InetAddress> bannedAddresses = new ArrayList<>(25);
 
     /** Alert list */
     private List<Alert> alerts;
@@ -332,7 +331,7 @@ public class NetworkListener implements Runnable {
                 //
                 if (currentTime > lastConnectionCheckTime+2*60) {
                     lastConnectionCheckTime = currentTime;
-                    List<Peer> inactiveList = new LinkedList<>();
+                    List<Peer> inactiveList = new ArrayList<>();
                     for (Peer chkPeer : connections) {
                         PeerAddress chkAddress = chkPeer.getAddress();
                         if (chkAddress.getTimeStamp() < currentTime-4*60) {
@@ -445,7 +444,7 @@ public class NetworkListener implements Runnable {
         //
         // Get the current connection list
         //
-        List<Peer> connectionList = new LinkedList<>();
+        List<Peer> connectionList = new ArrayList<>(connections.size());
         connectionList.addAll(connections);
         //
         // Remove pending connections from the list
@@ -796,6 +795,7 @@ public class NetworkListener implements Runnable {
                             key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
                         } else {
                             Message msg = outputList.remove(0);
+                            msg.setPeer(null);
                             buffer = msg.getBuffer();
                             peer.setOutputBuffer(buffer);
                         }
@@ -823,6 +823,7 @@ public class NetworkListener implements Runnable {
                     Message deferredMsg = peer.getDeferredMessage();
                     if (deferredMsg != null) {
                         peer.setDeferredMessage(null);
+                        deferredMsg.setPeer(peer);
                         deferredMsg.setBuffer(deferredMsg.getRestartBuffer());
                         deferredMsg.setRestartBuffer(null);
                         Parameters.messageQueue.put(deferredMsg);
@@ -857,7 +858,11 @@ public class NetworkListener implements Runnable {
             peer.setInputBuffer(null);
             peer.setOutputBuffer(null);
             peer.setDeferredMessage(null);
-            peer.getOutputList().clear();
+            List<Message> outputList = peer.getOutputList();
+            while (!outputList.isEmpty()) {
+                Message outputMsg = outputList.remove(0);
+                outputMsg.setPeer(null);
+            }
             if (address.isOutbound())
                 outboundCount--;
             address.setConnected(false);
@@ -900,6 +905,7 @@ public class NetworkListener implements Runnable {
             Peer peer = msg.getPeer();
             PeerAddress address = peer.getAddress();
             SelectionKey key = peer.getKey();
+            msg.setPeer(null);
             //
             // Nothing to do if the connection has been closed
             //

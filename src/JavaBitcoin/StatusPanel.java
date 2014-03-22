@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigInteger;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -725,7 +726,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         private Class<?>[] columnClasses;
 
         /** Connection list */
-        private List<Peer> connectionList = new LinkedList<>();
+        private List<Peer> connectionList = new ArrayList<>(128);
 
         /**
          * Create the table model

@@ -70,6 +70,15 @@ public class Message {
     }
 
     /**
+     * Sets the peer associated with this message
+     *
+     * @param       peer            Associated peer
+     */
+    public void setPeer(Peer peer) {
+        this.peer = peer;
+    }
+
+    /**
      * Returns the message buffer
      *
      * @return      Message buffer

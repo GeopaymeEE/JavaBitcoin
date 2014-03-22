@@ -20,7 +20,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -58,12 +58,12 @@ public class AddressMessage {
     public static Message buildAddressMessage(Peer peer) {
         //
         // Create an address list containing peers that we have seen within the past 15 minutes.
-        // The maximum length of the list is 100 entries.  Static addresses are not included
+        // The maximum length of the list is 250 entries.  Static addresses are not included
         // in the list.  We will include our own address with a current timestamp if the
         // address is valid.
         //
         long oldestTime = System.currentTimeMillis()/1000 - (15*60);
-        List<PeerAddress> addresses = new LinkedList<>();
+        List<PeerAddress> addresses = new ArrayList<>(250);
         if (Parameters.listenAddressValid) {
             PeerAddress localAddress = new PeerAddress(Parameters.listenAddress, Parameters.listenPort);
             localAddress.setServices(Parameters.SUPPORTED_SERVICES);
@@ -71,7 +71,7 @@ public class AddressMessage {
         }
         synchronized(Parameters.lock) {
             for (PeerAddress address : Parameters.peerAddresses) {
-                if (addresses.size() == 100)
+                if (addresses.size() >= 250)
                     break;
                 if (address.getTimeStamp() >= oldestTime && !address.isStatic())
                     addresses.add(address);

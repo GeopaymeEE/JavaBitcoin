@@ -23,7 +23,6 @@ import java.math.BigInteger;
 
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -214,7 +213,7 @@ public class TransactionMessage {
         //
         // Validate the transaction inputs
         //
-        List<OutPoint> spentOutputs = new LinkedList<>();
+        List<OutPoint> spentOutputs = new ArrayList<>();
         List<TransactionInput> inputs = tx.getInputs();
         boolean orphanTx = false;
         boolean duplicateTx = false;
@@ -331,7 +330,7 @@ public class TransactionMessage {
                 Parameters.orphanTxList.add(storedTx);
                 List<StoredTransaction> orphanList = Parameters.orphanTxMap.get(orphanHash);
                 if (orphanList == null) {
-                    orphanList = new LinkedList<>();
+                    orphanList = new ArrayList<>();
                     orphanList.add(storedTx);
                     Parameters.orphanTxMap.put(orphanHash, orphanList);
                 } else {

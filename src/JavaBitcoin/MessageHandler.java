@@ -190,21 +190,24 @@ public class MessageHandler implements Runnable {
                     //
                     // Process the 'getdata' message
                     //
-                    GetDataMessage.processGetDataMessage(msg, inStream);
+                    // We will ignore a 'getdata' message if we are still processing a
+                    // previous 'getdata' message (the reference client sends multiple
+                    // requests when it is loading the block chain)
                     //
-                    // The 'getdata' command sends data in batches, so we need
-                    // to check if it needs to be restarted.  If it does, we will
-                    // reset the message buffer so that it will be processed again
-                    // when the request is restarted.  We will discard an incomplete
-                    // request if the node sends a new 'getdata' command.  This avoids
-                    // a problem with the reference client which repeats data requests
-                    // if the data isn't returned fast enough.
-                    //
-                    if (msg.getRestartIndex() != 0) {
-                        msgBuffer.rewind();
-                        msg.setRestartBuffer(msgBuffer);
-                        synchronized(Parameters.lock) {
-                            peer.setDeferredMessage(msg);
+                    if (peer.getDeferredMessage() == null) {
+                        GetDataMessage.processGetDataMessage(msg, inStream);
+                        //
+                        // The 'getdata' command sends data in batches, so we need
+                        // to check if it needs to be restarted.  If it does, we will
+                        // reset the message buffer so that it will be processed again
+                        // when the request is restarted.
+                        //
+                        if (msg.getRestartIndex() != 0) {
+                            msgBuffer.rewind();
+                            msg.setRestartBuffer(msgBuffer);
+                            synchronized(Parameters.lock) {
+                                peer.setDeferredMessage(msg);
+                            }
                         }
                     }
                     //
@@ -226,7 +229,12 @@ public class MessageHandler implements Runnable {
                     //
                     // Process the 'getblocks' message
                     //
-                    GetBlocksMessage.processGetBlocksMessage(msg, inStream);
+                    // We will ignore a 'getblocks' message if we are still processing a
+                    // previous 'getdata' message (the reference client sends multiple
+                    // requests when it is loading the block chain)
+                    //
+                    if (peer.getDeferredMessage() == null)
+                        GetBlocksMessage.processGetBlocksMessage(msg, inStream);
                     break;
                 case MessageHeader.NOTFOUND_CMD:
                     //

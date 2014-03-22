@@ -18,8 +18,10 @@ package JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+
 import java.nio.ByteBuffer;
-import java.util.LinkedList;
+
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -57,7 +59,7 @@ public class GetBlocksMessage {
      * @return      Message to send to the peer
      */
     public static Message buildGetBlocksMessage(Peer peer) {
-        List<Sha256Hash> invList = new LinkedList<>();
+        List<Sha256Hash> invList = new ArrayList<>(500);
         try {
             //
             // Get the chain list

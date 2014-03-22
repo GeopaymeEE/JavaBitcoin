@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -106,7 +105,7 @@ public class GetDataMessage {
         // If this is a restarted request, we need to skip over the requests that have already
         // been processed as indicated by the restart index contained in the message.
         //
-        List<byte[]> notFound = new LinkedList<>();
+        List<byte[]> notFound = new ArrayList<>(25);
         byte[] invBytes = new byte[36];
         int restart = msg.getRestartIndex();
         msg.setRestartIndex(0);
