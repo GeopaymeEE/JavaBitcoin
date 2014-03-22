@@ -63,8 +63,11 @@ public class NetworkListener implements Runnable {
     /** Logger instance */
     private static final Logger log = LoggerFactory.getLogger(NetworkListener.class);
 
-    /** Maximum number of pending messages for a single peer */
-    private static final int MAX_PENDING_MESSAGES = 10;
+    /** Maximum number of pending input messages for a single peer */
+    private static final int MAX_INPUT_MESSAGES = 10;
+
+    /** Maximum number of pending output messages for a single peer */
+    private static final int MAX_OUTPUT_MESSAGES = 500;
 
     /** Network seed nodes */
     private static final String[] dnsSeeds = new String[] {
@@ -756,7 +759,7 @@ public class NetworkListener implements Runnable {
                     synchronized(Parameters.lock) {
                         count = peer.getInputCount() + 1;
                         peer.setInputCount(count);
-                        if (count >= MAX_PENDING_MESSAGES)
+                        if (count >= MAX_INPUT_MESSAGES || peer.getOutputList().size() >= MAX_OUTPUT_MESSAGES)
                             key.interestOps(key.interestOps()&(~SelectionKey.OP_READ));
                     }
                     break;
@@ -820,6 +823,8 @@ public class NetworkListener implements Runnable {
             //
             if (peer.getOutputBuffer() == null) {
                 synchronized(Parameters.lock) {
+                    if (peer.getInputCount() == 0)
+                        key.interestOps(key.interestOps() | SelectionKey.OP_READ);
                     Message deferredMsg = peer.getDeferredMessage();
                     if (deferredMsg != null) {
                         peer.setDeferredMessage(null);
@@ -829,7 +834,7 @@ public class NetworkListener implements Runnable {
                         Parameters.messageQueue.put(deferredMsg);
                         int count = peer.getInputCount() + 1;
                         peer.setInputCount(count);
-                        if (count >= MAX_PENDING_MESSAGES)
+                        if (count >= MAX_INPUT_MESSAGES)
                             key.interestOps(key.interestOps()&(~SelectionKey.OP_READ));
                     }
                 }
@@ -941,7 +946,7 @@ public class NetworkListener implements Runnable {
             synchronized(Parameters.lock) {
                 int count = peer.getInputCount() - 1;
                 peer.setInputCount(count);
-                if (count == 0)
+                if (count == 0 && peer.getOutputList().isEmpty())
                     key.interestOps(key.interestOps() | SelectionKey.OP_READ);
             }
             //
