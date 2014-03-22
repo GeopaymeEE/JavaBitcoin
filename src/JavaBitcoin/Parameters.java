@@ -19,12 +19,12 @@ import java.math.BigInteger;
 
 import java.net.InetAddress;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ArrayBlockingQueue;
 
 /**
  * Global parameters for JavaBitcoin
@@ -164,52 +164,52 @@ public class Parameters {
     public static long networkChainHeight;
 
     /** List of peer requests that are waiting to be sent */
-    public static final List<PeerRequest> pendingRequests = new LinkedList<>();
+    public static final List<PeerRequest> pendingRequests = new ArrayList<>(50);
 
     /** List of peer requests that are waiting for a response */
-    public static final List<PeerRequest> processedRequests = new LinkedList<>();
+    public static final List<PeerRequest> processedRequests = new ArrayList<>(50);
 
     /** List of transactions in the memory pool */
-    public static final List<StoredTransaction> txPool = new LinkedList<>();
+    public static final List<StoredTransaction> txPool = new ArrayList<>(1000);
 
     /** Map of transactions in the memory pool: txHash -> tx */
     public static final Map<Sha256Hash, StoredTransaction> txMap = new HashMap<>(1000);
 
     /** List of recent transactions */
-    public static final List<Sha256Hash> recentTxList = new LinkedList<>();
+    public static final List<Sha256Hash> recentTxList = new ArrayList<>(1000);
 
     /** Map of recent transactions: txHash -> txHash */
     public static final Map<Sha256Hash, Sha256Hash> recentTxMap = new HashMap<>(1000);
 
     /** List of orphan transactions */
-    public static final List<StoredTransaction> orphanTxList = new LinkedList<>();
+    public static final List<StoredTransaction> orphanTxList = new ArrayList<>(250);
 
     /** Map of orphan transactions: parentTxHash -> orphanTxList */
     public static final Map<Sha256Hash, List<StoredTransaction>> orphanTxMap = new HashMap<>(250);
 
     /** List of recent spent outputs */
-    public static final List<OutPoint> spentOutputsList = new LinkedList<>();
+    public static final List<OutPoint> spentOutputsList = new ArrayList<>(1000);
 
     /** Map of recent spent outputs: Outpoint -> spendingTxHash */
     public static final Map<OutPoint, Sha256Hash> spentOutputsMap = new HashMap<>(1000);
 
     /** List of Bloom filters */
-    public static final List<BloomFilter> bloomFilters = new LinkedList<>();
+    public static final List<BloomFilter> bloomFilters = new ArrayList<>(50);
 
     /** Database handler message queue */
-    public static final LinkedBlockingQueue<Block> databaseQueue = new LinkedBlockingQueue<>();
+    public static final ArrayBlockingQueue<Block> databaseQueue = new ArrayBlockingQueue<>(50);
 
     /** Message handler message queue */
-    public static final LinkedBlockingQueue<Message> messageQueue = new LinkedBlockingQueue<>();
+    public static final ArrayBlockingQueue<Message> messageQueue = new ArrayBlockingQueue<>(50);
 
     /** Peer addresses */
-    public static final List<PeerAddress> peerAddresses = new LinkedList<>();
+    public static final List<PeerAddress> peerAddresses = new ArrayList<>(1000);
 
     /** Peer address map */
     public static final Map<PeerAddress, PeerAddress> peerMap = new HashMap<>(250);
 
     /** Completed messages */
-    public static final List<Message> completedMessages = new LinkedList<>();
+    public static final List<Message> completedMessages = new ArrayList<>(50);
 
     /** Short-term lock object */
     public static final Object lock = new Object();

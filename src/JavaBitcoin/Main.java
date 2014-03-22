@@ -459,15 +459,12 @@ public class Main {
      */
     public static void shutdown() {
         //
-        // Stop the network
-        //
-        Parameters.networkListener.shutdown();
-        Parameters.databaseQueue.add(new ShutdownDatabase());
-        Parameters.messageQueue.add(new ShutdownMessage());
-        //
-        // Wait for threads to terminate
+        // Stop the worker threads
         //
         try {
+            Parameters.networkListener.shutdown();
+            Parameters.databaseQueue.put(new ShutdownDatabase());
+            Parameters.messageQueue.put(new ShutdownMessage());
             log.info("Waiting for worker threads to stop");
             for (Thread thread : threads)
                 thread.join(2*60*1000);

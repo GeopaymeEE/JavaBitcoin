@@ -883,16 +883,6 @@ public class NetworkListener implements Runnable {
             if (channel.isOpen())
                 channel.close();
             log.info(String.format("Connection closed with peer %s", address.toString()));
-            //
-            // Ban nuisance peers
-            //
-            if (address.getTimeConnected() > System.currentTimeMillis()/1000-5 &&
-                                    !address.isOutbound() &&
-                                    !bannedAddresses.contains(address.getAddress())) {
-                bannedAddresses.add(address.getAddress());
-                log.info(String.format("Nuisance peer address %s banned",
-                                       address.getAddress().getHostAddress()));
-            }
         } catch (IOException exc) {
             log.error(String.format("Error while closing socket channel with %s", address.toString()), exc);
         }
