@@ -168,9 +168,9 @@ public class MessageHandler implements Runnable {
                                 Parameters.recentTxMap.put(txHash, txHash);
                             }
                         }
-                        Parameters.databaseQueue.put(block);
                         Parameters.blocksReceived++;
                     }
+                    Parameters.databaseQueue.put(block);
                     break;
                 case MessageHeader.TX_CMD:
                     //

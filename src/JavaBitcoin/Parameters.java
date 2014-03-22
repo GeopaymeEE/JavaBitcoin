@@ -164,25 +164,25 @@ public class Parameters {
     public static long networkChainHeight;
 
     /** List of peer requests that are waiting to be sent */
-    public static final List<PeerRequest> pendingRequests = new ArrayList<>(50);
+    public static final List<PeerRequest> pendingRequests = new ArrayList<>(250);
 
     /** List of peer requests that are waiting for a response */
-    public static final List<PeerRequest> processedRequests = new ArrayList<>(50);
+    public static final List<PeerRequest> processedRequests = new ArrayList<>(250);
 
     /** List of transactions in the memory pool */
     public static final List<StoredTransaction> txPool = new ArrayList<>(1000);
 
     /** Map of transactions in the memory pool: txHash -> tx */
-    public static final Map<Sha256Hash, StoredTransaction> txMap = new HashMap<>(1000);
+    public static final Map<Sha256Hash, StoredTransaction> txMap = new HashMap<>(250);
 
     /** List of recent transactions */
     public static final List<Sha256Hash> recentTxList = new ArrayList<>(1000);
 
     /** Map of recent transactions: txHash -> txHash */
-    public static final Map<Sha256Hash, Sha256Hash> recentTxMap = new HashMap<>(1000);
+    public static final Map<Sha256Hash, Sha256Hash> recentTxMap = new HashMap<>(250);
 
     /** List of orphan transactions */
-    public static final List<StoredTransaction> orphanTxList = new ArrayList<>(250);
+    public static final List<StoredTransaction> orphanTxList = new ArrayList<>(1000);
 
     /** Map of orphan transactions: parentTxHash -> orphanTxList */
     public static final Map<Sha256Hash, List<StoredTransaction>> orphanTxMap = new HashMap<>(250);
@@ -191,16 +191,16 @@ public class Parameters {
     public static final List<OutPoint> spentOutputsList = new ArrayList<>(1000);
 
     /** Map of recent spent outputs: Outpoint -> spendingTxHash */
-    public static final Map<OutPoint, Sha256Hash> spentOutputsMap = new HashMap<>(1000);
+    public static final Map<OutPoint, Sha256Hash> spentOutputsMap = new HashMap<>(250);
 
     /** List of Bloom filters */
-    public static final List<BloomFilter> bloomFilters = new ArrayList<>(50);
+    public static final List<BloomFilter> bloomFilters = new ArrayList<>(250);
 
     /** Database handler message queue */
-    public static final ArrayBlockingQueue<Block> databaseQueue = new ArrayBlockingQueue<>(50);
+    public static final ArrayBlockingQueue<Block> databaseQueue = new ArrayBlockingQueue<>(250);
 
     /** Message handler message queue */
-    public static final ArrayBlockingQueue<Message> messageQueue = new ArrayBlockingQueue<>(50);
+    public static final ArrayBlockingQueue<Message> messageQueue = new ArrayBlockingQueue<>(250);
 
     /** Peer addresses */
     public static final List<PeerAddress> peerAddresses = new ArrayList<>(1000);
@@ -209,7 +209,7 @@ public class Parameters {
     public static final Map<PeerAddress, PeerAddress> peerMap = new HashMap<>(250);
 
     /** Completed messages */
-    public static final List<Message> completedMessages = new ArrayList<>(50);
+    public static final List<Message> completedMessages = new ArrayList<>(250);
 
     /** Short-term lock object */
     public static final Object lock = new Object();
