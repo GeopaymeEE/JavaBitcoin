@@ -414,8 +414,13 @@ public class Transaction {
         // In all cases, the script for the current input is replaced with the script from the connected
         // output.  All other input scripts are set to an empty script.
         //
+        // The reference client accepts a hash type of 0 and treats it as SIGHASH_ALL.  So we need to
+        // do the same.
+        //
         anyoneCanPay = ((sigHashType&Script.SIGHASH_ANYONE_CAN_PAY) != 0);
         hashType = sigHashType&(255-Script.SIGHASH_ANYONE_CAN_PAY);
+        if (hashType == 0)
+            hashType = Script.SIGHASH_ALL;
         if (hashType != Script.SIGHASH_ALL && hashType != Script.SIGHASH_NONE && hashType != Script.SIGHASH_SINGLE) {
             log.error(String.format("Signature hash type %d is not supported", hashType));
             throw new ScriptException("Unsupported signature hash type");
