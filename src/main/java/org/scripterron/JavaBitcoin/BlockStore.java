@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright-2014 2013 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,33 +51,33 @@ public abstract class BlockStore {
     /** Block chain checkpoints */
     protected static final Map<Integer, Sha256Hash> checkpoints = new HashMap<>();
     static {
-        checkpoints.put(Integer.valueOf(50000),
+        checkpoints.put(50000,
                         new Sha256Hash("000000001aeae195809d120b5d66a39c83eb48792e068f8ea1fea19d84a4278a"));
-        checkpoints.put(Integer.valueOf(75000),
+        checkpoints.put(75000,
                         new Sha256Hash("00000000000ace2adaabf1baf9dc0ec54434db11e9fd63c1819d8d77df40afda"));
-        checkpoints.put(Integer.valueOf(91722),
+        checkpoints.put(91722,
                         new Sha256Hash("00000000000271a2dc26e7667f8419f2e15416dc6955e5a6c6cdf3f2574dd08e"));
-        checkpoints.put(Integer.valueOf(91812),
+        checkpoints.put(91812,
                         new Sha256Hash("00000000000af0aed4792b1acee3d966af36cf5def14935db8de83d6f9306f2f"));
-        checkpoints.put(Integer.valueOf(91842),
+        checkpoints.put(91842,
                         new Sha256Hash("00000000000a4d0a398161ffc163c503763b1f4360639393e0e4c8e300e0caec"));
-        checkpoints.put(Integer.valueOf(91880),
+        checkpoints.put(91880,
                         new Sha256Hash("00000000000743f190a18c5577a3c2d2a1f610ae9601ac046a38084ccb7cd721"));
-        checkpoints.put(Integer.valueOf(100000),
+        checkpoints.put(100000,
                         new Sha256Hash("000000000003ba27aa200b1cecaad478d2b00432346c3f1f3986da1afd33e506"));
-        checkpoints.put(Integer.valueOf(125000),
+        checkpoints.put(125000,
                         new Sha256Hash("00000000000042391c3620056af66ca9ad7cb962424a9b34611915cebb9e1a2a"));
-        checkpoints.put(Integer.valueOf(150000),
+        checkpoints.put(150000,
                         new Sha256Hash("0000000000000a3290f20e75860d505ce0e948a1d1d846bec7e39015d242884b"));
-        checkpoints.put(Integer.valueOf(175000),
+        checkpoints.put(175000,
                         new Sha256Hash("00000000000006b975c097e9a5235de03d9024ddb205fd24dfcd508403fa907c"));
-        checkpoints.put(Integer.valueOf(200000),
+        checkpoints.put(200000,
                         new Sha256Hash("000000000000034a7dedef4a161fa058a2d67a173a90155f3a2fe6fc132e0ebf"));
-        checkpoints.put(Integer.valueOf(225000),
+        checkpoints.put(225000,
                         new Sha256Hash("000000000000013d8781110987bf0e9f230e3cc85127d1ee752d5dd014f8a8e1"));
-        checkpoints.put(Integer.valueOf(250000),
+        checkpoints.put(250000,
                         new Sha256Hash("000000000000003887df1f29024b06fc2200b55f8af8f35453d7be294df2d214"));
-        checkpoints.put(Integer.valueOf(275000),
+        checkpoints.put(275000,
                         new Sha256Hash("00000000000000044750d80a0d3f3e307e54e8802397ae840d91adc28068f5bc"));
     }
 
@@ -262,6 +262,16 @@ public abstract class BlockStore {
      * @throws      BlockStoreException     Unable to check transaction status
      */
     public abstract boolean isNewTransaction(Sha256Hash txHash) throws BlockStoreException;
+
+    /**
+     * Returns the transaction depth.  A depth of 0 indicates the transaction is not in a block
+     * on the current chain.
+     *
+     * @param       txHash                  Transaction hash
+     * @return                              Transaction depth
+     * @throws      BlockStoreException     Unable to get transaction depth
+     */
+    public abstract int getTxDepth(Sha256Hash txHash) throws BlockStoreException;
 
     /**
      * Returns the requested transaction output

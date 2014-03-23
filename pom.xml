@@ -46,7 +46,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>org.scripterron.javabitcoin.Main</mainClass>
+                            <mainClass>org.ScripterRon.JavaBitcoin.Main</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

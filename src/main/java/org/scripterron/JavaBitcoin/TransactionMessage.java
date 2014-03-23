@@ -239,12 +239,13 @@ public class TransactionMessage {
                 }
                 if (outTx != null) {
                     // Transaction is in the memory pool, get the connected output
-                    List<TransactionOutput> txOutputs = outTx.getTransaction().getOutputs();
+                    Transaction poolTx = outTx.getTransaction();
+                    List<TransactionOutput> txOutputs = poolTx.getOutputs();
                     for (TransactionOutput txOutput : txOutputs) {
                         if (txOutput.getIndex() == outPoint.getIndex()) {
                             totalInput = totalInput.add(txOutput.getValue());
                             output = new StoredOutput(txOutput.getIndex(), txOutput.getValue(),
-                                                      txOutput.getScriptBytes());
+                                                      txOutput.getScriptBytes(), poolTx.isCoinBase());
                             break;
                         }
                     }
@@ -280,6 +281,17 @@ public class TransactionMessage {
             // Error if the output has been spent
             if (outputSpent)
                 throw new VerificationException("Input already spent", Parameters.REJECT_DUPLICATE, txHash);
+            // Check for immature coinbase transaction
+            if (output.isCoinBase()) {
+                try {
+                    int txDepth = Parameters.blockStore.getTxDepth(outPoint.getHash());
+                    if (txDepth < Parameters.COINBASE_MATURITY)
+                        throw new VerificationException("Spending immature coinbase output",
+                                                        Parameters.REJECT_INVALID, txHash);
+                } catch (BlockStoreException exc) {
+                    // Can't check transaction depth - let it go
+                }
+            }
             // Check for canonical signatures and public keys
             int paymentType = Script.getPaymentType(output.getScriptBytes());
             List<byte[]> dataList = Script.getData(input.getScriptBytes());

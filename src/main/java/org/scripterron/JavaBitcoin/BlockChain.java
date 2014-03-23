@@ -75,11 +75,12 @@ public class BlockChain {
     /**
      * Adds a block to the block store and updates the block chain
      *
-     * @param       block           The block to add
-     * @return      List of blocks that have been added to the chain.  The first element in the list
-     *              is the junction block and will not contain any block data.  The list will
-     *              be null if no blocks have been added to the chain.
-     * @throws      BlockStoreException Unable to store the block in the database
+     * @param       block                   The block to add
+     * @return                              List of blocks that have been added to the chain.
+     *                                      The first element in the list is the junction block
+     *                                      and will not contain any block data.  The list will
+     *                                      be null if no blocks have been added to the chain.
+     * @throws      BlockStoreException     Unable to store the block in the database
      */
     public List<StoredBlock> storeBlock(Block block) throws BlockStoreException {
         //
@@ -329,12 +330,12 @@ public class BlockChain {
     /**
      * Verify a block
      *
-     * @param       block           Block to be verified
-     * @param       junctionHeight  Height of the junction block
-     * @param       txMap           Transaction map
-     * @param       outputMap       Transaction output map
-     * @return      TRUE if the block is verified, FALSE otherwise
-     * @throws      BlockStoreException  Unable to read from database
+     * @param       block                   Block to be verified
+     * @param       junctionHeight          Height of the junction block
+     * @param       txMap                   Transaction map
+     * @param       outputMap               Transaction output map
+     * @return                              TRUE if the block is verified, FALSE otherwise
+     * @throws      BlockStoreException     Unable to read from database
      */
     private boolean verifyBlock(StoredBlock storedBlock, int junctionHeight,
                                     Map<Sha256Hash, Transaction> txMap,
@@ -419,8 +420,8 @@ public class BlockChain {
                         outputs = new ArrayList<>(txOutputList.size());
                         for (TransactionOutput txOutput : txOutputList)
                             outputs.add(new StoredOutput(txOutput.getIndex(), txOutput.getValue(),
-                                                         txOutput.getScriptBytes()));
-                        outputMap.put(opHash,outputs);
+                                                         txOutput.getScriptBytes(), outTx.isCoinBase()));
+                        outputMap.put(opHash, outputs);
                     }
                 }
                 //
@@ -440,6 +441,7 @@ public class BlockChain {
                         }
                     }
                     if (!foundOutput) {
+                        // Connected output not found
                         log.error(String.format("Transaction input specifies non-existent output\n"+
                                                 "  Transaction %s\n  Transaction input %d\n"+
                                                 "  Connected output %s\n  Connected output index %d",
@@ -450,6 +452,7 @@ public class BlockChain {
                         txValid = false;
                     } else {
                         if (output.isSpent() && output.getHeight() != 0 && output.getHeight() <= junctionHeight) {
+                            // Connected output has been spent
                             log.error(String.format("Transaction input specifies spent output\n"+
                                                     "  Transaction %s\n  Transaction intput %d\n"+
                                                     "  Connected output %s\n  Connected output index %d",
@@ -457,16 +460,31 @@ public class BlockChain {
                                                     opHash.toString(), opIndex));
                             txValid = false;
                         } else {
-                            txAmount = txAmount.add(output.getValue());
-                            output.setSpent(true);
-                            output.setHeight(storedBlock.getHeight());
-                            txValid = tx.verifyInput(input, output.getScriptBytes());
-                            if (!txValid)
-                                log.error(String.format("Transaction failed signature verification\n"+
+                            if (output.isCoinBase()) {
+                                int txDepth = Parameters.blockStore.getTxDepth(opHash);
+                                if (txDepth < Parameters.COINBASE_MATURITY) {
+                                    // Spending immature coinbase output
+                                    log.error(String.format("Transaction input specifies immature coinbase output\n"+
+                                                    "  Transaction %s\n  Transaction input %d\n"+
+                                                    "  Connected output %s\n  Connected output index %d",
+                                                    tx.getHash().toString(), input.getIndex(),
+                                                    opHash.toString(), opIndex));
+                                    txValid = false;
+                                }
+                            }
+                            if (txValid) {
+                                txAmount = txAmount.add(output.getValue());
+                                output.setSpent(true);
+                                output.setHeight(storedBlock.getHeight());
+                                txValid = tx.verifyInput(input, output.getScriptBytes());
+                                if (!txValid)
+                                    // Signature verification failed
+                                    log.error(String.format("Transaction failed signature verification\n"+
                                                         "  Transaction %s\n  Transaction input %d\n"+
                                                         "  Outpoint %s\n  Outpoint index %d",
                                                         tx.getHash().toString(), input.getIndex(),
                                                         op.getHash().toString(), op.getIndex()));
+                            }
                         }
                     }
                 }

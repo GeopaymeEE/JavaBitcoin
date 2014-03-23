@@ -95,9 +95,9 @@ public class Parameters {
 
     /** Maximum amount of money in the Bitcoin system */
     public static final BigInteger MAX_MONEY = new BigInteger("21000000", 10).multiply(Utils.COIN);
-    
+
     /** Coinbase transaction maturity */
-    public static final int COINBASE_MATURITY = 120;
+    public static final int COINBASE_MATURITY = 100;
 
     /** Dust transaction value */
     public static final BigInteger DUST_TRANSACTION = new BigInteger("5460", 10);

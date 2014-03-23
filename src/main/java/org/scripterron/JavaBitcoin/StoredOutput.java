@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,6 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
-import java.io.EOFException;
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.math.BigInteger;
 
 /**
@@ -27,13 +23,16 @@ import java.math.BigInteger;
 public class StoredOutput {
 
     /** Index within the transaction output list */
-    private int txIndex;
+    private final int txIndex;
 
     /** Output value */
-    private BigInteger value;
+    private final BigInteger value;
 
     /** Script bytes */
-    private byte[] scriptBytes;
+    private final byte[] scriptBytes;
+
+    /** Coinbase transaction */
+    private final boolean isCoinBase;
 
     /** Output spent flag */
     private boolean isSpent;
@@ -47,12 +46,14 @@ public class StoredOutput {
      * @param       txIndex             Index within the transaction output list
      * @param       value               Output value expressed in 0.00000001 BTC units
      * @param       scriptBytes         Script bytes
+     * @param       isCoinBase          TRUE if this is a coinbase transaction
      */
-    public StoredOutput(int txIndex, BigInteger value, byte[] scriptBytes) {
+    public StoredOutput(int txIndex, BigInteger value, byte[] scriptBytes, boolean isCoinBase) {
         this.txIndex = txIndex;
         this.value = value;
         this.scriptBytes = scriptBytes;
         this.isSpent = false;
+        this.isCoinBase = isCoinBase;
     }
 
     /**
@@ -61,78 +62,18 @@ public class StoredOutput {
      * @param       txIndex             Index within the transaction output list
      * @param       value               Output value expressed in 0.00000001 BTC units
      * @param       scriptBytes         Script bytes
+     * @param       isCoinBase          TRUE if this is a coinbase transaction
      * @param       isSpent             TRUE if the output has been spent
      * @param       blockHeight         Chain height of block spending this output
      */
-    public StoredOutput(int txIndex, BigInteger value, byte[] scriptBytes, boolean isSpent, int blockHeight) {
+    public StoredOutput(int txIndex, BigInteger value, byte[] scriptBytes, boolean isCoinBase,
+                                        boolean isSpent, int blockHeight) {
         this.txIndex = txIndex;
         this.value = value;
         this.scriptBytes = scriptBytes;
+        this.isCoinBase = isCoinBase;
         this.isSpent = isSpent;
         this.blockHeight = blockHeight;
-    }
-
-    /**
-     * Creates a new stored transaction output from the serialized data stream
-     *
-     * @param       stream              The input stream
-     * @throws      EOFException
-     * @throws      IOException
-     */
-    public StoredOutput(InputStream stream) throws EOFException, IOException {
-        byte[] bytes = new byte[8];
-        int count;
-        count = stream.read(bytes, 0, 4);
-        if (count != 4)
-            throw new EOFException("End-of-data while building StoredOutput");
-        txIndex = (int)Utils.readUint32LE(bytes, 0);
-        count = stream.read(bytes, 0, 8);
-        if (count != 8)
-            throw new EOFException("End-of-data while building StoredOutput");
-        value = BigInteger.valueOf(Utils.readUint64LE(bytes, 0));
-        int spent = stream.read();
-        if (spent < 0)
-            throw new EOFException("End-of-data while building StoredOutput");
-        boolean heightPresent;
-        if ((spent&0x10) != 0) {
-            heightPresent = true;
-            spent &= 0x0f;
-        } else {
-            heightPresent = false;
-        }
-        isSpent = (spent!=0);
-        int scriptCount = new VarInt(stream).toInt();
-        if (scriptCount > 0) {
-            scriptBytes = new byte[scriptCount];
-            count = stream.read(scriptBytes);
-            if (count != scriptCount)
-                throw new EOFException("End-of-data while building StoredOutput");
-        }
-        if (heightPresent) {
-            count = stream.read(bytes, 0, 4);
-            if (count != 4)
-                throw new EOFException("End-of-data while building StoredOutput");
-            blockHeight = (int)Utils.readUint32LE(bytes, 0);
-        }
-    }
-
-    /**
-     * Serializes the StoredOutput instance
-     *
-     * @param       stream              The output stream
-     * @throws      IOException
-     */
-    public void bitcoinSerialize(OutputStream stream) throws IOException {
-        Utils.uint32ToByteStreamLE(txIndex, stream);
-        Utils.uint64ToByteStreamLE(value, stream);
-        stream.write(isSpent ? 0x11 : 0x10);
-        if (scriptBytes != null) {
-            stream.write(VarInt.encode(scriptBytes.length));
-            stream.write(scriptBytes);
-        } else {
-            stream.write(0);
-        }
-        Utils.uint32ToByteStreamLE(blockHeight, stream);
     }
 
     /**
@@ -160,6 +101,15 @@ public class StoredOutput {
      */
     public byte[] getScriptBytes() {
         return scriptBytes;
+    }
+
+    /**
+     * Checks if this is a coinbase transaction
+     *
+     * @return      TRUE if this is a coinbase transaction
+     */
+    public boolean isCoinBase() {
+        return isCoinBase;
     }
 
     /**

@@ -573,6 +573,44 @@ public class BlockStoreLdb extends BlockStore {
     }
 
     /**
+     * Returns the transaction depth.  A depth of 0 indicates the transaction is not in a block
+     * on the current chain.
+     *
+     * @param       txHash                  Transaction hash
+     * @return                              Transaction depth
+     * @throws      BlockStoreException     Unable to get transaction depth
+     */
+    @Override
+    public int getTxDepth(Sha256Hash txHash) throws BlockStoreException {
+        int txDepth = 0;
+        synchronized(lock) {
+            try {
+                try (DBIterator it = dbTxOutputs.iterator()) {
+                    it.seek(txHash.getBytes());
+                    if (it.hasNext()) {
+                        Entry<byte[], byte[]> dbEntry = it.next();
+                        TransactionID txID = new TransactionID(dbEntry.getKey());
+                        if (txID.getTxHash().equals(txHash)) {
+                            TransactionEntry txEntry = new TransactionEntry(dbEntry.getValue());
+                            Sha256Hash blockHash = txEntry.getBlockHash();
+                            byte[] entryData = dbBlocks.get(blockHash.getBytes());
+                            if (entryData != null) {
+                                BlockEntry blockEntry = new BlockEntry(entryData);
+                                if (blockEntry.isOnChain())
+                                    txDepth = chainHeight - blockEntry.getHeight() + 1;
+                            }
+                        }
+                    }
+                }
+            } catch (DBException | IOException exc) {
+                log.error(String.format("Unable to get transaction depth\n  %s", txHash), exc);
+                throw new BlockStoreException("Unable to get transaction depth");
+            }
+        }
+        return txDepth;
+    }
+
+    /**
      * Returns the requested transaction output
      *
      * @param       outPoint                Transaction outpoint
@@ -587,9 +625,9 @@ public class BlockStoreLdb extends BlockStore {
             byte[] entryData = dbTxOutputs.get(txID.getBytes());
             if (entryData != null) {
                 TransactionEntry txEntry = new TransactionEntry(entryData);
-                output = new StoredOutput(outPoint.getIndex(), txEntry.getValue(), txEntry.getScriptBytes());
-                output.setHeight(txEntry.getBlockHeight());
-                output.setSpent(txEntry.getTimeSpent()!=0);
+                output = new StoredOutput(outPoint.getIndex(), txEntry.getValue(), txEntry.getScriptBytes(),
+                                          txEntry.isCoinBase(), txEntry.getTimeSpent()!=0,
+                                          txEntry.getBlockHeight());
             }
         } catch (DBException | EOFException exc) {
             log.error(String.format("Unable to get transaction output\n  %s : %d",
@@ -624,9 +662,8 @@ public class BlockStoreLdb extends BlockStore {
                             outputList = new ArrayList<>();
                         TransactionEntry txEntry = new TransactionEntry(dbEntry.getValue());
                         output = new StoredOutput(txID.getTxIndex(), txEntry.getValue(),
-                                                  txEntry.getScriptBytes());
-                        output.setHeight(txEntry.getBlockHeight());
-                        output.setSpent(txEntry.getTimeSpent()!=0);
+                                                  txEntry.getScriptBytes(), txEntry.isCoinBase(),
+                                                  txEntry.getTimeSpent()!=0, txEntry.getBlockHeight());
                         outputList.add(output);
                     }
                 }
@@ -1167,7 +1204,8 @@ public class BlockStoreLdb extends BlockStore {
                                 }
                             } else if (txOutput.isSpendable()) {
                                 txEntry = new TransactionEntry(blockHash, txOutput.getValue(),
-                                                               txOutput.getScriptBytes(), 0, 0);
+                                                               txOutput.getScriptBytes(), 0, 0,
+                                                               tx.isCoinBase());
                                 txUpdates.put(txID, txEntry);
                             }
                         }
@@ -1684,6 +1722,7 @@ public class BlockStoreLdb extends BlockStore {
      *   VarInt     BlockHeight     Height of block spending this output
      *   VarBytes   Value           The output value
      *   VarBytes   ScriptBytes     The script bytes
+     *   Boolean    isCoinBase      TRUE if this is a coinbase entry
      * </pre>
      */
     private class TransactionEntry {
@@ -1703,6 +1742,9 @@ public class BlockStoreLdb extends BlockStore {
         /** Script bytes */
         private byte[] scriptBytes;
 
+        /** Coinbase transaction */
+        private boolean isCoinBase;
+
         /**
          * Creates a new TransactionEntry
          *
@@ -1711,14 +1753,16 @@ public class BlockStoreLdb extends BlockStore {
          * @param       scriptBytes     Script bytes
          * @param       timeSpent       Time when all outputs were spent
          * @param       blockHeight     Height of block spending this output
+         * @param       isCoinBase      TRUE if this is a coinbase transaction
          */
         public TransactionEntry(Sha256Hash blockHash, BigInteger value, byte[] scriptBytes,
-                                        long timeSpent, int blockHeight) {
+                                        long timeSpent, int blockHeight, boolean isCoinBase) {
             this.blockHash = blockHash;
             this.timeSpent = timeSpent;
             this.value = value;
             this.scriptBytes = scriptBytes;
             this.blockHeight = blockHeight;
+            this.isCoinBase = isCoinBase;
         }
 
         /**
@@ -1756,6 +1800,11 @@ public class BlockStoreLdb extends BlockStore {
             if (offset+length > entryData.length)
                 throw new EOFException("End-of-data while processing TransactionEntry");
             scriptBytes = Arrays.copyOfRange(entryData, offset, offset+length);
+            offset += length;
+            // Decode isCoinBase
+            if (offset > entryData.length)
+                throw new EOFException("End-of-data while processing TransactionEntry");
+            isCoinBase = (entryData[offset] == 1);
         }
 
         /**
@@ -1771,7 +1820,7 @@ public class BlockStoreLdb extends BlockStore {
             byte[] valueLength = VarInt.encode(valueData.length);
             byte[] scriptLength = VarInt.encode(scriptBytes.length);
             byte[] entryData = new byte[32+timeData.length+heightData.length+valueLength.length+
-                            valueData.length+scriptLength.length+scriptBytes.length];
+                            valueData.length+scriptLength.length+scriptBytes.length+1];
             System.arraycopy(blockHash.getBytes(), 0, entryData, 0, 32);
             int offset = 32;
             // Encode timeStamp
@@ -1789,6 +1838,9 @@ public class BlockStoreLdb extends BlockStore {
             System.arraycopy(scriptLength, 0, entryData, offset, scriptLength.length);
             offset += scriptLength.length;
             System.arraycopy(scriptBytes, 0, entryData, offset, scriptBytes.length);
+            offset += scriptBytes.length;
+            // Encode isCoinBase
+            entryData[offset] = isCoinBase ? (byte)1 : 0;
             return entryData;
         }
 
@@ -1817,6 +1869,15 @@ public class BlockStoreLdb extends BlockStore {
          */
         public byte[] getScriptBytes() {
             return scriptBytes;
+        }
+
+        /**
+         * Checks if this is a coinbase transaction
+         *
+         * @return      TRUE if this is a coinbase transaction
+         */
+        public boolean isCoinBase() {
+            return isCoinBase;
         }
 
         /**

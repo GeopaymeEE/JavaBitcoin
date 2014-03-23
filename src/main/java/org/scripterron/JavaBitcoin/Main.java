@@ -309,7 +309,7 @@ public class Main {
             //
             // Load the genesis block
             //
-            Class<?> mainClass = Class.forName("org.scripterron.javabitcoin.Main");
+            Class<?> mainClass = Class.forName("org.ScripterRon.JavaBitcoin.Main");
             InputStream classStream = mainClass.getClassLoader().getResourceAsStream(genesisName);
             if (classStream == null)
                 throw new IllegalStateException("Genesis block resource not found");
@@ -518,9 +518,9 @@ public class Main {
     private static void loadBlockChain() {
         int blockCount = 0;
         int heldCount = 0;
-        long blockTime = 0;
         String fileName = null;
         boolean stopLoad = false;
+        log.info(String.format("Loading block chain from '%s'", blockChainPath));
         try {
             //
             // Get the block chain file list from the 'blocks' subdirectory sorted by ordinal value
@@ -529,8 +529,8 @@ public class Main {
             //
             List<File> fileList = new ArrayList<>(150);
             for (int i=startBlock; true; i++) {
-                File file = new File(blockChainPath+String.format("%sblocks%sblk%05d.dat",
-                                                                  fileSeparator, fileSeparator, i));
+                File file = new File(String.format("%s%sblocks%sblk%05d.dat",
+                                                   blockChainPath, fileSeparator, fileSeparator, i));
                 if (!file.exists())
                     break;
                 fileList.add(file);
@@ -583,7 +583,6 @@ public class Main {
                         // the block chain before the rules were tightened)
                         //
                         Block block = new Block(blockBuffer, 0, count, false);
-                        blockTime = block.getTimeStamp();
                         //
                         // Add the block to the block store and update the block chain.  Stop
                         // loading blocks if we get 5 consecutive blocks being held (something
