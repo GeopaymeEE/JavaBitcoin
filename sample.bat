@@ -1,5 +1,7 @@
 @echo off
-REM Run the JavaBitcoin program
+REM This is a sample batch file to run the JavaBitcoin program.  Rename it to JavaBitcoin.bat
+REM and copy it to a directory in your PATH if you want to use it.  Using the 'java' command
+REM to start the node server allows you to watch log messages as they are written to the console.
 REM
 REM Command line operands:
 REM   Start node server using production network (omit peer addresses to use DNS discovery)
