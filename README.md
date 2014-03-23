@@ -1,7 +1,7 @@
 JavaBitcoin
 ===========
 
-JavaBitcoin is a bitcoin client node written in Java.  It supports receiving and relaying blocks and transactions but does not support bitcoin mining.  This ensure that running this node won't cause a block chain fork.  It also support Simple Payment Verification (SPV) clients such as the Android Wallet and MultiBit.
+JavaBitcoin is a bitcoin client node written in Java.  It supports receiving and relaying blocks and transactions but does not support bitcoin mining.  This ensure that running this node won't cause a block chain fork.  It also supports Simple Payment Verification (SPV) clients such as the Android Wallet and MultiBit.
 
 It does full verification for blocks that it receives and will reject blocks that do not pass the verification tests.  These rejected blocks are still stored in the database and can be included in the block chain by either temporarily turning off block verification or by updating the verification logic.  Spent transaction outputs are periodically removed from the database.  The full blocks are maintained in external storage in the same manner as the reference client (blknnnnn.dat files).
 
@@ -21,21 +21,13 @@ A compiled version is available here: https://drive.google.com/folderview?id=0B1
 Build
 =====
 
-I use the Netbeans IDE but any build environment with the Java compiler available should work.  The documentation is generated from the source code using javadoc.
+I use the Netbeans IDE but any build environment with Maven and the Java compiler available should work.  The documentation is generated from the source code using javadoc.
 
-Here are the steps for a manual build:
+Here are the steps for a manual build.  You will need to install Maven 3 and Java SE Development Kit 7 if you don't already have them.
 
-  - Create 'doc', 'lib' and 'classes' directories under the JavaBitcoin directory (the directory containing 'src')
-  - Download Java SE Development Kit 7: http://www.oracle.com/technetwork/java/javase/downloads/index.html
-  - Download BouncyCastle 1.51 or later to 'lib': https://www.bouncycastle.org/
-  - Download Simple Logging Facade 1.7.5 or later to 'lib': http://www.slf4j.org/
-  - Download leveldbjni 1.8 or later to 'lib': http://repo2.maven.org/maven2/org/fusesource/leveldbjni/leveldbjni-all/1.8/
-  - Change to the JavaBitcoin directory (with subdirectories 'doc', 'lib', 'classes' and 'src')
-  - The manifest.mf, build-list and doc-list files specify the classpath for the dependent jar files.  Update the list as required to match what you downloaded.
-  - Build the classes: javac @build-list
-  - Build the jar: jar cmf manifest.mf JavaBitcoin.jar -C classes . -C resources . 
-  - Build the documentation: javadoc @doc-list
-  - Copy JavaBitcoin.jar and the 'lib' directory to wherever you want to store the executables.
+  - Create the executable: mvn clean install
+  - [Optional] Create the documentation: mvn javadoc:javadoc
+  - [Optional] Copy target/JavaBitcoin-v.r.jar to wherever you want to store the executable.
   - Create a shortcut to start JavaBitcoin using java.exe for a command window or javaw.exe for GUI only. 
   
   
