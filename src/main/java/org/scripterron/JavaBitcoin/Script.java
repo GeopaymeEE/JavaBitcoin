@@ -768,11 +768,6 @@ public class Script {
         boolean isValid = false;
         byte[] subProgram;
         //
-        // Check for a canonical signature
-        //
-        if (!ECKey.isSignatureCanonical(sigBytes))
-            throw new ScriptException("Signature is not canonical");
-        //
         // Remove all occurrences of the signature from the output script and create a new program
         // (the signature is normally in the input script, so this step usually does nothing)
         //
