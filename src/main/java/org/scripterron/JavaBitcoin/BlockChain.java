@@ -462,6 +462,7 @@ public class BlockChain {
                         } else {
                             if (output.isCoinBase()) {
                                 int txDepth = Parameters.blockStore.getTxDepth(opHash);
+                                txDepth += storedBlock.getHeight() - Parameters.blockStore.getChainHeight();
                                 if (txDepth < Parameters.COINBASE_MATURITY) {
                                     // Spending immature coinbase output
                                     log.error(String.format("Transaction input specifies immature coinbase output\n"+
