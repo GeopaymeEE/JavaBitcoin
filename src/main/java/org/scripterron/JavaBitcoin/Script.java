@@ -97,12 +97,16 @@ public class Script {
         // Check for a pay-to-script-hash output (BIP0016)
         //
         // The output script: OP_HASH160 <20-byte hash> OP_EQUAL
-        // The inputs script: can contain only data elements
+        // The inputs script: can contain only data elements and must have at least two elements
+        // The block height must be greater than 175,000
         //
-        if (outputScriptBytes.length == 23 && outputScriptBytes[0] == (byte)ScriptOpCodes.OP_HASH160 &&
-                                              outputScriptBytes[1] == 20 &&
-                                              outputScriptBytes[22] == (byte)ScriptOpCodes.OP_EQUAL) {
+        if (Parameters.blockStore.getChainHeight() > 175000 &&
+                                            outputScriptBytes.length == 23 &&
+                                            outputScriptBytes[0] == (byte)ScriptOpCodes.OP_HASH160 &&
+                                            outputScriptBytes[1] == 20 &&
+                                            outputScriptBytes[22] == (byte)ScriptOpCodes.OP_EQUAL) {
             int offset = 0;
+            int count = 0;
             pay2ScriptHash = true;
             try {
                 while (offset < inputScriptBytes.length) {
@@ -110,11 +114,14 @@ public class Script {
                     if (opcode <= ScriptOpCodes.OP_PUSHDATA4) {
                         int[] result = getDataLength(opcode, inputScriptBytes, offset);
                         offset = result[0] + result[1];
+                        count++;
                     } else {
                         pay2ScriptHash = false;
                         break;
                     }
                 }
+                if (count < 2)
+                    pay2ScriptHash = false;
             } catch (EOFException exc) {
                 log.error("End of datat reached while scanning input script", exc);
                 Main.dumpData("Failing Input Script", inputScriptBytes);
@@ -574,7 +581,7 @@ public class Script {
         int[] result = new int[2];
         int offset = startOffset;
         int dataToRead;
-        if (opcode < 76) {
+        if (opcode < ScriptOpCodes.OP_PUSHDATA1) {
             // These opcodes push data with a length equal to the opcode
             dataToRead = opcode;
         } else if (opcode == ScriptOpCodes.OP_PUSHDATA1) {
