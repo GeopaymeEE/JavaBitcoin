@@ -93,6 +93,12 @@ public class TransactionMessage {
         if (duplicateTx)
             return;
         //
+        // Don't relay the transaction if the version is not 1 (BIP0034)
+        //
+        if (tx.getVersion() != 1)
+            throw new VerificationException(String.format("Transaction version %d is not valid", tx.getVersion()),
+                                            Parameters.REJECT_NONSTANDARD, txHash);
+        //
         // Verify the transaction
         //
         tx.verify(true);

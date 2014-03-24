@@ -350,14 +350,6 @@ public class BlockChain {
         List<Transaction> txList = block.getTransactions();
         for (Transaction tx : txList) {
             //
-            // The transaction version must be 1 if the block version is 2 (BIP0034)
-            //
-            if (block.getVersion() >= 2 && tx.getVersion() != 1) {
-                log.error(String.format("Transaction version %d is not valid", tx.getVersion()));
-                txValid = false;
-                break;
-            }
-            //
             // The input script for the coinbase transaction must contain the chain height
             // as the first data element if the block version is 2 (BIP0034)
             //
