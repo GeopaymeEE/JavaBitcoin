@@ -504,14 +504,31 @@ public class Script {
                 StackElement elem = popStack();
                 bytes = Utils.doubleDigest(elem.getBytes());
                 stack.add(new StackElement(bytes));
+            } else if (opcode == ScriptOpCodes.OP_CODESEPARATOR) {
+                // The reference client allowed OP_CODESEPARATOR in early blocks and didn't
+                // check the placement (some transactions used it in the input script instead
+                // of the output script).  We will accept the script if the current block
+                // height is less than 200,000.  Otherwise, we will fail the transaction.
+                if (Parameters.blockStore.getChainHeight() < 200000) {
+                    bytes = new byte[1];
+                    bytes[0] = (byte)1;
+                    stack.add(new StackElement(bytes));
+                    break;
+                }
+                log.error("OP_CODESEPARATOR is not supported");
+                throw new ScriptException("OP_CODESEPARATOR is not supported");
             } else if (opcode == ScriptOpCodes.OP_CHECKSIG || opcode == ScriptOpCodes.OP_CHECKSIGVERIFY) {
+                // Check single signature
                 processCheckSig();
                 if (opcode == ScriptOpCodes.OP_CHECKSIGVERIFY)
                     processVerify();
             } else if (opcode == ScriptOpCodes.OP_CHECKMULTISIG || opcode == ScriptOpCodes.OP_CHECKMULTISIGVERIFY) {
+                // Check multiple signatures
                 processMultiSig();
                 if (opcode == ScriptOpCodes.OP_CHECKMULTISIGVERIFY)
                     processVerify();
+            } else if (opcode >= ScriptOpCodes.OP_NOP1 && opcode <= ScriptOpCodes.OP_NOP10) {
+                // Ignore NOP codes
             } else {
                 log.error(String.format("Unsupported script opcode %s(%d)",
                                         ScriptOpCodes.getOpCodeName((byte)opcode), opcode));
@@ -805,7 +822,6 @@ public class Script {
                 }
                 if (copyElement)
                     outStream.write(outputScriptBytes, startPos, index-startPos+dataLength);
-
                 index += dataLength;
             }
             subProgram = outStream.toByteArray();
