@@ -387,6 +387,15 @@ public class BlockChain {
             BigInteger txAmount = BigInteger.ZERO;
             List<TransactionInput> inputs = tx.getInputs();
             for (TransactionInput input : inputs) {
+                //
+                // Ignore the transaction input if there is no input script
+                //
+                if (input.getScriptBytes().length == 0) {
+                    log.warn(String.format("Transaction has no input script\n"+
+                                           "  Transaction %s\n  Transaction input %d",
+                                           tx.getHash().toString(), input.getIndex()));
+                    continue;
+                }
                 OutPoint op = input.getOutPoint();
                 Sha256Hash opHash = op.getHash();
                 int opIndex = op.getIndex();
