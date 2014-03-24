@@ -22,6 +22,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 
+import java.math.BigInteger;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -493,6 +495,18 @@ public class Script {
                 else
                     newBytes[0] = 1;
                 stack.add(new StackElement(newBytes));
+            } else if (opcode == ScriptOpCodes.OP_MIN) {
+                // Select smaller of two elements
+                StackElement elem1 = popStack();
+                StackElement elem2 = popStack();
+                StackElement min = elem1.compareTo(elem2)<=0 ? elem1 : elem2;
+                stack.add(min);
+            } else if (opcode == ScriptOpCodes.OP_MAX) {
+                // Select larger of two elements
+                StackElement elem1 = popStack();
+                StackElement elem2 = popStack();
+                StackElement max = elem1.compareTo(elem2)>=0 ? elem1 : elem2;
+                stack.add(max);
             } else if (opcode == ScriptOpCodes.OP_SHA256) {
                 // SHA-256 hash
                 StackElement elem = popStack();
@@ -889,10 +903,10 @@ public class Script {
      * A stack element is a series of zero or more bytes.  The stack consists of stack elements
      * that are added and removed as the script is interpreted.
      */
-    private class StackElement {
+    private class StackElement implements Comparable<StackElement> {
 
         /** The bytes represented by this stack element */
-        private byte[] bytes;
+        private final byte[] bytes;
 
         /**
          * Creates a new stack element
@@ -954,6 +968,19 @@ public class Script {
                 areEqual = Arrays.equals(bytes, ((StackElement)obj).bytes);
 
             return areEqual;
+        }
+
+        /**
+         * Compares this stack element to another stack element
+         *
+         * @param       cmpElem     Element to compare
+         * @return                  -1 if less than, 0 if equal, 1 if greater
+         */
+        @Override
+        public int compareTo(StackElement cmpElem) {
+            BigInteger cmp1 = new BigInteger(1, bytes);
+            BigInteger cmp2 = new BigInteger(1, cmpElem.bytes);
+            return cmp1.compareTo(cmp2);
         }
     }
 }
