@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.ScripterRon</groupId>
     <artifactId>JavaBitcoin</artifactId>
-    <version>1.6</version>
+    <version>1.6-SNAPSHOT</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -11,6 +11,7 @@
         <maven.compiler.target>1.7</maven.compiler.target>
     </properties>
     <name>JavaBitcoin Node Server</name>
+    <url>https://github.com/ScripterRon/JavaBitcoin</url>
     <description>JavaBitcoin is a bitcoin node server written in Java.  It supports receiving and
                  relaying blocks and transactions but does not support bitcoin mining.  This ensure
                  that running this node won't cause a block chain fork.  It also supports
@@ -25,6 +26,13 @@
         </license>
     </licenses>
     <build>
+        <!-- Filter resources -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <!-- Ensure compilation is done under Java 7 -->
             <plugin>

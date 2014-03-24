@@ -143,6 +143,15 @@ public class Main {
 
     /** Operating system */
     public static String osName;
+    
+    /** Application identifier */
+    public static String applicationID;
+    
+    /** Application name */
+    public static String applicationName;
+    
+    /** Application version */
+    public static String applicationVersion;
 
     /** Application lock file */
     private static RandomAccessFile lockFile;
@@ -275,8 +284,6 @@ public class Main {
             // Use the brief logging format
             //
             BriefLogFormatter.init();
-            log.info(String.format("Application data path: '%s'", dataPath));
-            log.info(String.format("Block verification is %s", (verifyBlocks?"enabled":"disabled")));
             //
             // Open the application lock file
             //
@@ -310,11 +317,28 @@ public class Main {
             // Load the genesis block
             //
             Class<?> mainClass = Class.forName("org.ScripterRon.JavaBitcoin.Main");
-            InputStream classStream = mainClass.getClassLoader().getResourceAsStream(genesisName);
-            if (classStream == null)
-                throw new IllegalStateException("Genesis block resource not found");
-            Parameters.GENESIS_BLOCK_BYTES = new byte[classStream.available()];
-            classStream.read(Parameters.GENESIS_BLOCK_BYTES);
+            try (InputStream classStream = mainClass.getClassLoader().getResourceAsStream(genesisName)) {
+                if (classStream == null)
+                    throw new IllegalStateException("Genesis block resource not found");
+                Parameters.GENESIS_BLOCK_BYTES = new byte[classStream.available()];
+                classStream.read(Parameters.GENESIS_BLOCK_BYTES);
+            }
+            //
+            // Get the application build properties
+            //
+            try (InputStream classStream = mainClass.getClassLoader().getResourceAsStream("META-INF/application.properties")) {
+                if (classStream == null)
+                    throw new IllegalStateException("Application build properties not found");
+                Properties applicationProperties = new Properties();
+                applicationProperties.load(classStream);
+                applicationID = applicationProperties.getProperty("application.id");
+                applicationName = applicationProperties.getProperty("application.name");
+                applicationVersion = applicationProperties.getProperty("application.version");
+            }
+            Parameters.SOFTWARE_NAME = String.format("/%s:%s/", applicationID, applicationVersion);
+            log.info(String.format("%s Version %s", applicationName, applicationVersion));
+            log.info(String.format("Application data path: '%s'", dataPath));
+            log.info(String.format("Block verification is %s", (verifyBlocks?"enabled":"disabled")));
             //
             // Load the saved application properties
             //

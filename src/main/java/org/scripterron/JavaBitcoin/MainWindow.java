@@ -173,8 +173,8 @@ public final class MainWindow extends JFrame implements ActionListener {
      */
     private void aboutJavaBitcoin() {
         StringBuilder info = new StringBuilder(256);
-        info.append("<html>JavaBitcoin Peer Node Version 1.5<br>");
-        info.append("Copyright 2013-2014 Ronald W Hoffman. All rights reserved.<br>");
+        info.append(String.format("<html>%s Version %s<br>",
+                    Main.applicationName, Main.applicationVersion));
 
         info.append("<br>User name: ");
         info.append((String)System.getProperty("user.name"));
