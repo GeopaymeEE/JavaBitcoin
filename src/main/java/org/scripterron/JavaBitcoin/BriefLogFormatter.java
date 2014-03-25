@@ -1,6 +1,6 @@
 /**
  * Copyright 2011 Google Inc.
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,13 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
+
 import java.text.MessageFormat;
+
 import java.util.Date;
+
 import java.util.logging.Formatter;
 import java.util.logging.Handler;
-import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
@@ -33,7 +35,7 @@ import java.util.logging.Logger;
 public class BriefLogFormatter extends Formatter {
 
     /** Format used for log messages */
-    private static final MessageFormat messageFormat = new MessageFormat("{3,date,hh:mm:ss} {0} {1}.{2}: {4}\n{5}");
+    private static final MessageFormat messageFormat = new MessageFormat("{0} {3,date,hh:mm:ss} {1}.{2}: {4}\n{5}");
 
     // OpenJDK made a questionable, backwards incompatible change to the Logger implementation. It internally uses
     // weak references now which means simply fetching the logger and changing its configuration won't work. We must
@@ -62,7 +64,7 @@ public class BriefLogFormatter extends Formatter {
     @Override
     public String format(LogRecord logRecord) {
         Object[] arguments = new Object[6];
-        arguments[0] = logRecord.getThreadID();
+        arguments[0] = logRecord.getLevel().getName();
         String fullClassName = logRecord.getSourceClassName();
         int lastDot = fullClassName.lastIndexOf('.');
         String className = fullClassName.substring(lastDot + 1);
