@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -355,17 +355,16 @@ public class Transaction {
     /**
      * Verifies the signature for the supplied input and output
      *
-     * @param       txInput             Transaction input
-     * @param       outputScriptBytes   Script for the connected output
-     * @return      TRUE if signature is valid, FALSE otherwise
+     * @param       txInput             Current transaction input
+     * @param       txOutput            Connected transaction output
+     * @return                          TRUE if signature is valid, FALSE otherwise
      */
-    public boolean verifyInput(TransactionInput txInput, byte[] outputScriptBytes) {
+    public boolean verifyInput(TransactionInput txInput, StoredOutput txOutput) {
         boolean valid;
         try {
-            Script script = new Script(txInput, outputScriptBytes);
-            valid = script.runScript();
+            valid = ScriptParser.process(txInput, txOutput);
         } catch (ScriptException exc) {
-            log.warn("Unable to verify script", exc);
+            log.warn(String.format("Unable to verify transaction input\n  Tx %s", txHash), exc);
             valid = false;
         }
         return valid;
@@ -417,11 +416,13 @@ public class Transaction {
         // The reference client accepts a hash type of 0 and treats it as SIGHASH_ALL.  So we need to
         // do the same.
         //
-        anyoneCanPay = ((sigHashType&Script.SIGHASH_ANYONE_CAN_PAY) != 0);
-        hashType = sigHashType&(255-Script.SIGHASH_ANYONE_CAN_PAY);
+        anyoneCanPay = ((sigHashType&ScriptOpCodes.SIGHASH_ANYONE_CAN_PAY) != 0);
+        hashType = sigHashType&(255-ScriptOpCodes.SIGHASH_ANYONE_CAN_PAY);
         if (hashType == 0)
-            hashType = Script.SIGHASH_ALL;
-        if (hashType != Script.SIGHASH_ALL && hashType != Script.SIGHASH_NONE && hashType != Script.SIGHASH_SINGLE) {
+            hashType = ScriptOpCodes.SIGHASH_ALL;
+        if (hashType != ScriptOpCodes.SIGHASH_ALL && 
+                        hashType != ScriptOpCodes.SIGHASH_NONE && 
+                        hashType != ScriptOpCodes.SIGHASH_SINGLE) {
             log.error(String.format("Signature hash type %d is not supported", hashType));
             throw new ScriptException("Unsupported signature hash type");
         }
@@ -452,12 +453,12 @@ public class Transaction {
         //
         // Serialize the outputs
         //
-        if (hashType == Script.SIGHASH_NONE) {
+        if (hashType == ScriptOpCodes.SIGHASH_NONE) {
             //
             // There are no outputs for SIGHASH_NONE
             //
             outStream.write(0);
-        } else if (hashType == Script.SIGHASH_SINGLE) {
+        } else if (hashType == ScriptOpCodes.SIGHASH_SINGLE) {
             //
             // The output list is resized to the input index+1
             //

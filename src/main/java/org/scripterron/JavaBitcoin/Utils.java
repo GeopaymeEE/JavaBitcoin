@@ -1,6 +1,6 @@
 /**
  * Copyright 2011 Google Inc.
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,10 @@ import org.bouncycastle.crypto.digests.RIPEMD160Digest;
 
 import java.io.IOException;
 import java.io.OutputStream;
+
 import java.math.BigInteger;
 import java.math.BigDecimal;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -152,6 +154,55 @@ public class Utils {
             byte[]first = digest.digest();
             return digest.digest(first);
         }
+    }
+    
+    /**
+     * Calculate the SHA-1 hash of the input
+     * 
+     * @param       input           The byte array to be hashed
+     * @return                      The hashed result
+     */
+    public static byte[] sha1Hash(byte[] input) {
+        byte[] out;
+        try {
+            MessageDigest sDigest = MessageDigest.getInstance("SHA-1");
+            out = sDigest.digest(input);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);      // Cannot happen
+        }
+        return out;
+    }
+    
+    /**
+     * Calculate the RIPEMD160 hash of the input
+     * 
+     * @param       input           The byte array to be hashed
+     * @return                      The hashed result
+     */
+    public static byte[] hash160(byte[] input) {
+        byte[] out = new byte[20];
+        RIPEMD160Digest rDigest = new RIPEMD160Digest();
+        rDigest.update(input, 0, input.length);
+        rDigest.doFinal(out, 0);
+        return out;
+    }
+
+    /**
+     * Calculate RIPEMD160(SHA256(input)).  This is used in Address calculations.
+     *
+     * @param       input           The byte array to be hashed
+     * @return                      The hashed result
+     */
+    public static byte[] sha256Hash160(byte[] input) {
+        byte[] out = new byte[20];
+        synchronized(digest) {
+            digest.reset();
+            byte[] sha256 = digest.digest(input);
+            RIPEMD160Digest rDigest = new RIPEMD160Digest();
+            rDigest.update(sha256, 0, sha256.length);
+            rDigest.doFinal(out, 0);
+        }
+        return out;
     }
 
     /**
@@ -474,23 +525,5 @@ public class Utils {
             for (int i=0; i<8-bytes.length; i++)
                 stream.write(0);
         }
-    }
-
-    /**
-     * Calculate RIPEMD160(SHA256(input)).  This is used in Address calculations.
-     *
-     * @param       input           The byte array to be hashed
-     * @return                      The hashed result
-     */
-    public static byte[] sha256Hash160(byte[] input) {
-        byte[] out = new byte[20];
-        synchronized(digest) {
-            digest.reset();
-            byte[] sha256 = digest.digest(input);
-            RIPEMD160Digest rDigest = new RIPEMD160Digest();
-            rDigest.update(sha256, 0, sha256.length);
-            rDigest.doFinal(out, 0);
-        }
-        return out;
     }
 }

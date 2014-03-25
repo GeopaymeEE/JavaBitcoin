@@ -1,6 +1,6 @@
 /*
  * Copyright 2013 Google Inc.
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,24 @@ import java.util.Map;
  * Various constants that define the assembly-like scripting language that forms part of the Bitcoin protocol.
  */
 public class ScriptOpCodes {
-    // push value
+
+    /** Maximum number of signature operations allowed */
+    public static final int MAX_SIG_OPS = 20;
+
+    /** Standard signature types */
+    public static final int PAY_TO_PUBKEY_HASH = 1;
+    public static final int PAY_TO_PUBKEY = 2;
+    public static final int PAY_TO_SCRIPT_HASH = 3;
+    public static final int PAY_TO_MULTISIG = 4;
+    public static final int PAY_TO_NOBODY = 5;
+
+    /** Signature hash types */
+    public static final int SIGHASH_ALL = 1;
+    public static final int SIGHASH_NONE = 2;
+    public static final int SIGHASH_SINGLE = 3;
+    public static final int SIGHASH_ANYONE_CAN_PAY = 128;
+
+    // Data push opcodes
     public static final int OP_0 = 0x00;
     public static final int OP_FALSE = OP_0;
     public static final int OP_PUSHDATA1 = 0x4c;
@@ -48,7 +65,7 @@ public class ScriptOpCodes {
     public static final int OP_14 = 0x5e;
     public static final int OP_15 = 0x5f;
     public static final int OP_16 = 0x60;
-    // control
+    // Control opcodes
     public static final int OP_NOP = 0x61;
     public static final int OP_VER = 0x62;
     public static final int OP_IF = 0x63;
@@ -59,7 +76,7 @@ public class ScriptOpCodes {
     public static final int OP_ENDIF = 0x68;
     public static final int OP_VERIFY = 0x69;
     public static final int OP_RETURN = 0x6a;
-    // stack ops
+    // Stack opcodes
     public static final int OP_TOALTSTACK = 0x6b;
     public static final int OP_FROMALTSTACK = 0x6c;
     public static final int OP_2DROP = 0x6d;
@@ -79,13 +96,13 @@ public class ScriptOpCodes {
     public static final int OP_ROT = 0x7b;
     public static final int OP_SWAP = 0x7c;
     public static final int OP_TUCK = 0x7d;
-    // splice ops
+    // Splice opcodes
     public static final int OP_CAT = 0x7e;
     public static final int OP_SUBSTR = 0x7f;
     public static final int OP_LEFT = 0x80;
     public static final int OP_RIGHT = 0x81;
     public static final int OP_SIZE = 0x82;
-    // bit logic
+    // Bit manipulation opcodes
     public static final int OP_INVERT = 0x83;
     public static final int OP_AND = 0x84;
     public static final int OP_OR = 0x85;
@@ -94,7 +111,7 @@ public class ScriptOpCodes {
     public static final int OP_EQUALVERIFY = 0x88;
     public static final int OP_RESERVED1 = 0x89;
     public static final int OP_RESERVED2 = 0x8a;
-    // numeric
+    // Numeric opcodes
     public static final int OP_1ADD = 0x8b;
     public static final int OP_1SUB = 0x8c;
     public static final int OP_2MUL = 0x8d;
@@ -122,7 +139,7 @@ public class ScriptOpCodes {
     public static final int OP_MIN = 0xa3;
     public static final int OP_MAX = 0xa4;
     public static final int OP_WITHIN = 0xa5;
-    // crypto
+    // Crypto opcodes
     public static final int OP_RIPEMD160 = 0xa6;
     public static final int OP_SHA1 = 0xa7;
     public static final int OP_SHA256 = 0xa8;
@@ -133,7 +150,7 @@ public class ScriptOpCodes {
     public static final int OP_CHECKSIGVERIFY = 0xad;
     public static final int OP_CHECKMULTISIG = 0xae;
     public static final int OP_CHECKMULTISIGVERIFY = 0xaf;
-    // expansion
+    // Reserved for future expansion
     public static final int OP_NOP1 = 0xb0;
     public static final int OP_NOP2 = 0xb1;
     public static final int OP_NOP3 = 0xb2;

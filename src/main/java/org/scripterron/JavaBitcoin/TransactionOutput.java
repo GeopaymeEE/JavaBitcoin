@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@ import java.io.EOFException;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+
 import java.math.BigInteger;
+
 import java.util.Arrays;
 
 /**
@@ -49,7 +51,7 @@ public class TransactionOutput {
     private BigInteger value;
 
     /** Transaction output index */
-    private int txIndex;
+    private final int txIndex;
 
     /** Output script */
     private byte[] scriptBytes;
@@ -146,7 +148,7 @@ public class TransactionOutput {
      * @throws      IOException
      */
     public void serializeForSignature(int index, int hashType, OutputStream outStream) throws IOException {
-        if (hashType == Script.SIGHASH_SINGLE && index != txIndex) {
+        if (hashType == ScriptOpCodes.SIGHASH_SINGLE && index != txIndex) {
             //
             // For SIGHASH_SINGLE, we have a zero-length script and a value of -1
             //

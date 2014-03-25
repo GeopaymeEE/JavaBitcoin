@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,10 +48,10 @@ public class TransactionInput {
     private long seqNumber;
 
     /** Parent transaction */
-    private Transaction tx;
+    private final Transaction tx;
 
     /** Transaction input index */
-    private int txIndex;
+    private final int txIndex;
 
     /**
      * Creates a transaction input from the encoded byte stream
@@ -165,7 +165,7 @@ public class TransactionInput {
         outStream.write(VarInt.encode(subScriptBytes.length));
         if (subScriptBytes.length != 0)
             outStream.write(subScriptBytes);
-        if (hashType == Script.SIGHASH_ALL)
+        if (hashType == ScriptOpCodes.SIGHASH_ALL)
             Utils.uint32ToByteStreamLE(seqNumber, outStream);
         else
             Utils.uint32ToByteStreamLE((index==txIndex?seqNumber:0), outStream);

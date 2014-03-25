@@ -387,15 +387,6 @@ public class BlockChain {
             BigInteger txAmount = BigInteger.ZERO;
             List<TransactionInput> inputs = tx.getInputs();
             for (TransactionInput input : inputs) {
-                //
-                // Ignore the transaction input if there is no input script
-                //
-                if (input.getScriptBytes().length == 0) {
-                    log.warn(String.format("Transaction has no input script\n"+
-                                           "  Transaction %s\n  Transaction input %d",
-                                           tx.getHash().toString(), input.getIndex()));
-                    continue;
-                }
                 OutPoint op = input.getOutPoint();
                 Sha256Hash opHash = op.getHash();
                 int opIndex = op.getIndex();
@@ -462,10 +453,10 @@ public class BlockChain {
                             txValid = false;
                         } else {
                             if (output.isCoinBase()) {
+                                // Check for immature coinbase transaction output
                                 int txDepth = Parameters.blockStore.getTxDepth(opHash);
                                 txDepth += storedBlock.getHeight() - Parameters.blockStore.getChainHeight();
                                 if (txDepth < Parameters.COINBASE_MATURITY) {
-                                    // Spending immature coinbase output
                                     log.error(String.format("Transaction input specifies immature coinbase output\n"+
                                                     "  Transaction %s\n  Transaction input %d\n"+
                                                     "  Connected output %s\n  Connected output index %d",
@@ -475,12 +466,12 @@ public class BlockChain {
                                 }
                             }
                             if (txValid) {
+                                // Update amounts and verify the transaction signature
                                 txAmount = txAmount.add(output.getValue());
                                 output.setSpent(true);
                                 output.setHeight(storedBlock.getHeight());
-                                txValid = tx.verifyInput(input, output.getScriptBytes());
+                                txValid = tx.verifyInput(input, output);
                                 if (!txValid)
-                                    // Signature verification failed
                                     log.error(String.format("Transaction failed signature verification\n"+
                                                         "  Transaction %s\n  Transaction input %d\n"+
                                                         "  Outpoint %s\n  Outpoint index %d",

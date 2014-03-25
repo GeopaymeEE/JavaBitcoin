@@ -204,11 +204,11 @@ public class TransactionMessage {
                                                 Parameters.REJECT_DUST, tx.getHash());
             // Non-standard payment types are not relayed
             int paymentType = Script.getPaymentType(output.getScriptBytes());
-            if (paymentType != Script.PAY_TO_PUBKEY_HASH &&
-                                    paymentType != Script.PAY_TO_PUBKEY &&
-                                    paymentType != Script.PAY_TO_SCRIPT_HASH &&
-                                    paymentType != Script.PAY_TO_MULTISIG &&
-                                    paymentType != Script.PAY_TO_NOBODY) {
+            if (paymentType != ScriptOpCodes.PAY_TO_PUBKEY_HASH &&
+                                    paymentType != ScriptOpCodes.PAY_TO_PUBKEY &&
+                                    paymentType != ScriptOpCodes.PAY_TO_SCRIPT_HASH &&
+                                    paymentType != ScriptOpCodes.PAY_TO_MULTISIG &&
+                                    paymentType != ScriptOpCodes.PAY_TO_NOBODY) {
                 Main.dumpData("Failing Script", output.getScriptBytes());
                 throw new VerificationException("Non-standard payment types are not relayed",
                                                 Parameters.REJECT_NONSTANDARD, txHash);
@@ -303,19 +303,19 @@ public class TransactionMessage {
             List<byte[]> dataList = Script.getData(input.getScriptBytes());
             int canonicalType = 0;
             switch (paymentType) {
-                case Script.PAY_TO_PUBKEY:
+                case ScriptOpCodes.PAY_TO_PUBKEY:
                     // First data element is signature
                     if (dataList.isEmpty() || !ECKey.isSignatureCanonical(dataList.get(0)))
                         canonicalType = 1;
                     break;
-                case Script.PAY_TO_PUBKEY_HASH:
+                case ScriptOpCodes.PAY_TO_PUBKEY_HASH:
                     // First data element is signature, second data element is public key
                     if (dataList.isEmpty() || !ECKey.isSignatureCanonical(dataList.get(0)))
                         canonicalType = 1;
                     else if (dataList.size() < 2 || !ECKey.isPubKeyCanonical(dataList.get(1)))
                         canonicalType = 2;
                     break;
-                case Script.PAY_TO_MULTISIG:
+                case ScriptOpCodes.PAY_TO_MULTISIG:
                     // All data elements are public keys
                     for (byte[] sigBytes : dataList) {
                         if (!ECKey.isSignatureCanonical(sigBytes)) {

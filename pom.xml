@@ -10,10 +10,10 @@
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
     </properties>
-    <name>JavaBitcoin Node Server</name>
+    <name>Java Bitcoin Node Server</name>
     <url>https://github.com/ScripterRon/JavaBitcoin</url>
     <description>JavaBitcoin is a bitcoin node server written in Java.  It supports receiving and
-                 relaying blocks and transactions but does not support bitcoin mining.  This ensure
+                 relaying blocks and transactions but does not support mining.  This ensures
                  that running this node won't cause a block chain fork.  It also supports
                  Simple Payment Verification (SPV) clients such as the Android Wallet and MultiBit.
     </description>
@@ -25,6 +25,19 @@
             <comments>A business-friendly OSS license</comments>
         </license>
     </licenses>
+	<developers>
+		<developer>
+			<id>ScripterRon</id>
+			<name>Ronald Hoffman</name>
+			<email>Ronald.Hoffman6@gmail.com</email>
+		</developer>
+	</developers>
+	<scm>
+		<connection>scm:git:https://github.com:ScripterRon/JavaBitcoin.git</connection>
+		<developerConnection>scm:git:https://github.com:ScripterRon/JavaBitcoin.git</developerConnection>
+		<url>https://github.com/ScripterRon/JavaBitcoin</url>
+		<tag>HEAD</tag>
+	</scm>
     <build>
         <!-- Filter resources -->
         <resources>

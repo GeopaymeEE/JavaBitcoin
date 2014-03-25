@@ -1,6 +1,6 @@
 /**
  * Copyright 2012 Matt Corallo
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.EOFException;
 import java.io.InputStream;
 import java.io.IOException;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -224,7 +225,8 @@ public class BloomFilter {
                 //
                 if (nFlags==BloomFilter.UPDATE_ALL ||
                             (nFlags==BloomFilter.UPDATE_P2PUBKEY_ONLY &&
-                                (type==Script.PAY_TO_PUBKEY || type==Script.PAY_TO_MULTISIG))) {
+                                (type==ScriptOpCodes.PAY_TO_PUBKEY || 
+                                 type==ScriptOpCodes.PAY_TO_MULTISIG))) {
                     System.arraycopy(Utils.reverseBytes(txHash.getBytes()), 0, outpointData, 0, 32);
                     Utils.uint32ToByteArrayLE(index, outpointData, 32);
                     insert(outpointData);
