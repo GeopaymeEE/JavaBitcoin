@@ -54,6 +54,9 @@ Runtime Options
 
 The following command-line arguments are supported:
 
+  - INDEX PROD|TEST		
+    Rebuild the block index in the LevelDB database using a new block chain.  The Blocks subdirectory in the application directory must be empty.  New files will be created using the supplied block chain files (for example, the block chain files created by the reference client).  This allows the LevelDB database to be copied to a new system which already has the block chain files.  The existing block chain must be at the database level or higher (that is, if the chain head in the database is 275000, then the block chain files must contain block 275000).  After the block index has been rebuilt, the block chain files will be processed to add any additional blocks to the database.  Upon completion, the LevelDB database will contain entries for all blocks in the block chain files.
+	
   - LOAD PROD|TEST directory-path start-block		
     Load the block chain from the reference client data directory and create the block database. Specify PROD to load the production database or TEST to load the test database. The default reference client data directory will be used if no directory path is specified. The program will terminate after loading the block chain.
 	

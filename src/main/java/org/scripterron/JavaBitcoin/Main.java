@@ -51,6 +51,11 @@ import javax.swing.*;
  * <table>
  * <col width=30%/>
  * <col width=70%/>
+ * <tr><td>INDEX PROD|TEST directory-path</td>
+ * <td>Rebuild the block index for an existing database.  Existing block chain files will
+ * be read and the file pointers in the database will be updated to point to the new block
+ * locations.  The Blocks subdirectory must be empty before starting this operation.</td>
+ * 
  * <tr><td>LOAD PROD|TEST directory-path start-block</td>
  * <td>Load the block chain from the reference client data directory and create the block database.  Specify PROD
  * to load the production database or TEST to load the test database.  The
@@ -191,6 +196,9 @@ public class Main {
 
     /** Retry block */
     private static boolean retryBlock = false;
+    
+    /** Rebuild block index */
+    private static boolean rebuildIndex = false;
 
     /** Bypass block verification */
     private static boolean verifyBlocks = true;
@@ -350,9 +358,18 @@ public class Main {
                 }
             }
             //
+            // Rebuild the block index and then continue to load the block chain
+            //
+            if (rebuildIndex) {
+                blockStore = new BlockStoreLdb(dataPath, true);
+                blockStore.rebuildIndex(blockChainPath);
+                blockStore.close();
+                loadBlockChain = true;
+            }
+            //
             // Create the block store
             //
-            blockStore = new BlockStoreLdb(dataPath);
+            blockStore = new BlockStoreLdb(dataPath, false);
             Parameters.blockStore = blockStore;
             //
             // Create the block chain
@@ -659,6 +676,7 @@ public class Main {
         // TEST indicates we should use the test network
         // LOAD indicates we should load the block chain from the reference client data directory
         // RETRY indicates we should retry a block that is currently held
+        // INDEX indicates we should rebuild the block index
         //
         if (args[0].equalsIgnoreCase("LOAD")) {
             loadBlockChain = true;
@@ -699,6 +717,30 @@ public class Main {
                 throw new IllegalArgumentException("Specify PROD or TEST after the RETRY option");
             }
             retryHash = new Sha256Hash(args[2]);
+            if (args.length > 3)
+                throw new IllegalArgumentException("Unrecognized command line parameter");
+            return;
+        }
+        if (args[0].equalsIgnoreCase("INDEX")) {
+            rebuildIndex = true;
+            if (args.length < 2)
+                throw new IllegalArgumentException("Specify PROD or TEST with the INDEX option");
+            if (args[1].equalsIgnoreCase("TEST")) {
+                testNetwork = true;
+            } else if (!args[1].equalsIgnoreCase("PROD")) {
+                throw new IllegalArgumentException("Specify PROD or TEST after the INDEX option");
+            }
+            if (args.length > 2) {
+                blockChainPath = args[2];
+            } else if (osName.startsWith("win")) {
+                blockChainPath = userHome+"\\AppData\\Roaming\\Bitcoin";
+            } else if (osName.startsWith("linux")) {
+                blockChainPath = userHome+"/.bitcoin";
+            } else if (osName.startsWith("mac os")) {
+                blockChainPath = userHome+"/Library/Application Support/Bitcoin";
+            } else {
+                blockChainPath = userHome+"/Bitcoin";
+            }
             if (args.length > 3)
                 throw new IllegalArgumentException("Unrecognized command line parameter");
             return;

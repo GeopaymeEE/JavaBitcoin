@@ -28,6 +28,7 @@ import org.fusesource.leveldbjni.internal.JniDB;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 
 import java.math.BigInteger;
@@ -93,9 +94,10 @@ public class BlockStoreLdb extends BlockStore {
      * Creates a new LevelDB block store
      *
      * @param       dataPath            Application data path
+     * @param       rebuild             TRUE to rebuild the block index
      * @throws      BlockStoreException Unable to open database
      */
-    public BlockStoreLdb(String dataPath) throws BlockStoreException {
+    public BlockStoreLdb(String dataPath, boolean rebuild) throws BlockStoreException {
         super(dataPath);
         Options options = new Options();
         options.createIfMissing(true);
@@ -148,6 +150,12 @@ public class BlockStoreLdb extends BlockStore {
             options.maxOpenFiles(16);
             File fileAlert = new File(dbPath+"AlertDB");
             dbAlert = JniDBFactory.factory.open(fileAlert, options);
+            //
+            // Stop now if we are rebuilding the block index (in which case we will
+            // not be starting the normal node server)
+            //
+            if (rebuild)
+                return;
             //
             // Get the initial values from the database
             //
@@ -1605,6 +1613,15 @@ public class BlockStoreLdb extends BlockStore {
         public int getFileNumber() {
             return fileNumber;
         }
+        
+        /**
+         * Sets the block file number
+         * 
+         * @param       fileNumber      The new block file number
+         */
+        public void setFileNumber(int fileNumber) {
+            this.fileNumber = fileNumber;
+        }
 
         /**
          * Returns the block file offset
@@ -1613,6 +1630,15 @@ public class BlockStoreLdb extends BlockStore {
          */
         public int getFileOffset() {
             return fileOffset;
+        }
+        
+        /**
+         * Sets the block file offset
+         * 
+         * @param       fileOffset      The new block file offset
+         */
+        public void setFileOffset(int fileOffset) {
+            this.fileOffset = fileOffset;
         }
     }
 
@@ -2039,6 +2065,142 @@ public class BlockStoreLdb extends BlockStore {
          */
         public void setCancel(boolean isCanceled) {
             this.isCanceled = isCanceled;
+        }
+    }
+    
+    /**
+     * Rebuilds the block file entries when an existing database is used with a new Blocks directory.
+     * 
+     * @param       blockChainPath          Block chain path
+     * @throws      BlockStoreException     Unable to rebuild the block index
+     */
+    @Override
+    public void rebuildIndex(String blockChainPath) throws BlockStoreException {
+        log.info(String.format("Building block chain index from '%s'", blockChainPath));
+        try {
+            Entry<byte[], byte[]> dbEntry;
+            byte[] entryData;
+            BlockEntry blockEntry;
+            //
+            // Ensure that our Blocks directory is empty
+            //
+            File blocksDir = new File(String.format("%s%sBlocks", dataPath, Main.fileSeparator));
+            String[] dirFiles = blocksDir.list();
+            if (dirFiles.length != 0) {
+                log.error("The Blocks directory is not empty");
+                throw new BlockStoreException("The Blocks directory is not empty");
+            }
+            //
+            // Mark existing block entries as invalid
+            //
+            try (DBIterator it = dbBlocks.iterator()) {
+                it.seekToFirst();
+                while (it.hasNext()) {
+                    dbEntry = it.next();
+                    blockEntry = new BlockEntry(dbEntry.getValue());
+                    blockEntry.setFileNumber(-1);
+                    blockEntry.setFileOffset(0);
+                    dbBlocks.put(dbEntry.getKey(), blockEntry.getBytes());
+                }
+            }
+            //
+            // Build the list of block files
+            //
+            List<File> fileList = new ArrayList<>(150);
+            for (int i=0; true; i++) {
+                File file = new File(String.format("%s%sblocks%sblk%05d.dat",
+                                                   blockChainPath, Main.fileSeparator, Main.fileSeparator, i));
+                if (!file.exists())
+                    break;
+                fileList.add(file);
+            }
+            //
+            // Read the blocks in each file and update the block index
+            //
+            // The blocks in the file are separated by 4 bytes containing the network-specific packet magic
+            // value.  The next 4 bytes contain the block length in little-endian format.
+            //
+            byte[] numBuffer = new byte[8];
+            byte[] blockBuffer = new byte[Parameters.MAX_BLOCK_SIZE];
+            for (File inFile : fileList) {
+                String fileName = inFile.getName();
+                log.info(String.format("Processing block data file %s", fileName));
+                try (FileInputStream in = new FileInputStream(inFile)) {
+                    while (true) {
+                        //
+                        // Get the magic number and the block length from the input stream.
+                        // Stop when we reach the end of the file or the magic number is zero.
+                        //
+                        int count = in.read(numBuffer);
+                        if (count < 8)
+                            break;
+                        long magic = Utils.readUint32LE(numBuffer, 0);
+                        long length = Utils.readUint32LE(numBuffer, 4);
+                        if (magic == 0)
+                            break;
+                        if (magic != Parameters.MAGIC_NUMBER) {
+                            log.error(String.format("Block magic number %X is incorrect", magic));
+                            throw new IOException("Incorrect block file format");
+                        }
+                        if (length > blockBuffer.length) {
+                            log.error(String.format("Block length %d exceeds maximum block size", length));
+                            throw new IOException("Incorrect block file format");
+                        }
+                        //
+                        // Read the block from the input stream
+                        //
+                        count = in.read(blockBuffer, 0, (int)length);
+                        if (count != (int)length) {
+                            log.error(String.format("Block truncated: Needed %d bytes, Read %d bytes",
+                                      (int)length, count));
+                            throw new IOException("Incorrect block file format");
+                        }
+                        //
+                        // Create a new block
+                        //
+                        Block block = new Block(blockBuffer, 0, count, false);
+                        Sha256Hash blockHash = block.getHash();
+                        //
+                        // Update the block entry in the Blocks database.  We will ignore
+                        // blocks that are not in the database since they represent either
+                        // orphan blocks or blocks we haven't reached yet in the block chain.
+                        //
+                        entryData = dbBlocks.get(blockHash.getBytes());
+                        if (entryData != null) {
+                            blockEntry = new BlockEntry(entryData);
+                            int[] fileLocation = storeBlock(block);
+                            blockEntry.setFileNumber(fileLocation[0]);
+                            blockEntry.setFileOffset(fileLocation[1]);
+                            dbBlocks.put(blockHash.getBytes(), blockEntry.getBytes());
+                        }
+                    }
+                }
+            }
+            //
+            // Remove unused block entries and check for missing chain entries
+            //
+            List<Sha256Hash> purgeList = new ArrayList<>(100);
+            try (DBIterator it = dbBlocks.iterator()) {
+                it.seekToFirst();
+                while (it.hasNext()) {
+                    dbEntry = it.next();
+                    Sha256Hash blockHash = new Sha256Hash(dbEntry.getKey());
+                    blockEntry = new BlockEntry(dbEntry.getValue());
+                    if (blockEntry.getFileNumber() < 0) {
+                        if (blockEntry.isOnChain()) {
+                            log.error(String.format("Chain block not found\n  Block %s",
+                                                    blockHash.toString()));
+                            throw new BlockStoreException("Chain block not found");
+                        }
+                        purgeList.add(blockHash);
+                    }
+                }
+            }
+            for (Sha256Hash purgeHash : purgeList)
+                dbBlocks.delete(purgeHash.getBytes());
+        } catch (DBException | IOException | VerificationException exc) {
+            log.error("Unable to rebuild block index", exc);
+            throw new BlockStoreException("Unable to rebuild block index");
         }
     }
 }

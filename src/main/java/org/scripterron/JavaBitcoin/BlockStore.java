@@ -399,6 +399,14 @@ public abstract class BlockStore {
                                             throws BlockStoreException, VerificationException;
 
     /**
+     * Rebuilds the block file entries when an existing database is used with a new Blocks directory.
+     * 
+     * @param       blockChainPath          Block chain path
+     * @throws      BlockStoreException     Unable to rebuild the block index
+     */
+    public abstract void rebuildIndex(String blockChainPath) throws BlockStoreException;
+    
+    /**
      * Returns a block that was stored in one of the block files
      *
      * @param       fileNumber          The block file number
