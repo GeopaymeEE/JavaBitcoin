@@ -358,13 +358,15 @@ public class BlockChain {
                     TransactionInput input = tx.getInputs().get(0);
                     byte[] scriptBytes = input.getScriptBytes();
                     if (scriptBytes.length < 1) {
-                        log.error("Coinbase input script is not valid");
+                        log.error(String.format("Coinbase input script is not valid\n  Tx %s",
+                                                tx.getHash().toString()));
                         txValid = false;
                         break;
                     }
                     int length = (int)scriptBytes[0]&0xff;
                     if (length+1 > scriptBytes.length) {
-                        log.error("Coinbase script is too short");
+                        log.error(String.format("Coinbase script is too short\n  Tx %s",
+                                                tx.getHash().toString()));
                         txValid = false;
                         break;
                     }
@@ -372,8 +374,8 @@ public class BlockChain {
                     for (int i=1; i<length; i++)
                         chainHeight = chainHeight | (((int)scriptBytes[i+1]&0xff)<<(i*8));
                     if (chainHeight != storedBlock.getHeight()) {
-                        log.error(String.format("Coinbase height %d does not match block height %d",
-                                                chainHeight, storedBlock.getHeight()));
+                        log.error(String.format("Coinbase height %d does not match block height %d\n  Tx %s",
+                                                chainHeight, storedBlock.getHeight()), tx.getHash().toString());
                         Main.dumpData("Coinbase Script", scriptBytes);
                         txValid = false;
                         break;
@@ -495,7 +497,7 @@ public class BlockChain {
                 for (TransactionOutput output : outputs)
                     txAmount = txAmount.subtract(output.getValue());
                 if (txAmount.compareTo(BigInteger.ZERO) < 0) {
-                    log.error(String.format("Transaction inputs less than transaction outputs\n  %s",
+                    log.error(String.format("Transaction inputs less than transaction outputs\n  Tx %s",
                                             tx.getHash().toString()));
                     txValid = false;
                 } else {
@@ -521,7 +523,7 @@ public class BlockChain {
             for (TransactionOutput output : outputs)
                 txAmount = txAmount.subtract(output.getValue());
             if (txAmount.compareTo(BigInteger.ZERO) < 0) {
-                log.error(String.format("Coinbase transaction outputs exceed block reward plus fees\n %s",
+                log.error(String.format("Coinbase transaction outputs exceed block reward plus fees\n Block %s",
                                         block.getHashAsString()));
                 txValid = false;
             }

@@ -24,7 +24,9 @@ import java.io.IOException;
 
 import java.math.BigInteger;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 
@@ -56,6 +58,7 @@ public class ScriptParser {
         boolean pay2ScriptHash = false;
         List<byte[]> scriptStack = new ArrayList<>(5);
         List<StackElement> elemStack = new ArrayList<>(25);
+        List<StackElement> altStack = new ArrayList<>(5);
         byte[] inputScriptBytes = txInput.getScriptBytes();
         if (inputScriptBytes.length != 0)
             scriptStack.add(inputScriptBytes);
@@ -110,7 +113,7 @@ public class ScriptParser {
         try {
             boolean p2sh = pay2ScriptHash;
             while (txValid && !scriptStack.isEmpty()) {
-                txValid = processScript(txInput, scriptStack, elemStack, p2sh);
+                txValid = processScript(txInput, scriptStack, elemStack, altStack, p2sh);
                 scriptStack.remove(0);
                 if (pay2ScriptHash && !scriptStack.isEmpty()) {
                     byte[] scriptBytes = scriptStack.get(0);
@@ -122,7 +125,11 @@ public class ScriptParser {
             }
         } catch (Throwable exc) {
             log.error(String.format("%s\n  Tx %s", exc.getMessage(), tx.getHash().toString()));
-            Main.dumpData("Failing Script", scriptStack.get(0));
+            Main.dumpData("Current Script Segment", scriptStack.get(0));
+            if (inputScriptBytes.length != 0)
+                Main.dumpData("Input Script", inputScriptBytes);
+            if (outputScriptBytes.length != 0)
+                Main.dumpData("Output Script", outputScriptBytes);
             throw new ScriptException(exc.getMessage());
         }
         //
@@ -136,7 +143,6 @@ public class ScriptParser {
                 txValid = popStack(elemStack).isTrue();
             }
         }
-        
         return txValid;
     }
     
@@ -146,6 +152,7 @@ public class ScriptParser {
      * @param       txInput             The current transaction input
      * @param       scriptStack         Script stack
      * @param       elemStack           Element stack
+     * @param       altStack            Alternate stack
      * @param       p2sh                TRUE if this is a pay-to-script-hash
      * @return                          Script result
      * @throws      EOFException        End-of-data processing script
@@ -153,25 +160,54 @@ public class ScriptParser {
      * @throws      ScriptException     Unable to process script
      */
     private static boolean processScript(TransactionInput txInput, List<byte[]> scriptStack, 
-                                        List<StackElement> elemStack, boolean p2sh) 
-                                        throws EOFException, IOException, ScriptException {
+                                        List<StackElement> elemStack, List<StackElement> altStack,
+                                        boolean p2sh) throws EOFException, IOException, ScriptException {
         boolean txValid = true;
         byte[] scriptBytes = scriptStack.get(0);
         int offset = 0;
         int lastSeparator = 0;
+        Deque<Boolean> ifStack = new ArrayDeque<>();
         //
         // Process the script opcodes
         //
         while (txValid && offset<scriptBytes.length) {
-            StackElement elem, elem1, elem2;
+            StackElement elem, elem1, elem2, elem3, elem4;
+            BigInteger big1, big2, big3;
             byte[] bytes;
-            int dataToRead = -1;
+            int dataToRead, size, index;
             int opcode = (int)scriptBytes[offset++]&0xff;
-            if (opcode <= ScriptOpCodes.OP_PUSHDATA4) {
+            if (opcode == ScriptOpCodes.OP_IF) {
+                // IF clause processed if top stack element is true
+                ifStack.push(popStack(elemStack).isTrue());
+            } else if (opcode == ScriptOpCodes.OP_NOTIF) {
+                // IF clause process if top stack element is false
+                ifStack.push(!popStack(elemStack).isTrue());
+            } else if (opcode == ScriptOpCodes.OP_ENDIF) {
+                // IF processing completed
+                if (ifStack.isEmpty())
+                    throw new ScriptException("OP_ENDIF without matching OP_IF");
+                ifStack.pop();
+            } else if (opcode == ScriptOpCodes.OP_ELSE) {
+                if (ifStack.isEmpty())
+                    throw new ScriptException("OP_ELSE without matching OP_IF");
+                boolean skipping = ifStack.pop();
+                ifStack.push(!skipping);
+            } else if (opcode <= ScriptOpCodes.OP_PUSHDATA4) {
                 // Data push opcodes
                 int[] result = Script.getDataLength(opcode, scriptBytes, offset);
                 dataToRead = result[0];
                 offset = result[1];
+                if (offset+dataToRead > scriptBytes.length)
+                    throw new EOFException("End-of-data while processing script");
+                if (ifStack.isEmpty() || ifStack.peek()) {
+                    bytes = new byte[dataToRead];
+                    if (dataToRead > 0)
+                        System.arraycopy(scriptBytes, offset, bytes, 0, dataToRead);
+                    elemStack.add(new StackElement(bytes));
+                }
+                offset += dataToRead;
+            } else if (!ifStack.isEmpty() && !ifStack.peek()) {
+                // We are skipping, so don't execute opcodes
             } else if (opcode >= ScriptOpCodes.OP_1 && opcode <= ScriptOpCodes.OP_16) {
                 // Push 1 to 16 onto the stack based on the opcode (0x51-0x60)
                 bytes = new byte[1];
@@ -196,11 +232,79 @@ public class ScriptParser {
                         break;
                     case ScriptOpCodes.OP_1NEGATE:
                         // Push -1 onto the stack
-                        elemStack.add(new StackElement(new byte[]{(byte)255}));
+                        elemStack.add(new StackElement(BigInteger.ONE.negate()));
                         break;
                     case ScriptOpCodes.OP_NOT:
                         // Reverse the top stack element (TRUE->FALSE, FALSE->TRUE)
                         elemStack.add(new StackElement(!popStack(elemStack).isTrue()));
+                        break;
+                    case ScriptOpCodes.OP_0NOTEQUAL:
+                        // Returns 0 if the input is 0, otherwise returns 1
+                        elemStack.add(new StackElement(popStack(elemStack).isTrue()));
+                        break;
+                    case ScriptOpCodes.OP_GREATERTHAN:
+                        // Returns 1 if element A is greater than element B
+                        big1 = popStack(elemStack).getBigInteger();     // B
+                        big2 = popStack(elemStack).getBigInteger();     // A
+                        elemStack.add(new StackElement(big2.compareTo(big1)>0));
+                        break;
+                    case ScriptOpCodes.OP_LESSTHAN:
+                        // Returns 1 if element A is less than element B
+                        big1 = popStack(elemStack).getBigInteger();     // B
+                        big2 = popStack(elemStack).getBigInteger();     // A
+                        elemStack.add(new StackElement(big2.compareTo(big1)<0));
+                        break;
+                    case ScriptOpCodes.OP_GREATERTHANOREQUAL:
+                        // Returns 1 if element A is greater than or equal to element B
+                        big1 = popStack(elemStack).getBigInteger();     // B
+                        big2 = popStack(elemStack).getBigInteger();     // A
+                        elemStack.add(new StackElement(big2.compareTo(big1)>=0));
+                        break;
+                    case ScriptOpCodes.OP_LESSTHANOREQUAL:
+                        // Returns 1 if element A is less than or equal to element B
+                        big1 = popStack(elemStack).getBigInteger();     // B
+                        big2 = popStack(elemStack).getBigInteger();     // A
+                        elemStack.add(new StackElement(big2.compareTo(big1)<=0));
+                        break;
+                    case ScriptOpCodes.OP_ADD:
+                        // Add the top stack elements
+                        big1 = popStack(elemStack).getBigInteger();
+                        big2 = popStack(elemStack).getBigInteger();
+                        elemStack.add(new StackElement(big2.add(big1)));
+                        break;
+                    case ScriptOpCodes.OP_1ADD:
+                        // Add one to the top stack element
+                        elemStack.add(new StackElement(popStack(elemStack).getBigInteger().add(BigInteger.ONE)));
+                        break;
+                    case ScriptOpCodes.OP_SUB:
+                        // Subtract the top stack elements
+                        big1 = popStack(elemStack).getBigInteger();
+                        big2 = popStack(elemStack).getBigInteger();
+                        elemStack.add(new StackElement(big2.subtract(big1)));
+                        break;
+                    case ScriptOpCodes.OP_1SUB:
+                        // Subtract one from the top stack element
+                        elemStack.add(new StackElement(popStack(elemStack).getBigInteger().subtract(BigInteger.ONE)));
+                        break;
+                    case ScriptOpCodes.OP_MUL:
+                        // Multiply the top stack elements
+                        big1 = popStack(elemStack).getBigInteger();
+                        big2 = popStack(elemStack).getBigInteger();
+                        elemStack.add(new StackElement(big2.multiply(big1)));
+                        break;
+                    case ScriptOpCodes.OP_DIV:
+                        // Divide the top stack elements
+                        big1 = popStack(elemStack).getBigInteger();
+                        big2 = popStack(elemStack).getBigInteger();
+                        elemStack.add(new StackElement(big2.divide(big1)));
+                        break;
+                    case ScriptOpCodes.OP_NEGATE:
+                        // Reverse the sign of the top stack element
+                        elemStack.add(new StackElement(popStack(elemStack).getBigInteger().negate()));
+                        break;
+                    case ScriptOpCodes.OP_ABS:
+                        // Get the absolute value of the top stack element
+                        elemStack.add(new StackElement(popStack(elemStack).getBigInteger().abs()));
                         break;
                     case ScriptOpCodes.OP_MIN:
                         // Compare top 2 stack elements and replace with the smaller
@@ -214,13 +318,139 @@ public class ScriptParser {
                         elem2 = popStack(elemStack);
                         elemStack.add(elem1.compareTo(elem2)>=0 ? elem1 : elem2);
                         break;
+                    case ScriptOpCodes.OP_WITHIN:
+                        // Return TRUE if the value is within the min/max values
+                        big1 = popStack(elemStack).getBigInteger();         // MAX
+                        big2 = popStack(elemStack).getBigInteger();         // MIN
+                        big3 = popStack(elemStack).getBigInteger();         // VALUE
+                        elemStack.add(new StackElement(big3.compareTo(big2)>=0 && big3.compareTo(big1)<0));
+                        break;
+                    case ScriptOpCodes.OP_NUMEQUAL:
+                    case ScriptOpCodes.OP_NUMEQUALVERIFY:
+                        // Compare the two top stack elements and return TRUE if they are equal
+                        big1 = popStack(elemStack).getBigInteger();
+                        big2 = popStack(elemStack).getBigInteger();
+                        elemStack.add(new StackElement(big1.compareTo(big2)==0));
+                        if (opcode == ScriptOpCodes.OP_NUMEQUALVERIFY)
+                            txValid = processVerify(elemStack);
+                        break;
+                    case ScriptOpCodes.OP_NUMNOTEQUAL:
+                        // Compare the two top stack elements and return TRUE if they are not equal
+                        big1 = popStack(elemStack).getBigInteger();
+                        big2 = popStack(elemStack).getBigInteger();
+                        elemStack.add(new StackElement(big1.compareTo(big2)!=0));
+                        break;
+                    case ScriptOpCodes.OP_BOOLOR:
+                        // Result is TRUE if two top elements are TRUE
+                        elem1 = popStack(elemStack);
+                        elem2 = popStack(elemStack);
+                        elemStack.add(new StackElement(elem1.isTrue() && elem2.isTrue()));
+                        break;
+                    case ScriptOpCodes.OP_BOOLAND:
+                        // Result is TRUE if at least one of the two top elements is TRUE
+                        elem1 = popStack(elemStack);
+                        elem2 = popStack(elemStack);
+                        elemStack.add(new StackElement(elem1.isTrue() || elem2.isTrue()));
+                        break;
+                    case ScriptOpCodes.OP_TOALTSTACK:
+                        // Move from main stack to alternate stack
+                        altStack.add(popStack(elemStack));
+                        break;
+                    case ScriptOpCodes.OP_FROMALTSTACK:
+                        // Move from alternate stack to main stack
+                        elemStack.add(popStack(altStack));
+                        break;
                     case ScriptOpCodes.OP_DROP:
-                        // Pop the stack
+                        // Remove the top stack element
                         popStack(elemStack);
+                        break;
+                    case ScriptOpCodes.OP_2DROP:
+                        // Remove the top two stack elements
+                        popStack(elemStack);
+                        popStack(elemStack);
+                        break;
+                    case ScriptOpCodes.OP_NIP:
+                        // Remove the second-from-top stack element
+                        size = elemStack.size();
+                        if (size < 2)
+                            throw new ScriptException("Stack underrun on OP_NIP");
+                        elemStack.remove(size-2);
+                        break;
+                    case ScriptOpCodes.OP_OVER:
+                        // Copy the second-from-top stack element to the top of the stack
+                        size = elemStack.size();
+                        if (size<2)
+                            throw new ScriptException("Stack underrun on OP_OVER");
+                        elemStack.add(elemStack.get(size-2));
+                        break;
+                    case ScriptOpCodes.OP_2OVER:
+                        // Copy the pair of elements behind the top pair to the top of the stack
+                        size = elemStack.size();
+                        if (size < 4)
+                            throw new ScriptException("Stack underrun on OP_2OVER");
+                        elem1 = elemStack.get(size-4);
+                        elem2 = elemStack.get(size-3);
+                        elemStack.add(elem1);
+                        elemStack.add(elem2);
+                        break;
+                    case ScriptOpCodes.OP_PICK:
+                        // Copy the nth-from-top stack element to the top of the stack
+                        index = popStack(elemStack).getBigInteger().intValue();
+                        size = elemStack.size();
+                        if (index >= size)
+                            throw new ScriptException("Stack underrun on OP_PICK");
+                        elemStack.add(elemStack.get(size-index-1));
+                        break;
+                    case ScriptOpCodes.OP_ROLL:
+                        // Move the nth-from-top stack element to the top of the stack
+                        index = popStack(elemStack).getBigInteger().intValue();
+                        size = elemStack.size();
+                        if (index >= size)
+                            throw new ScriptException("Stack underrun on OP_ROLL");
+                        elemStack.add(elemStack.remove(size-index-1));
+                        break;
+                    case ScriptOpCodes.OP_ROT:
+                        // Rotate the top three stack elements
+                        size = elemStack.size();
+                        if (size < 3)
+                            throw new ScriptException("Stack underrun on OP_ROT");
+                        elemStack.add(elemStack.remove(size-3));
+                        break;
+                    case ScriptOpCodes.OP_2ROT:
+                        // Rotate the top three pairs of stack elements
+                        size = elemStack.size();
+                        if (size < 6)
+                            throw new ScriptException("Stack overrun on OP2ROT");
+                        elemStack.add(elemStack.remove(size-6));
+                        elemStack.add(elemStack.remove(size-6));
+                        break;
+                    case ScriptOpCodes.OP_TUCK:
+                        // Copy the top stack element before the second-from-top element
+                        size = elemStack.size();
+                        if (size < 2)
+                            throw new ScriptException("Stack underrun on OP_TUCK");
+                        elemStack.add(size-2, elemStack.get(size-1));
                         break;
                     case ScriptOpCodes.OP_DUP:
                         // Duplicate the top stack element
                         elemStack.add(new StackElement(peekStack(elemStack)));
+                        break;
+                    case ScriptOpCodes.OP_2DUP:
+                        // Duplicate the top two stack elements
+                        size = elemStack.size();
+                        if (size < 2)
+                            throw new ScriptException("Stack underron on OP_2DUP");
+                        elemStack.add(elemStack.get(size-2));
+                        elemStack.add(elemStack.get(size-1));
+                        break;
+                    case ScriptOpCodes.OP_3DUP:
+                        // Duplicate the top three stack elements
+                        size = elemStack.size();
+                        if (size < 3)
+                            throw new ScriptException("Stack underron on OP_3DUP");
+                        elemStack.add(elemStack.get(size-3));
+                        elemStack.add(elemStack.get(size-2));
+                        elemStack.add(elemStack.get(size-1));
                         break;
                     case ScriptOpCodes.OP_IFDUP:
                         // Duplicate top stack element if it is not zero
@@ -228,9 +458,31 @@ public class ScriptParser {
                         if (elem.isTrue())
                             elemStack.add(new StackElement(elem));
                         break;
+                    case ScriptOpCodes.OP_SWAP:
+                        // Swap the top two elements
+                        elem1 = popStack(elemStack);
+                        elem2 = popStack(elemStack);
+                        elemStack.add(elem1);
+                        elemStack.add(elem2);
+                        break;
+                    case ScriptOpCodes.OP_2SWAP:
+                        // Swap the top two pairs of elements
+                        elem1 = popStack(elemStack);
+                        elem2 = popStack(elemStack);
+                        elem3 = popStack(elemStack);
+                        elem4 = popStack(elemStack);
+                        elemStack.add(elem2);
+                        elemStack.add(elem1);
+                        elemStack.add(elem4);
+                        elemStack.add(elem3);
+                        break;
                     case ScriptOpCodes.OP_DEPTH:
                         // Push the stack depth
                         elemStack.add(new StackElement(BigInteger.valueOf(elemStack.size())));
+                        break;
+                    case ScriptOpCodes.OP_SIZE:
+                        // Push the size of the top stack element
+                        elemStack.add(new StackElement(BigInteger.valueOf(peekStack(elemStack).getBytes().length)));
                         break;
                     case ScriptOpCodes.OP_VERIFY:
                         // Verify the top stack element
@@ -294,23 +546,41 @@ public class ScriptParser {
                         if (opcode == ScriptOpCodes.OP_CHECKMULTISIGVERIFY)
                             txValid = processVerify(elemStack);
                         break;
+                    case ScriptOpCodes.OP_CAT:
+                    case ScriptOpCodes.OP_SUBSTR:
+                    case ScriptOpCodes.OP_LEFT:
+                    case ScriptOpCodes.OP_RIGHT:
+                    case ScriptOpCodes.OP_INVERT:
+                    case ScriptOpCodes.OP_AND:
+                    case ScriptOpCodes.OP_OR:
+                    case ScriptOpCodes.OP_XOR:
+                    case ScriptOpCodes.OP_2MUL:
+                    case ScriptOpCodes.OP_2DIV:
+                    case ScriptOpCodes.OP_MOD:
+                    case ScriptOpCodes.OP_LSHIFT:
+                    case ScriptOpCodes.OP_RSHIFT:
+                        // Disabled opcode
+                        log.error(String.format("Disabled script opcode %s (%d)",
+                                        ScriptOpCodes.getOpCodeName(opcode), opcode));
+                        throw new ScriptException("Disabled script opcode");
+                    case ScriptOpCodes.OP_RESERVED:
+                    case ScriptOpCodes.OP_RESERVED1:
+                    case ScriptOpCodes.OP_RESERVED2:
+                    case ScriptOpCodes.OP_VER:
+                    case ScriptOpCodes.OP_VERIF:
+                    case ScriptOpCodes.OP_VERNOTIF:
+                        // Reserved opcodes allowed only when skipping
+                        if (ifStack.isEmpty() || ifStack.peek()) {
+                            log.error(String.format("Reserved script opcode %s (%d)",
+                                                    ScriptOpCodes.getOpCodeName(opcode), opcode));
+                            throw new ScriptException("Reserved script opcode");
+                        }
+                        break;
                     default:
                         log.error(String.format("Unsupported script opcode %s(%d)",
-                                        ScriptOpCodes.getOpCodeName((byte)opcode), opcode));
+                                        ScriptOpCodes.getOpCodeName(opcode), opcode));
                         throw new ScriptException("Unsupported script opcode");
                 }
-            }
-            //
-            // Create a stack element for a data push operation and add it to the stack
-            //
-            if (dataToRead >= 0) {
-                if (offset+dataToRead > scriptBytes.length)
-                    throw new EOFException("End-of-data while processing script");
-                bytes = new byte[dataToRead];
-                if (dataToRead > 0)
-                    System.arraycopy(scriptBytes, offset, bytes, 0, dataToRead);
-                offset += dataToRead;
-                elemStack.add(new StackElement(bytes));
             }
         }
         return txValid;

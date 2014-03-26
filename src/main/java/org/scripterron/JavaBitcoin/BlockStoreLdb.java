@@ -173,7 +173,7 @@ public class BlockStoreLdb extends BlockStore {
                     //
                     entryData = dbBlocks.get(chainHead.getBytes());
                     if (entryData == null) {
-                        log.error(String.format("Chain head block not found in Blocks database\n  %s",
+                        log.error(String.format("Chain head block not found in Blocks database\n  Block %s",
                                                 chainHead.toString()));
                         throw new BlockStoreException("Chain head block not found in Blocks database",
                                                       chainHead);
@@ -387,7 +387,7 @@ public class BlockStoreLdb extends BlockStore {
         try {
             newBlock = (dbBlocks.get(blockHash.getBytes()) == null);
         } catch (DBException exc) {
-            log.error(String.format("Unable to check block status\n  %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to check block status\n  Block %s", blockHash.toString()), exc);
             throw new BlockStoreException("Unable to check block status", blockHash);
         }
         return newBlock;
@@ -411,7 +411,7 @@ public class BlockStoreLdb extends BlockStore {
                     onChain = true;
             }
         } catch (DBException | EOFException exc) {
-            log.error(String.format("Unable to check block status\n  %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to check block status\n  Block %s", blockHash.toString()), exc);
             throw new BlockStoreException("Unable to check block status", blockHash);
         }
         return onChain;
@@ -438,7 +438,7 @@ public class BlockStoreLdb extends BlockStore {
                 block = getBlock(fileNumber, fileOffset);
             }
         } catch (DBException | EOFException exc) {
-            log.error(String.format("Unable to get block from database\n  %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to get block from database\n  Block %s", blockHash.toString()), exc);
             throw new BlockStoreException("Unable to get block from database", blockHash);
         }
         return block;
@@ -469,7 +469,7 @@ public class BlockStoreLdb extends BlockStore {
                 storedBlock = new StoredBlock(block, blockWork, blockHeight, onChain, onHold);
             }
         } catch (DBException | EOFException exc) {
-            log.error(String.format("Unable to get block from database\n  %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to get block from database\n  Block %s", blockHash.toString()), exc);
             throw new BlockStoreException("Unable to get block from database", blockHash);
         }
         return storedBlock;
@@ -490,7 +490,7 @@ public class BlockStoreLdb extends BlockStore {
             if (childData != null)
                 childStoredBlock = getStoredBlock(new Sha256Hash(childData));
         } catch (DBException exc) {
-            log.error(String.format("Unable to get child block\n  %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to get child block\n  Block %s", blockHash.toString()), exc);
             throw new BlockStoreException("Unable to get child block");
         }
         return childStoredBlock;
@@ -573,7 +573,7 @@ public class BlockStoreLdb extends BlockStore {
                 }
             }
         } catch (DBException | IOException exc) {
-            log.error(String.format("Unable to check transaction status\n  %s",
+            log.error(String.format("Unable to check transaction status\n  Tx %s",
                                     txHash.toString()), exc);
             throw new BlockStoreException("Unable to check transaction status");
         }
@@ -611,7 +611,7 @@ public class BlockStoreLdb extends BlockStore {
                     }
                 }
             } catch (DBException | IOException exc) {
-                log.error(String.format("Unable to get transaction depth\n  %s", txHash), exc);
+                log.error(String.format("Unable to get transaction depth\n  Tx %s", txHash), exc);
                 throw new BlockStoreException("Unable to get transaction depth");
             }
         }
@@ -638,7 +638,7 @@ public class BlockStoreLdb extends BlockStore {
                                           txEntry.getBlockHeight());
             }
         } catch (DBException | EOFException exc) {
-            log.error(String.format("Unable to get transaction output\n  %s : %d",
+            log.error(String.format("Unable to get transaction output\n  Tx %s : %d",
                                     outPoint.getHash().toString(), outPoint.getIndex()), exc);
             throw new BlockStoreException("Unable to get transaction output");
         }
@@ -676,7 +676,7 @@ public class BlockStoreLdb extends BlockStore {
                     }
                 }
             } catch (DBException | IOException exc) {
-                log.error(String.format("Unable to get transaction outputs\n  %s", txHash.toString()), exc);
+                log.error(String.format("Unable to get transaction outputs\n  Tx %s", txHash.toString()), exc);
                 throw new BlockStoreException("Unable to get transaction outputs");
             }
         }
@@ -833,7 +833,7 @@ public class BlockStoreLdb extends BlockStore {
                     dbBlocks.put(blockHash.getBytes(), blockEntry.getBytes());
                 }
             } catch (DBException | EOFException exc) {
-                log.error(String.format("Unable to update block status\n  %s", blockHash.toString()), exc);
+                log.error(String.format("Unable to update block status\n  Block %s", blockHash.toString()), exc);
                 throw new BlockStoreException("Unable to update block status");
             }
         }
@@ -856,7 +856,7 @@ public class BlockStoreLdb extends BlockStore {
                 //
                 byte[] entryData = dbBlocks.get(blockHash.getBytes());
                 if (entryData != null) {
-                    log.error(String.format("Block already exists in the database\n  %s",
+                    log.error(String.format("Block already exists in the database\n  Block %s",
                                              blockHash.toString()));
                     throw new BlockStoreException("Block already exists");
                 }
@@ -879,7 +879,8 @@ public class BlockStoreLdb extends BlockStore {
                 //
                 dbChild.put(block.getPrevBlockHash().getBytes(), blockHash.getBytes());
             } catch (DBException exc) {
-                log.error(String.format("Unable to store block\n  %s", storedBlock.getHash().toString()), exc);
+                log.error(String.format("Unable to store block\n  Block %s", 
+                                        storedBlock.getHash().toString()), exc);
                 throw new BlockStoreException("Unable to store block", storedBlock.getHash());
             }
         }
@@ -1024,7 +1025,8 @@ public class BlockStoreLdb extends BlockStore {
                             }
                             chainList.add(0, chainStoredBlock);
                         } else {
-                            log.warn(String.format("Chain block is not available\n  %s", blockHash.toString()));
+                            log.warn(String.format("Chain block is not available\n  Block %s", 
+                                                   blockHash.toString()));
                             throw new BlockNotFoundException("Unable to resolve block chain", blockHash);
                         }
                     }
@@ -1101,7 +1103,7 @@ public class BlockStoreLdb extends BlockStore {
                         //
                         entryData = dbBlocks.get(blockHash.getBytes());
                         if (entryData == null) {
-                            log.error(String.format("Chain block not found in Blocks database\n  %s",
+                            log.error(String.format("Chain block not found in Blocks database\n  Block %s",
                                                     blockHash.toString()));
                             throw new BlockStoreException("Chain block not found in Blocks database");
                         }
@@ -1166,7 +1168,7 @@ public class BlockStoreLdb extends BlockStore {
                         blockEntry.setChainWork(BigInteger.ZERO);
                         blockEntry.setHeight(0);
                         dbBlocks.put(blockHash.getBytes(), blockEntry.getBytes());
-                        log.info(String.format("Block removed from block chain\n  %s",
+                        log.info(String.format("Block removed from block chain\n  Block %s",
                                                blockHash.toString()));
                         //
                         // Advance to the block before this block
@@ -1240,7 +1242,7 @@ public class BlockStoreLdb extends BlockStore {
                                 if (entryData == null) {
                                     log.warn(String.format(
                                             "Height %d, No mapping found for transaction output\n"+
-                                            "  Transaction %s\n  Connected output %s : %d",
+                                            "  Tx %s\n  Connected output %s : %d",
                                             storedBlock.getHeight(), txHash.toString(),
                                             op.getHash().toString(), op.getIndex()));
                                     continue;
@@ -1257,7 +1259,7 @@ public class BlockStoreLdb extends BlockStore {
                     //
                     entryData = dbBlocks.get(blockHash.getBytes());
                     if (entryData == null) {
-                        log.error(String.format("New chain block not found in Blocks database\n  %s",
+                        log.error(String.format("New chain block not found in Blocks database\n  Block %s",
                                                 blockHash.toString()));
                         throw new BlockStoreException("New chain block not found in Blocks database");
                     }
@@ -1289,7 +1291,7 @@ public class BlockStoreLdb extends BlockStore {
                     //
                     int blockHeight = storedBlock.getHeight();
                     dbBlockChain.put(getIntegerBytes(blockHeight), block.getHash().getBytes());
-                    log.info(String.format("Block added to block chain at height %d\n  %s",
+                    log.info(String.format("Block added to block chain at height %d\n  Block %s",
                                            storedBlock.getHeight(), block.getHashAsString()));
                     //
                     // Update chain head values for the block we just added

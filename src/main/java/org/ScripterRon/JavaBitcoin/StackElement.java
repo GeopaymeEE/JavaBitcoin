@@ -48,13 +48,14 @@ public class StackElement implements Comparable<StackElement> {
     }
     
     /**
-     * Creates a new stack element from a BigInteger
+     * Creates a new stack element from a BigInteger.  Numeric values are stored
+     * on the stack in MPI format with the bytes reversed.
      * 
      * @param       bigInteger      BigInteger
      */
     public StackElement(BigInteger bigInteger) {
-        bytes = Utils.reverseBytes(bigInteger.toByteArray());
-    }
+        bytes = Utils.reverseBytes(Utils.encodeMPI(bigInteger, false));
+     }
     
     /**
      * Creates a new stack element containing TRUE or FALSE
@@ -76,23 +77,13 @@ public class StackElement implements Comparable<StackElement> {
     }
 
     /**
-     * Returns a BigInteger representing the bytes for this stack element
+     * Returns a BigInteger representing the bytes for this stack element.  Numeric
+     * values are stored on the stack in MPI format with the bytes reversed.
      * 
      * @return                      Unsigned BigInteger
      */
     public BigInteger getBigInteger() {
-        BigInteger value;
-        switch (bytes.length) {
-            case 0:
-                value = BigInteger.ZERO;
-                break;
-            case 1:
-                value = new BigInteger(bytes);
-                break;
-            default:
-                value = new BigInteger(Utils.reverseBytes(bytes));
-        }
-        return value;
+        return Utils.decodeMPI(Utils.reverseBytes(bytes), false);
     }
 
     /**

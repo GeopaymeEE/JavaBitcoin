@@ -129,7 +129,7 @@ public class DatabaseHandler implements Runnable {
                 }
             }
         } catch (BlockStoreException exc) {
-            log.error(String.format("Unable to store block in database\n  %s",
+            log.error(String.format("Unable to store block in database\n  Block %s",
                                     block.getHashAsString()), exc);
         }
     }

@@ -301,7 +301,7 @@ public class Utils {
     /**
      * MPI encoded numbers are produced by the OpenSSL BN_bn2mpi function. They consist of
      * a 4 byte big-endian length field, followed by the stated number of bytes representing
-     * the number in big-endian format (with a sign bit).
+     * the number in big-endian format as a positive number with a sign bit.
      *
      * @param       mpi             Encoded byte array
      * @param       hasLength       FALSE if the given array is missing the 4-byte length field
@@ -323,6 +323,50 @@ public class Utils {
             buf[0] &= 0x7f;
         BigInteger result = new BigInteger(buf);
         return isNegative ? result.negate() : result;
+    }
+    
+    /**
+     * MPI encoded numbers are produced by the OpenSSL BN_bn2mpi function. They consist of
+     * a 4 byte big endian length field, followed by the stated number of bytes representing
+     * the number in big endian format as a positive number with a sign bit.
+     * 
+     * @param       value           BigInteger value
+     * @param       includeLength   TRUE to include the 4 byte length field
+     * @return                      Encoded value
+     */
+    public static byte[] encodeMPI(BigInteger value, boolean includeLength) {
+        byte[] bytes;
+        if (value.equals(BigInteger.ZERO)) {
+            if (!includeLength)
+                bytes = new byte[] {};
+            else
+                bytes = new byte[] {0x00, 0x00, 0x00, 0x00};
+        } else {
+            boolean isNegative = value.signum()<0;
+            if (isNegative)
+                value = value.negate();
+            byte[] array = value.toByteArray();
+            int length = array.length;
+            if ((array[0]&0x80) == 0x80)
+                length++;
+            if (includeLength) {
+                bytes = new byte[length+4];
+                System.arraycopy(array, 0, bytes, length-array.length+3, array.length);
+                uint32ToByteArrayBE(length, bytes, 0);
+                if (isNegative)
+                    bytes[4] |= 0x80;
+            } else {
+                if (length != array.length) {
+                    bytes = new byte[length];
+                    System.arraycopy(array, 0, bytes, 1, array.length);
+                } else {
+                    bytes = array;
+                }
+                if (isNegative)
+                    bytes[0] |= 0x80;
+            }
+        }
+        return bytes;
     }
 
     /**
