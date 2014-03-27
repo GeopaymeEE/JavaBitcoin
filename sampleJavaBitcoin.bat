@@ -27,9 +27,9 @@ set Blocks=\Users\user-name\AppData\Roaming\Bitcoin
 REM Directory contain leveldbjni.dll
 set LibPath=\Bitcoin\JavaBitcoin
 REM Jar file to use on the production network
-set ProdJar=\Bitcoin\JavaBitcoin\JavaBitcoin-1.6.jar
+set ProdJar=\Bitcoin\JavaBitcoin\JavaBitcoin-2.0.jar
 REM Jar file to use on the test network
-set TestJar=\GitHub\JavaBitcoin\target\JavaBitcoin-1.6.jar
+set TestJar=\GitHub\JavaBitcoin\target\JavaBitcoin-2.0.jar
 
 if .%1==.test goto runTest
 if .%1==.prod goto runProd

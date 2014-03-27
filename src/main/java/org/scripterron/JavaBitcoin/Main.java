@@ -32,8 +32,10 @@ import java.net.UnknownHostException;
 import java.nio.channels.FileLock;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.logging.LogManager;
+import java.util.Map;
 import java.util.Properties;
 
 import javax.swing.*;
@@ -66,6 +68,11 @@ import javax.swing.*;
  * <tr><td>PROD</td>
  * <td>Start the program using the production network.  Application files are stored in the application data
  * directory and the production database is used.</td></tr>
+ * 
+ * <tr><td>REGRESSION</td>
+ * <td>Run a regression test using the current production network block chain database.  The transaction
+ * signatures will be verified for each block in the chain.  The program will terminate after processing
+ * all of the blocks.</td></tr>
  *
  * <tr><td>RETRY PROD|TEST block-hash</td>
  * <td>Retry a block which is currently held.  Specify PROD to use the production database or TEST to use the
@@ -193,6 +200,9 @@ public class Main {
 
     /** Load block chain */
     private static boolean loadBlockChain = false;
+    
+    /** Regression test */
+    private static boolean regressionTest = false;
 
     /** Retry block */
     private static boolean retryBlock = false;
@@ -385,12 +395,20 @@ public class Main {
                     if (!storedBlock.isOnChain()) {
                         blockChain.updateBlockChain(storedBlock);
                     } else {
-                        log.error(String.format("Block is already on the chain\n  %s",
+                        log.error(String.format("Block is already on the chain\n  Block %s",
                                                 retryHash.toString()));
                     }
                 } else{
-                    log.error(String.format("Block not found\n  %s", retryHash.toString()));
+                    log.error(String.format("Block not found\n  Block %s", retryHash.toString()));
                 }
+                blockStore.close();
+                System.exit(0);
+            }
+            //
+            // Run the regression test
+            //
+            if (regressionTest) {
+                txRegressionTest();
                 blockStore.close();
                 System.exit(0);
             }
@@ -662,6 +680,115 @@ public class Main {
             log.error("Exception during block chain load", exc);
         }
     }
+    
+    /**
+     * Perform the transaction regression test
+     */
+    private static void txRegressionTest() {
+        log.info("Performing transaction regression test");
+        try {
+            Map<Sha256Hash, Sha256Hash> txMap = new HashMap<>(5000);
+            Sha256Hash chainHead = blockStore.getChainHead();
+            Sha256Hash blockHash = Sha256Hash.ZERO_HASH;
+            int blockHeight = 0;
+            while (true) {
+                //
+                // Get the next block list
+                //
+                List<Sha256Hash> chainList = blockStore.getChainList(blockHeight, Sha256Hash.ZERO_HASH);
+                //
+                // Process each block in the list
+                //
+                for (Sha256Hash chainHash : chainList) {
+                    log.info(String.format("Checking %s", chainHash.toString()));
+                    blockHash = chainHash;
+                    blockHeight++;
+                    Block block = blockStore.getBlock(blockHash);
+                    if (block == null) {
+                        log.error(String.format("Chain block not found\n  Block %s", blockHash.toString()));
+                        throw new BlockStoreException("Chain block not found", blockHash);
+                    }
+                    List<Transaction> txList = block.getTransactions();
+                    //
+                    // Process each transaction in the block
+                    //
+                    for (Transaction tx : txList) {
+                        if (tx.isCoinBase())
+                            continue;
+                        Sha256Hash txHash = tx.getHash();
+                        txMap.put(txHash, blockHash);
+                        List<TransactionInput> txInputs = tx.getInputs();
+                        //
+                        // Process each transaction input
+                        //
+                        for (TransactionInput txInput : txInputs) {
+                            OutPoint outPoint = txInput.getOutPoint();
+                            Sha256Hash outTxHash = outPoint.getHash();
+                            int outTxIndex = outPoint.getIndex();
+                            Sha256Hash outBlockHash = txMap.get(outTxHash);
+                            if (outBlockHash == null) {
+                                log.error(String.format("Connected output transaction not found\n"+
+                                                        "  Input Tx: %s\n  Input Index: %d\n"+
+                                                        "  Output Tx: %s\n  Output Index: %d\n",
+                                                        txHash.toString(), txInput.getIndex(),
+                                                        outTxHash.toString(), outTxIndex));
+                                throw new VerificationException("Connected output transaction not found", txHash);
+                            }
+                            Block outBlock = blockStore.getBlock(outBlockHash);
+                            if (outBlock == null) {
+                                log.error(String.format("Connected output block not found\n  Block %s", 
+                                                        outBlockHash.toString()));
+                                throw new BlockStoreException("Connected output block not found", outBlockHash);
+                            }
+                            List<Transaction> outTxList = outBlock.getTransactions();
+                            Transaction outTx = null;
+                            for (Transaction checkTx : outTxList) {
+                                if (checkTx.getHash().equals(outTxHash)) {
+                                    outTx = checkTx;
+                                    break;
+                                }
+                            }
+                            if (outTx == null) {
+                                log.error(String.format("Connected output transaction not found in block\n  Tx %s",
+                                                        outTxHash.toString()));
+                                throw new BlockStoreException("Connected output transaction not found", outTxHash);
+                            }
+                            List<TransactionOutput> txOutputs = outTx.getOutputs();
+                            if (outTxIndex >= txOutputs.size()) {
+                                log.error(String.format("Connected output index %d is invalid\n  Tx", 
+                                                        outTxIndex, txHash.toString()));
+                                throw new VerificationException("Connected output index is invalid", txHash);
+                            }
+                            TransactionOutput txOutput = txOutputs.get(outTxIndex);
+                            StoredOutput output = new StoredOutput(outTxIndex, txOutput.getValue(),
+                                                                   txOutput.getScriptBytes(), outTx.isCoinBase());
+                            boolean isValid = tx.verifyInput(txInput, output);
+                            if (!isValid) {
+                                log.error(String.format("Signature verification failed\n"+
+                                                        "  Input Tx: %s\n  Input Index: %d\n"+
+                                                        "  Output Tx: %s\n  Output Index: %d",
+                                                        txHash.toString(), txInput.getIndex(),
+                                                        outTxHash.toString(), outTxIndex));
+                                throw new VerificationException("Signature verification failed", txHash);
+                            }
+                        }
+                    }
+                }
+                //
+                // Stop if we have processed the chain head
+                //
+                if (blockHash.equals(chainHead))
+                    break;
+            }
+        } catch (BlockStoreException exc) {
+            log.error(String.format("Unable to retrieve data\n  Hash %s", exc.getHash()), exc);
+        } catch (VerificationException exc) {
+            log.error(String.format("Unable to verify transaction\n  Tx %s", exc.getHash()), exc);
+        } catch (Exception exc) {
+            log.error("Exception during transaction regression test", exc);
+        }
+        log.info("Transaction regression test completed");
+    }
 
     /**
      * Parses the command-line arguments
@@ -677,6 +804,7 @@ public class Main {
         // LOAD indicates we should load the block chain from the reference client data directory
         // RETRY indicates we should retry a block that is currently held
         // INDEX indicates we should rebuild the block index
+        // REGRESSION indicate we should run a transaction regression test
         //
         if (args[0].equalsIgnoreCase("LOAD")) {
             loadBlockChain = true;
@@ -742,6 +870,12 @@ public class Main {
                 blockChainPath = userHome+"/Bitcoin";
             }
             if (args.length > 3)
+                throw new IllegalArgumentException("Unrecognized command line parameter");
+            return;
+        }
+        if (args[0].equalsIgnoreCase("REGRESSION")) {
+            regressionTest = true;
+            if (args.length > 1)
                 throw new IllegalArgumentException("Unrecognized command line parameter");
             return;
         }

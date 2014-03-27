@@ -124,7 +124,8 @@ public class ScriptParser {
                 }
             }
         } catch (Throwable exc) {
-            log.error(String.format("%s\n  Tx %s", exc.getMessage(), tx.getHash().toString()));
+            log.error(String.format("%s: %s\n  Tx %s", exc.getClass().getName(),exc.getMessage(), 
+                                    tx.getHash().toString()), exc);
             Main.dumpData("Current Script Segment", scriptStack.get(0));
             if (inputScriptBytes.length != 0)
                 Main.dumpData("Input Script", inputScriptBytes);
@@ -663,6 +664,17 @@ public class ScriptParser {
         //
         StackElement pubKey = popStack(elemStack);
         StackElement sig = popStack(elemStack);
+        //
+        // The reference client returns FALSE for a zero-length signature
+        //
+        if (sig.getBytes().length == 0) {
+            log.warn("Zero-length signature detected for OP_CHECKSIG");
+            elemStack.add(new StackElement(false));
+            return;
+        }
+        //
+        // Check the signature
+        //
         bytes = pubKey.getBytes();
         if (bytes.length == 0) {
             log.warn("Null public key provided");
@@ -783,6 +795,8 @@ public class ScriptParser {
         byte[] sigBytes = sig.getBytes();
         boolean isValid = false;
         byte[] subProgram;
+        if (sigBytes.length < 10)
+            throw new ScriptException("Signature is too short");
         //
         // Remove all occurrences of the signature from the output script and create a new program.
         //
