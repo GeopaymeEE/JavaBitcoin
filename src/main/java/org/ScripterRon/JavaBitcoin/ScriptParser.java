@@ -124,8 +124,8 @@ public class ScriptParser {
                 }
             }
         } catch (Throwable exc) {
-            log.error(String.format("%s: %s\n  Tx %s", exc.getClass().getName(),exc.getMessage(), 
-                                    tx.getHash().toString()), exc);
+            log.error(String.format("%s: %s\n  Tx %s\n  Index %d", exc.getClass().getName(),exc.getMessage(), 
+                                    tx.getHash().toString(), txInput.getIndex()), exc);
             Main.dumpData("Current Script Segment", scriptStack.get(0));
             if (inputScriptBytes.length != 0)
                 Main.dumpData("Input Script", inputScriptBytes);
@@ -143,6 +143,14 @@ public class ScriptParser {
             } else {
                 txValid = popStack(elemStack).isTrue();
             }
+        }
+        if (!txValid) {
+            log.error(String.format("Signature verification failed\n  Tx %s\n  Index %d", 
+                                    tx.getHash().toString(), txInput.getIndex()));
+            if (inputScriptBytes.length != 0)
+                Main.dumpData("Input Script", inputScriptBytes);
+            if (outputScriptBytes.length != 0)
+                Main.dumpData("Output Script", outputScriptBytes);
         }
         return txValid;
     }
@@ -341,13 +349,13 @@ public class ScriptParser {
                         big2 = popStack(elemStack).getBigInteger();
                         elemStack.add(new StackElement(big1.compareTo(big2)!=0));
                         break;
-                    case ScriptOpCodes.OP_BOOLOR:
+                    case ScriptOpCodes.OP_BOOLAND:
                         // Result is TRUE if two top elements are TRUE
                         elem1 = popStack(elemStack);
                         elem2 = popStack(elemStack);
                         elemStack.add(new StackElement(elem1.isTrue() && elem2.isTrue()));
                         break;
-                    case ScriptOpCodes.OP_BOOLAND:
+                    case ScriptOpCodes.OP_BOOLOR:
                         // Result is TRUE if at least one of the two top elements is TRUE
                         elem1 = popStack(elemStack);
                         elem2 = popStack(elemStack);
