@@ -413,18 +413,16 @@ public class Transaction {
         // In all cases, the script for the current input is replaced with the script from the connected
         // output.  All other input scripts are set to an empty script.
         //
-        // The reference client accepts a hash type of 0 and treats it as SIGHASH_ALL.  So we need to
+        // The reference client accepts an invalid hash types and treats it as SIGHASH_ALL.  So we need to
         // do the same.
         //
         anyoneCanPay = ((sigHashType&ScriptOpCodes.SIGHASH_ANYONE_CAN_PAY) != 0);
         hashType = sigHashType&(255-ScriptOpCodes.SIGHASH_ANYONE_CAN_PAY);
-        if (hashType == 0)
-            hashType = ScriptOpCodes.SIGHASH_ALL;
         if (hashType != ScriptOpCodes.SIGHASH_ALL && 
                         hashType != ScriptOpCodes.SIGHASH_NONE && 
                         hashType != ScriptOpCodes.SIGHASH_SINGLE) {
-            log.error(String.format("Signature hash type %d is not supported", hashType));
-            throw new ScriptException("Unsupported signature hash type");
+            log.warn(String.format("Unsupported signature hash type %d\n  Tx %s", hashType, txHash.toString()));
+            hashType = ScriptOpCodes.SIGHASH_ALL;
         }
         //
         // Serialize the version
@@ -463,8 +461,8 @@ public class Transaction {
             // The output list is resized to the input index+1
             //
             if (txOutputs.size() <= index) {
-                log.error(String.format("Input index %d exceeds output size %d for SIGHASH_SINGLE",
-                                         index, txOutputs.size()));
+                log.error(String.format("Input index %d exceeds output size %d for SIGHASH_SINGLE\n  Tx %s",
+                                         index, txOutputs.size(), txHash.toString()));
                 throw new ScriptException("Input index out-of-range for SIGHASH_SINGLE");
             }
             outStream.write(VarInt.encode(index+1));

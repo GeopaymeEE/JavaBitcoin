@@ -327,7 +327,7 @@ public class Main {
             Class<?> mainClass = Class.forName("org.ScripterRon.JavaBitcoin.Main");
             try (InputStream classStream = mainClass.getClassLoader().getResourceAsStream(genesisName)) {
                 if (classStream == null)
-                    throw new IllegalStateException("Genesis block resource not found");
+                    throw new IOException("Genesis block resource not found");
                 Parameters.GENESIS_BLOCK_BYTES = new byte[classStream.available()];
                 classStream.read(Parameters.GENESIS_BLOCK_BYTES);
             }
@@ -336,7 +336,7 @@ public class Main {
             //
             try (InputStream classStream = mainClass.getClassLoader().getResourceAsStream("META-INF/application.properties")) {
                 if (classStream == null)
-                    throw new IllegalStateException("Application build properties not found");
+                    throw new IOException("Application build properties not found");
                 Properties applicationProperties = new Properties();
                 applicationProperties.load(classStream);
                 applicationID = applicationProperties.getProperty("application.id");

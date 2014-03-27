@@ -15,7 +15,7 @@ Simple Logging Facade (1.7.5 or later) is used for console and file logging.  I'
 
 LevelDB is used for the database.  The LevelDB support is provided by leveldbjni (1.8 or later).  leveldbjni provides a native interface to the LevelDB routines.  The native LevelDB library is included in the leveldbjni.jar file and is extracted when you run the program.  On Windows, this causes a new temporary file to be created each time the program is run.  To get around this, extract the Windows version of leveldbjni.dll from the leveldbjni.jar and place it in a directory in the executable path (specified by the PATH environment variable).  Alternately, you can define the path to leveldbjni.dll by specifying '-Djava.library.path=directory-path' on the command line used to start JavaBitcoin.
 
-A compiled version is available here: https://drive.google.com/folderview?id=0B1312_6UqRHPYjUtbU1hdW9VMW8&usp=sharing.  Download the desired archive file and extract the files to a directory of your choice.  If you are building from the source, the dependent jar files can also be obtained here.
+A compiled version is available here: https://drive.google.com/folderview?id=0B1312_6UqRHPYjUtbU1hdW9VMW8&usp=sharing.  Download the desired archive file and extract the files to a directory of your choice.  If you are building from the source, the dependent jar files can also be obtained here.  The files are signed with the GPG key for Ronald.Hoffman6@gmail.com (D6190F05).
 
 
 Build
