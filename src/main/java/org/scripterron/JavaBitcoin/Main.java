@@ -644,14 +644,14 @@ public class Main {
                         Block block = new Block(blockBuffer, 0, count, false);
                         //
                         // Add the block to the block store and update the block chain.  Stop
-                        // loading blocks if we get 5 consecutive blocks being held (something
+                        // loading blocks if we get 25 consecutive blocks being held (something
                         // is wrong and needs to be investigated)
                         //
                         if (blockStore.isNewBlock(block.getHash())) {
                             if (blockChain.storeBlock(block) == null) {
                               log.info(String.format("Current block was not added to the block chain\n  %s",
                                                      block.getHashAsString()));
-                              if (++heldCount >= 5)
+                              if (++heldCount >= 25)
                                 stopLoad = true;
                             } else {
                                 heldCount = 0;
@@ -700,7 +700,6 @@ public class Main {
                 // Process each block in the list
                 //
                 for (Sha256Hash chainHash : chainList) {
-                    log.info(String.format("Checking %s", chainHash.toString()));
                     blockHash = chainHash;
                     blockHeight++;
                     Block block = blockStore.getBlock(blockHash);
@@ -713,10 +712,10 @@ public class Main {
                     // Process each transaction in the block
                     //
                     for (Transaction tx : txList) {
-                        if (tx.isCoinBase())
-                            continue;
                         Sha256Hash txHash = tx.getHash();
                         txMap.put(txHash, blockHash);
+                        if (tx.isCoinBase())
+                            continue;
                         List<TransactionInput> txInputs = tx.getInputs();
                         //
                         // Process each transaction input
