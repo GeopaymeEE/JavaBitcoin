@@ -162,10 +162,12 @@ public class BlockChain {
             } catch (BlockNotFoundException exc) {
                 onHold = true;
                 PeerRequest request = new PeerRequest(exc.getHash(), Parameters.INV_BLOCK);
-                synchronized(Parameters.lock) {
-                    Parameters.pendingRequests.add(request);
+                if (Parameters.networkListener != null) {
+                    synchronized(Parameters.lock) {
+                        Parameters.pendingRequests.add(request);
+                    }
+                    Parameters.networkListener.wakeup();
                 }
-                Parameters.networkListener.wakeup();
             }
         }
         if (onHold)
