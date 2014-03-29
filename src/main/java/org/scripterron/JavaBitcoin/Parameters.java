@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Global parameters for JavaBitcoin
@@ -200,10 +200,10 @@ public class Parameters {
     public static final List<BloomFilter> bloomFilters = new ArrayList<>(250);
 
     /** Database handler message queue */
-    public static final ArrayBlockingQueue<Block> databaseQueue = new ArrayBlockingQueue<>(250);
+    public static final LinkedBlockingQueue<Block> databaseQueue = new LinkedBlockingQueue<>();
 
     /** Message handler message queue */
-    public static final ArrayBlockingQueue<Message> messageQueue = new ArrayBlockingQueue<>(250);
+    public static final LinkedBlockingQueue<Message> messageQueue = new LinkedBlockingQueue<>(250);
 
     /** Peer addresses */
     public static final List<PeerAddress> peerAddresses = new ArrayList<>(1000);

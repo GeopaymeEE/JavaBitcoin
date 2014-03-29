@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,9 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+
 import java.nio.ByteBuffer;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -139,6 +141,12 @@ public class InventoryMessage {
                         newTx = true;
                 }
                 if (!newTx)
+                    continue;
+                //
+                // Ignore transactions if we are down-level since they will be orphaned
+                // until we catch up to the rest of the network
+                //
+                if (Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight-100)
                     continue;
                 //
                 // Request the transaction if it is not in the transaction memory pool

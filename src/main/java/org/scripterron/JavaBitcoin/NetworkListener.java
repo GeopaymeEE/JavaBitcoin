@@ -1043,7 +1043,8 @@ public class NetworkListener implements Runnable {
         while (!Parameters.pendingRequests.isEmpty()) {
             synchronized(Parameters.lock) {
                 request = Parameters.pendingRequests.get(0);
-                if (request.getType() == Parameters.INV_BLOCK && Parameters.databaseQueue.size() >= 10) {
+                if (request.getType() == Parameters.INV_BLOCK && 
+                            (Parameters.databaseQueue.size() >= 10 || Parameters.processedRequests.size() > 50)) {
                     request = null;
                 } else {
                     Parameters.pendingRequests.remove(0);
