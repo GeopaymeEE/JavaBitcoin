@@ -1009,11 +1009,8 @@ public class BlockStoreLdb extends BlockStore {
                             int fileNumber = blockEntry.getFileNumber();
                             int fileOffset = blockEntry.getFileOffset();
                             if (!onChain) {
-                                if (chainList.size() >= 144) {
-                                    log.warn(String.format("Chain length exceeds 144 blocks\n  Restart %s",
-                                                           blockHash.toString()));
+                                if (chainList.size() >= 144)
                                     throw new ChainTooLongException("Chain length too long", blockHash);
-                                }
                                 Block block = getBlock(fileNumber, fileOffset);
                                 chainStoredBlock = new StoredBlock(block, BigInteger.ZERO, 0, false, onHold);
                                 blockHash = block.getPrevBlockHash();

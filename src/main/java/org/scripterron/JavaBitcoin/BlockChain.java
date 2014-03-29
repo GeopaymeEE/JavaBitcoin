@@ -164,7 +164,9 @@ public class BlockChain {
                 PeerRequest request = new PeerRequest(exc.getHash(), Parameters.INV_BLOCK);
                 if (Parameters.networkListener != null) {
                     synchronized(Parameters.lock) {
-                        Parameters.pendingRequests.add(request);
+                        if (!Parameters.pendingRequests.contains(request) &&
+                                            !Parameters.processedRequests.contains(request))
+                            Parameters.pendingRequests.add(request);
                     }
                     Parameters.networkListener.wakeup();
                 }

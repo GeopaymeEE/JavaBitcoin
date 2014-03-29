@@ -50,15 +50,29 @@ import java.util.List;
 public class GetBlocksMessage {
 
     /**
-     * Build a 'getblocks' message
+     * Build a 'getblocks' message requesting blocks up to the current network chain head
      *
      * We will request blocks starting with the current chain head and working backwards to
      * a maximum depth of 500 blocks.
      *
      * @param       peer            Destination peer
-     * @return      Message to send to the peer
+     * @return                      Message to send to the peer
      */
     public static Message buildGetBlocksMessage(Peer peer) {
+        return buildGetBlocksMessage(peer, Sha256Hash.ZERO_HASH);
+    }
+    
+    /**
+     * Build a 'getblocks' message requesting blocks up to the stop block
+     *
+     * We will request blocks starting with the current chain head and working backwards to
+     * a maximum depth of 500 blocks.
+     *
+     * @param       peer            Destination peer
+     * @param       stopBlock       Stop block
+     * @return                      Message to send to the peer
+     */
+    public static Message buildGetBlocksMessage(Peer peer, Sha256Hash stopBlock) {
         List<Sha256Hash> invList = new ArrayList<>(500);
         try {
             //
@@ -95,7 +109,6 @@ public class GetBlocksMessage {
         // Build the message payload
         //
         // The protocol version will be set to the lesser of our version and the peer version
-        // The stop locator will be set to zero since we don't know the network chain head.
         //
         int varCount = invList.size();
         byte[] varBytes = VarInt.encode(varCount);
@@ -107,6 +120,7 @@ public class GetBlocksMessage {
             System.arraycopy(Utils.reverseBytes(blockHash.getBytes()), 0, msgData, offset, 32);
             offset+=32;
         }
+        System.arraycopy(Utils.reverseBytes(stopBlock.getBytes()), 0, msgData, offset, 32);
         //
         // Build the message
         //

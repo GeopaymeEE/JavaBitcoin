@@ -135,9 +135,9 @@ public class NetworkListener implements Runnable {
 
     /** Static connections */
     private boolean staticConnections = false;
-
-    /** GetBlocks sent */
-    private boolean getBlocksSent = false;
+    
+    /** GetBlock time */
+    private long getBlocksTime = 0;
 
     /**
      * Creates the network listener
@@ -988,14 +988,14 @@ public class NetworkListener implements Runnable {
                 // Send a 'getblocks' message if we are down-level and we haven't sent
                 // one yet
                 //
-                if (!getBlocksSent && (peer.getServices()&Parameters.NODE_NETWORK) != 0) {
+                if (getBlocksTime == 0 && (peer.getServices()&Parameters.NODE_NETWORK) != 0) {
                     if (peer.getHeight() > Parameters.blockStore.getChainHeight()) {
                         Message msg1 = GetBlocksMessage.buildGetBlocksMessage(peer);
                         synchronized(Parameters.lock) {
                             peer.getOutputList().add(msg1);
                             key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                         }
-                        getBlocksSent = true;
+                        getBlocksTime = System.currentTimeMillis()/1000;
                         log.info(String.format("Sent 'getblocks' message to %s", address.toString()));
                     }
                 }
@@ -1118,6 +1118,20 @@ public class NetworkListener implements Runnable {
                 peer.getOutputList().add(msg);
                 SelectionKey key = peer.getKey();
                 key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+            }
+            //
+            // Send a 'getblocks' message if we are down-level and the request is for a block
+            //
+            if (request.getType() == Parameters.INV_BLOCK && 
+                            getBlocksTime < System.currentTimeMillis()/1000-300 &&
+                            Parameters.databaseQueue.size() < 10 &&
+                            Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight - 100) {
+                msg = GetBlocksMessage.buildGetBlocksMessage(peer, request.getHash());
+                synchronized(Parameters.lock) {
+                    peer.getOutputList().add(msg);
+                }
+                getBlocksTime = System.currentTimeMillis()/1000;
+                log.info(String.format("Sent 'getblocks' message to %s", peer.getAddress().toString()));
             }
         }
     }
