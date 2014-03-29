@@ -26,6 +26,7 @@ import java.math.BigInteger;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -683,6 +684,9 @@ public class ScriptParser {
         //
         // Check the signature
         //
+        // The script subprogram starts following the last code separator and all instances
+        // of the signature are removed
+        //
         bytes = pubKey.getBytes();
         if (bytes.length == 0) {
             log.warn("Null public key provided");
@@ -693,7 +697,8 @@ public class ScriptParser {
         } else {
             List<StackElement> pubKeys = new ArrayList<>();
             pubKeys.add(pubKey);
-            result = checkSig(txInput, sig, pubKeys, scriptBytes, lastSeparator);
+            byte[] subProgram = Script.removeDataElement(sig.getBytes(), scriptBytes, lastSeparator);
+            result = checkSig(txInput, sig, pubKeys, subProgram);
         }
         //
         // Push the result on the stack
@@ -762,6 +767,13 @@ public class ScriptParser {
         //
         popStack(elemStack);
         //
+        // The script subprogram starts following the last code separator and all instances
+        // of all signature are removed
+        //
+        byte[] subProgram = Arrays.copyOfRange(scriptBytes, lastSeparator, scriptBytes.length);
+        for (StackElement sig : sigs) 
+            subProgram = Script.removeDataElement(sig.getBytes(), subProgram, 0);
+        //
         // Verify each signature and stop if we have a verification failure
         //
         // We will stop when all signatures have been verified or there are no more
@@ -773,7 +785,7 @@ public class ScriptParser {
                 isValid = false;
                 break;
             }
-            isValid = checkSig(txInput, sig, keys, scriptBytes, lastSeparator);
+            isValid = checkSig(txInput, sig, keys, subProgram);
             if (!isValid)
                 break;
         }
@@ -791,51 +803,17 @@ public class ScriptParser {
      * @param       txInput             The current transaction input
      * @param       sig                 The signature to be verified
      * @param       pubKeys             The public keys to be checked
-     * @param       scriptBytes         The current script program
-     * @param       lastSeparator       The last code separator offset or zero
+     * @param       subProgram          The script subprogram
      * @return                          TRUE if the signature is valid, FALSE otherwise
      * @throw       IOException         Unable to process signature
      * @throw       ScriptException     Unable to verify signature
      */
     private static boolean checkSig(TransactionInput txInput, StackElement sig, List<StackElement> pubKeys, 
-                                        byte[] scriptBytes, int lastSeparator) 
-                                        throws IOException, ScriptException {
+                                        byte[] subProgram)  throws IOException, ScriptException {
         byte[] sigBytes = sig.getBytes();
         boolean isValid = false;
-        byte[] subProgram;
         if (sigBytes.length < 10)
             throw new ScriptException("Signature is too short");
-        //
-        // Remove all occurrences of the signature from the output script and create a new program.
-        //
-        try (ByteArrayOutputStream outStream = new ByteArrayOutputStream(scriptBytes.length)) {
-            int index = lastSeparator;
-            int count = scriptBytes.length;
-            while (index < count) {
-                int startPos = index;
-                int dataLength = 0;
-                int opcode = ((int)scriptBytes[index++])&0x00ff;
-                if (opcode <= ScriptOpCodes.OP_PUSHDATA4) {
-                    int result[] = Script.getDataLength(opcode, scriptBytes, index);
-                    dataLength = result[0];
-                    index = result[1];
-                }
-                boolean copyElement = true;
-                if (dataLength == sigBytes.length) {
-                    copyElement = false;
-                    for (int i=0; i<dataLength; i++) {
-                        if (sigBytes[i] != scriptBytes[index+i]) {
-                            copyElement = true;
-                            break;
-                        }
-                    }
-                }
-                if (copyElement)
-                    outStream.write(scriptBytes, startPos, index-startPos+dataLength);
-                index += dataLength;
-            }
-            subProgram = outStream.toByteArray();
-        }
         //
         // The hash type is the last byte of the signature.  Remove it and create a new
         // byte array containing the DER-encoded signature.
@@ -860,6 +838,9 @@ public class ScriptParser {
                 Utils.uint32ToByteStreamLE(hashType, outStream);
                 txData = outStream.toByteArray();
             }
+        } else {
+            log.warn(String.format("SIGHASH_SINGLE with input index greater than output count\n  Tx %s",
+                                   tx.getHash().toString()));
         }
         //
         // Use the public keys to verify the signature for the hashed data.  Stop as

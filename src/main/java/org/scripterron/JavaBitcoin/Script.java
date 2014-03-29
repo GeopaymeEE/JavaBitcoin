@@ -18,7 +18,9 @@ package org.ScripterRon.JavaBitcoin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
+import java.io.IOException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -313,5 +315,50 @@ public class Script {
         result[0] = dataToRead;
         result[1] = offset;
         return result;
+    }
+    
+    /**
+     * Remove all instances of a data element from a script
+     * 
+     * @param       dataBytes           The bytes to be removed
+     * @param       scriptBytes         The script bytes
+     * @param       lastSeparator       Last code separator
+     * @return                          Script subprogram with data element removed
+     */
+    public static byte[] removeDataElement(byte[] dataBytes, byte[] scriptBytes, int lastSeparator) {
+        byte[] subProgram;
+        try {
+            try (ByteArrayOutputStream outStream = new ByteArrayOutputStream(scriptBytes.length)) {
+                int index = lastSeparator;
+                int count = scriptBytes.length;
+                while (index < count) {
+                    int startPos = index;
+                    int dataLength = 0;
+                    int opcode = ((int)scriptBytes[index++])&0x00ff;
+                    if (opcode <= ScriptOpCodes.OP_PUSHDATA4) {
+                        int result[] = Script.getDataLength(opcode, scriptBytes, index);
+                        dataLength = result[0];
+                        index = result[1];
+                    }
+                    boolean copyElement = true;
+                    if (dataLength == dataBytes.length) {
+                        copyElement = false;
+                        for (int i=0; i<dataLength; i++) {
+                            if (dataBytes[i] != scriptBytes[index+i]) {
+                                copyElement = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (copyElement)
+                        outStream.write(scriptBytes, startPos, index-startPos+dataLength);
+                    index += dataLength;
+                }
+                subProgram = outStream.toByteArray();
+            }
+        } catch (IOException exc) {
+            throw new IllegalStateException("Unexpected I/O error from ByteArrayOutputStream", exc);
+        }
+        return subProgram;
     }
 }

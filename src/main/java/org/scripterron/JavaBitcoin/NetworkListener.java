@@ -1125,7 +1125,7 @@ public class NetworkListener implements Runnable {
             //
             if (request.getType() == Parameters.INV_BLOCK && 
                             getBlocksTime < System.currentTimeMillis()/1000-300 &&
-                            Parameters.databaseQueue.size() < 10 &&
+                            Parameters.pendingRequests.size() < 10 &&
                             Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight - 100) {
                 msg = GetBlocksMessage.buildGetBlocksMessage(peer, request.getHash());
                 synchronized(Parameters.lock) {
