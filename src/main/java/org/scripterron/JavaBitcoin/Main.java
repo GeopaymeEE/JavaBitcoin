@@ -69,9 +69,10 @@ import javax.swing.*;
  * <td>Start the program using the production network.  Application files are stored in the application data
  * directory and the production database is used.</td></tr>
  * 
- * <tr><td>REGRESSION</td>
+ * <tr><td>REGRESSION start-height</td>
  * <td>Run a regression test using the current production network block chain database.  The transaction
- * signatures will be verified for each block in the chain.  The program will terminate after processing
+ * signatures will be verified for each block in the chain.  The test will start at block height 0 if
+ * no starting height is specified.  The program will terminate after processing
  * all of the blocks.</td></tr>
  *
  * <tr><td>RETRY PROD|TEST block-hash</td>
@@ -690,7 +691,8 @@ public class Main {
             Map<Sha256Hash, Sha256Hash> txMap = new HashMap<>(5000);
             Sha256Hash chainHead = blockStore.getChainHead();
             Sha256Hash blockHash = Sha256Hash.ZERO_HASH;
-            int blockHeight = 0;
+            int blockHeight = startBlock;
+            log.info(String.format("Transaction regression test starting at block height %d", blockHeight));
             while (true) {
                 //
                 // Get the next block list
@@ -700,6 +702,8 @@ public class Main {
                 // Process each block in the list
                 //
                 for (Sha256Hash chainHash : chainList) {
+                    if (blockHeight%1000 == 0)
+                        log.info("Regression test status: At block height %d", blockHeight);
                     blockHash = chainHash;
                     blockHeight++;
                     Block block = blockStore.getBlock(blockHash);
@@ -874,7 +878,12 @@ public class Main {
         }
         if (args[0].equalsIgnoreCase("REGRESSION")) {
             regressionTest = true;
-            if (args.length > 1)
+            if (args.length > 1) {
+                startBlock = Integer.parseInt(args[1]);
+            } else {
+                startBlock = 0;
+            }
+            if (args.length > 2)
                 throw new IllegalArgumentException("Unrecognized command line parameter");
             return;
         }
