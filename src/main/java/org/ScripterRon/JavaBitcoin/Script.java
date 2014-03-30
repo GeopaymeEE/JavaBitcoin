@@ -196,8 +196,7 @@ public class Script {
                 }
             }
         } catch (EOFException exc) {
-            log.warn("Unable to check script against Bloom filter", exc);
-            Main.dumpData("Failing Script Program", scriptBytes);
+            // Invalid script
         }
         return foundMatch;
     }
