@@ -32,10 +32,8 @@ import java.net.UnknownHostException;
 import java.nio.channels.FileLock;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.logging.LogManager;
-import java.util.Map;
 import java.util.Properties;
 
 import javax.swing.*;
@@ -58,22 +56,26 @@ import javax.swing.*;
  * be read and the file pointers in the database will be updated to point to the new block
  * locations.  The Blocks subdirectory must be empty before starting this operation.</td>
  * 
- * <tr><td>LOAD PROD|TEST directory-path start-block</td>
+ * <tr><td>LOAD PROD|TEST directory-path start-block stop-block</td>
  * <td>Load the block chain from the reference client data directory and create the block database.  Specify PROD
  * to load the production database or TEST to load the test database.  The
  * reference client default data directory will be used if no directory path is specified.  The database load
- * will start with blk00000.dat if no starting block number is specified.
+ * will start with blk00000.dat if no starting block file number is specified and will continue until a block file 
+ * is not found if a stop block file number is not specified.
  * The program will terminate after loading the block chain.</td></tr>
  *
  * <tr><td>PROD</td>
  * <td>Start the program using the production network.  Application files are stored in the application data
  * directory and the production database is used.</td></tr>
  * 
- * <tr><td>REGRESSION start-height</td>
+ * <tr><td>REGRESSION start-height start-height stop-height</td>
  * <td>Run a regression test using the current production network block chain database.  The transaction
  * signatures will be verified for each block in the chain.  The test will start at block height 0 if
- * no starting height is specified.  The program will terminate after processing
- * all of the blocks.</td></tr>
+ * no starting height is specified and will stop when the chain head is reach if no stop height is
+ * specified.  The program will terminate after processing all of the blocks.  The start height must be
+ * 0 the first time the regression test is run since the transaction output script database must be built.
+ * This also means the start height can not be greater than any previous stop height since the script
+ * database will be incomplete.</td></tr>
  *
  * <tr><td>RETRY PROD|TEST block-hash</td>
  * <td>Retry a block which is currently held.  Specify PROD to use the production database or TEST to use the
@@ -217,8 +219,11 @@ public class Main {
     /** Block chain data directory for load */
     private static String blockChainPath;
 
-    /** Starting block number for load */
+    /** Starting block number */
     private static int startBlock;
+    
+    /** Stop block number */
+    private static int stopBlock;
 
     /** Retry block hash */
     private static Sha256Hash retryHash;
@@ -409,7 +414,7 @@ public class Main {
             // Run the regression test
             //
             if (regressionTest) {
-                TransactionRegressionTest.start(startBlock);
+                TransactionRegressionTest.start(dataPath, startBlock, stopBlock);
                 blockStore.close();
                 System.exit(0);
             }
@@ -421,7 +426,7 @@ public class Main {
             // Load the block chain from disk and then exit
             //
             if (loadBlockChain) {
-                LoadBlockChain.load(blockChainPath, startBlock);
+                LoadBlockChain.load(blockChainPath, startBlock, stopBlock);
                 blockStore.close();
                 System.exit(0);
             }
@@ -470,7 +475,7 @@ public class Main {
                 }
             });
         } catch (Throwable exc) {
-            log.error("Exception during program initialization", exc);
+            log.error(String.format("%s: %s", exc.getClass().getName(), exc.getMessage()));
         }
     }
 
@@ -588,91 +593,107 @@ public class Main {
         // INDEX indicates we should rebuild the block index
         // REGRESSION indicate we should run a transaction regression test
         //
-        if (args[0].equalsIgnoreCase("LOAD")) {
-            loadBlockChain = true;
-            if (args.length < 2)
-                throw new IllegalArgumentException("Specify PROD or TEST with the LOAD option");
-            if (args[1].equalsIgnoreCase("TEST")) {
+        switch (args[0].toLowerCase()) {
+            case "load":
+                loadBlockChain = true;
+                if (args.length < 2)
+                    throw new IllegalArgumentException("Specify PROD or TEST with the LOAD option");
+                if (args[1].equalsIgnoreCase("TEST")) {
+                    testNetwork = true;
+                } else if (!args[1].equalsIgnoreCase("PROD")) {
+                    throw new IllegalArgumentException("Specify PROD or TEST after the LOAD option");
+                }
+                if (args.length > 2) {
+                    blockChainPath = args[2];
+                } else if (osName.startsWith("win")) {
+                    blockChainPath = userHome+"\\AppData\\Roaming\\Bitcoin";
+                } else if (osName.startsWith("linux")) {
+                    blockChainPath = userHome+"/.bitcoin";
+                } else if (osName.startsWith("mac os")) {
+                    blockChainPath = userHome+"/Library/Application Support/Bitcoin";
+                } else {
+                    blockChainPath = userHome+"/Bitcoin";
+                }
+                if (args.length > 3) {
+                    startBlock = Integer.parseInt(args[3]);
+                } else {
+                    startBlock = 0;
+                }
+                if (args.length > 4) {
+                    stopBlock = Integer.parseInt(args[4]);
+                    if (stopBlock < startBlock)
+                        throw new IllegalArgumentException("Stop block is less than start block");
+                } else {
+                    stopBlock = Integer.MAX_VALUE;
+                }
+                if (args.length > 5)
+                    throw new IllegalArgumentException("Unrecognized command line parameter");
+                break;
+            case "retry":
+                retryBlock = true;
+                if (args.length < 3)
+                    throw new IllegalArgumentException("Specify PROD or TEST followed by the block hash");
+                if (args[1].equalsIgnoreCase("TEST")) {
+                    testNetwork = true;
+                } else if (!args[1].equalsIgnoreCase("PROD")) {
+                    throw new IllegalArgumentException("Specify PROD or TEST after the RETRY option");
+                }
+                retryHash = new Sha256Hash(args[2]);
+                if (args.length > 3)
+                    throw new IllegalArgumentException("Unrecognized command line parameter");
+                break;
+            case "index":
+                rebuildIndex = true;
+                if (args.length < 2)
+                    throw new IllegalArgumentException("Specify PROD or TEST with the INDEX option");
+                if (args[1].equalsIgnoreCase("TEST")) {
+                    testNetwork = true;
+                } else if (!args[1].equalsIgnoreCase("PROD")) {
+                    throw new IllegalArgumentException("Specify PROD or TEST after the INDEX option");
+                }
+                if (args.length > 2) {
+                    blockChainPath = args[2];
+                } else if (osName.startsWith("win")) {
+                    blockChainPath = userHome+"\\AppData\\Roaming\\Bitcoin";
+                } else if (osName.startsWith("linux")) {
+                    blockChainPath = userHome+"/.bitcoin";
+                } else if (osName.startsWith("mac os")) {
+                    blockChainPath = userHome+"/Library/Application Support/Bitcoin";
+                } else {
+                    blockChainPath = userHome+"/Bitcoin";
+                }
+                if (args.length > 3)
+                    throw new IllegalArgumentException("Unrecognized command line parameter");
+                break;
+            case "regression":
+                regressionTest = true;
+                if (args.length > 1) {
+                    startBlock = Integer.parseInt(args[1]);
+                } else {
+                    startBlock = 0;
+                }
+                if (args.length > 2) {
+                    stopBlock = Integer.parseInt(args[2]);
+                    if (stopBlock < startBlock)
+                        throw new IllegalArgumentException("Stop height is less than start height");
+                } else {
+                    stopBlock = Integer.MAX_VALUE;
+                }
+                if (args.length > 3)
+                    throw new IllegalArgumentException("Unrecognized command line parameter");
+                break;
+            case "test":
                 testNetwork = true;
-            } else if (!args[1].equalsIgnoreCase("PROD")) {
-                throw new IllegalArgumentException("Specify PROD or TEST after the LOAD option");
-            }
-            if (args.length > 2) {
-                blockChainPath = args[2];
-            } else if (osName.startsWith("win")) {
-                blockChainPath = userHome+"\\AppData\\Roaming\\Bitcoin";
-            } else if (osName.startsWith("linux")) {
-                blockChainPath = userHome+"/.bitcoin";
-            } else if (osName.startsWith("mac os")) {
-                blockChainPath = userHome+"/Library/Application Support/Bitcoin";
-            } else {
-                blockChainPath = userHome+"/Bitcoin";
-            }
-            if (args.length > 3) {
-                startBlock = Integer.parseInt(args[3]);
-            } else {
-                startBlock = 0;
-            }
-            if (args.length > 4)
+                if (args.length > 1)
+                    throw new IllegalArgumentException("Unrecognized command line parameter");
+                break;
+            case "prod":
+                if (args.length > 1)
+                    throw new IllegalArgumentException("Unrecognized command line parameter");
+                break;
+            default:
                 throw new IllegalArgumentException("Unrecognized command line parameter");
-            return;
         }
-        if (args[0].equalsIgnoreCase("RETRY")) {
-            retryBlock = true;
-            if (args.length < 3)
-                throw new IllegalArgumentException("Specify PROD or TEST followed by the block hash");
-            if (args[1].equalsIgnoreCase("TEST")) {
-                testNetwork = true;
-            } else if (!args[1].equalsIgnoreCase("PROD")) {
-                throw new IllegalArgumentException("Specify PROD or TEST after the RETRY option");
-            }
-            retryHash = new Sha256Hash(args[2]);
-            if (args.length > 3)
-                throw new IllegalArgumentException("Unrecognized command line parameter");
-            return;
-        }
-        if (args[0].equalsIgnoreCase("INDEX")) {
-            rebuildIndex = true;
-            if (args.length < 2)
-                throw new IllegalArgumentException("Specify PROD or TEST with the INDEX option");
-            if (args[1].equalsIgnoreCase("TEST")) {
-                testNetwork = true;
-            } else if (!args[1].equalsIgnoreCase("PROD")) {
-                throw new IllegalArgumentException("Specify PROD or TEST after the INDEX option");
-            }
-            if (args.length > 2) {
-                blockChainPath = args[2];
-            } else if (osName.startsWith("win")) {
-                blockChainPath = userHome+"\\AppData\\Roaming\\Bitcoin";
-            } else if (osName.startsWith("linux")) {
-                blockChainPath = userHome+"/.bitcoin";
-            } else if (osName.startsWith("mac os")) {
-                blockChainPath = userHome+"/Library/Application Support/Bitcoin";
-            } else {
-                blockChainPath = userHome+"/Bitcoin";
-            }
-            if (args.length > 3)
-                throw new IllegalArgumentException("Unrecognized command line parameter");
-            return;
-        }
-        if (args[0].equalsIgnoreCase("REGRESSION")) {
-            regressionTest = true;
-            if (args.length > 1) {
-                startBlock = Integer.parseInt(args[1]);
-            } else {
-                startBlock = 0;
-            }
-            if (args.length > 2)
-                throw new IllegalArgumentException("Unrecognized command line parameter");
-            return;
-        }
-        if (args[0].equalsIgnoreCase("TEST")) {
-            testNetwork = true;
-        } else if (!args[0].equalsIgnoreCase("PROD")) {
-            throw new IllegalArgumentException("Valid options are LOAD, RETRY, PROD and TEST");
-        }
-        if (args.length > 1)
-            throw new IllegalArgumentException("Unrecognized command line parameter");
     }
 
     /**

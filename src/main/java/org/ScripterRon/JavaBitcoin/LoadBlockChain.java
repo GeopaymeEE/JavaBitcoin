@@ -39,8 +39,9 @@ public class LoadBlockChain {
      * 
      * @param       blockChainPath      Reference client application directory path
      * @param       startBlock          Starting block file number
+     * @param       stopBlock           Stop block file number
      */
-    public static void load(String blockChainPath, int startBlock) {
+    public static void load(String blockChainPath, int startBlock, int stopBlock) {
         int blockCount = 0;
         int heldCount = 0;
         String fileName = null;
@@ -53,7 +54,7 @@ public class LoadBlockChain {
             // non-existent file.
             //
             List<File> fileList = new ArrayList<>(150);
-            for (int i=startBlock; true; i++) {
+            for (int i=startBlock; i<=stopBlock; i++) {
                 File file = new File(String.format("%s%sblocks%sblk%05d.dat",
                                                    blockChainPath, Main.fileSeparator, Main.fileSeparator, i));
                 if (!file.exists())

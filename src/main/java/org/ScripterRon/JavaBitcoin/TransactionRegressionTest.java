@@ -24,6 +24,7 @@ import org.iq80.leveldb.DBException;
 import org.iq80.leveldb.Options;
 
 import org.fusesource.leveldbjni.JniDBFactory;
+import org.fusesource.leveldbjni.internal.JniDB;
 
 import java.io.File;
 import java.io.IOException;
@@ -44,13 +45,15 @@ public class TransactionRegressionTest {
     /**
      * Perform the transaction regression test
      * 
-     * @param       startBlock          Starting block height
+     * @param       dataPath            Application data path
+     * @param       startHeight         Starting block height
+     * @param       stopHeight          Stop block height
      */
-    public static void start(int startBlock) {
-        log.info(String.format("Starting regression test at block height %d", startBlock));
-        Sha256Hash chainHead = Parameters.blockStore.getChainHead();
+    public static void start(String dataPath, int startHeight, int stopHeight) {
+        log.info(String.format("Starting regression test at block height %d", startHeight));
         Sha256Hash blockHash = Sha256Hash.ZERO_HASH;
-        int blockHeight = Math.max(startBlock-1, 0);
+        int blockHeight = Math.max(startHeight-1, 0);
+        int chainHeight = Math.min(Parameters.blockStore.getChainHeight(), stopHeight);
         DB dbTxScripts = null;
         try {
             //
@@ -61,9 +64,12 @@ public class TransactionRegressionTest {
             options.compressionType(CompressionType.NONE);
             options.maxOpenFiles(512);
             File fileTxScripts = new File(String.format("%s%sLevelDB%sTxScripts",
-                                          Main.dataPath, Main.fileSeparator, Main.fileSeparator));
+                                          dataPath, Main.fileSeparator, Main.fileSeparator));
             dbTxScripts = JniDBFactory.factory.open(fileTxScripts, options);
-            while (true) {
+            log.info("Compacting output scripts database");
+            ((JniDB)dbTxScripts).compactRange(null, null);
+            log.info("Compacting completed");
+            while (blockHeight < chainHeight) {
                 //
                 // Get the next block list
                 //
@@ -73,6 +79,8 @@ public class TransactionRegressionTest {
                 //
                 for (Sha256Hash chainHash : chainList) {
                     blockHeight++;
+                    if (blockHeight > chainHeight)
+                        break;
                     if (blockHeight%1000 == 0)
                         log.info(String.format("Regression test status: At block height %d", blockHeight));
                     blockHash = chainHash;
@@ -134,11 +142,6 @@ public class TransactionRegressionTest {
                         }
                     }
                 }
-                //
-                // Stop if we have processed the chain head
-                //
-                if (blockHash.equals(chainHead))
-                    break;
             }
         } catch (BlockStoreException exc) {
             log.error(String.format("Unable to retrieve data\n  Hash %s", exc.getHash()), exc);
