@@ -198,8 +198,12 @@ public class TransactionMessage {
         //
         List<TransactionOutput> outputs = tx.getOutputs();
         for (TransactionOutput output : outputs) {
-            // Dust transactions are not relayed
-            if (output.getValue().compareTo(Parameters.DUST_TRANSACTION) < 0)
+            // Dust transactions are not relayed - a dust transaction is one where the minimum
+            // relay fee is greater than 1/3 of the output value, assuming a single 148-byte input
+            // to spend the output
+            BigInteger chkValue = output.getValue().multiply(BigInteger.valueOf(1000)).divide(
+                                        BigInteger.valueOf(3*(output.getScriptBytes().length+9+148)));
+            if (chkValue.compareTo(Parameters.MIN_TX_RELAY_FEE) < 0)
                 throw new VerificationException("Dust transactions are not relayed",
                                                 Parameters.REJECT_DUST, tx.getHash());
             // Non-standard payment types are not relayed

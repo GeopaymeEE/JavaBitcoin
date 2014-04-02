@@ -99,9 +99,6 @@ public class Parameters {
     /** Coinbase transaction maturity */
     public static final int COINBASE_MATURITY = 100;
 
-    /** Dust transaction value */
-    public static final BigInteger DUST_TRANSACTION = new BigInteger("5460", 10);
-
     /** Minimum transaction relay fee */
     public static final BigInteger MIN_TX_RELAY_FEE = new BigInteger("1000", 10);
 
