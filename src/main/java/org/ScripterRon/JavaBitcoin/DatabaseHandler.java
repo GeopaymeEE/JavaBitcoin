@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -74,22 +75,7 @@ public class DatabaseHandler implements Runnable {
      * @param       block           Block to process
      */
     private void processBlock(Block block) {
-        PeerRequest request = null;
         try {
-            //
-            // Mark the associated request as being processed so it won't timeout while
-            // we are working on it
-            //
-            synchronized(Parameters.lock) {
-                for (PeerRequest chkRequest : Parameters.processedRequests) {
-                    if (chkRequest.getType()==Parameters.INV_BLOCK &&
-                                                chkRequest.getHash().equals(block.getHash())) {
-                        chkRequest.setProcessing(true);
-                        request = chkRequest;
-                        break;
-                    }
-                }
-            }
             //
             // Process the new block
             //
@@ -123,9 +109,14 @@ public class DatabaseHandler implements Runnable {
             //
             // Remove the request from the processedRequests list
             //
-            if (request != null) {
-                synchronized(Parameters.lock) {
-                    Parameters.processedRequests.remove(request);
+            synchronized(Parameters.lock) {
+                Iterator<PeerRequest> it = Parameters.processedRequests.iterator();
+                while (it.hasNext()) {
+                    PeerRequest request = it.next();
+                    if (request.getType()==Parameters.INV_BLOCK && request.getHash().equals(block.getHash())) {
+                        it.remove();
+                        break;
+                    }
                 }
             }
         } catch (BlockStoreException exc) {

@@ -95,7 +95,7 @@ public class MessageHandler implements Runnable {
             cmd = MessageHeader.processMessage(inStream, msgBytes);
             Integer cmdLookup = MessageHeader.cmdMap.get(cmd);
             if (cmdLookup != null)
-                cmdOp = cmdLookup.intValue();
+                cmdOp = cmdLookup;
             msg.setCommand(cmdOp);
             //
             // Close the connection if the peer starts sending messages before the
@@ -148,29 +148,7 @@ public class MessageHandler implements Runnable {
                     //
                     // Process the 'block' message
                     //
-                    // Deserialize the block and add it to the database queue for
-                    // processing by the database handler.  We will remove each transaction
-                    // from the memory pool and add it to the recent transaction list.
-                    //
-                    Block block = new Block(msgBytes, MessageHeader.HEADER_LENGTH,
-                                            msgBytes.length-MessageHeader.HEADER_LENGTH, true);
-                    List<Transaction> txList = block.getTransactions();
-                    synchronized(Parameters.lock) {
-                        for (Transaction tx : txList) {
-                            Sha256Hash txHash = tx.getHash();
-                            StoredTransaction storedTx = Parameters.txMap.get(txHash);
-                            if (storedTx != null) {
-                                Parameters.txPool.remove(storedTx);
-                                Parameters.txMap.remove(txHash);
-                            }
-                            if (Parameters.recentTxMap.get(txHash) == null) {
-                                Parameters.recentTxList.add(txHash);
-                                Parameters.recentTxMap.put(txHash, txHash);
-                            }
-                        }
-                        Parameters.blocksReceived++;
-                    }
-                    Parameters.databaseQueue.put(block);
+                    BlockMessage.processBlockMessage(msg, inStream);
                     break;
                 case MessageHeader.TX_CMD:
                     //

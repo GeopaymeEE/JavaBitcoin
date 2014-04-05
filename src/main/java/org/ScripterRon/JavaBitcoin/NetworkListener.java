@@ -1036,8 +1036,8 @@ public class NetworkListener implements Runnable {
         //
         // Send pending requests.  We will suspend request processing if we come to
         // a block request and the database handler has 10 blocks waiting for processing.
-        // All pending transactions requests will have been processed at this point since
-        // transactions requests are placed at the front of the queue while block requests
+        // All pending transaction requests will have been processed at this point since
+        // transaction requests are placed at the front of the queue while block requests
         // are placed at the end of the queue.
         //
         while (!Parameters.pendingRequests.isEmpty()) {

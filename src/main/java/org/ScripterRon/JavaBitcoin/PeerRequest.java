@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ public class PeerRequest {
     private int type;
 
     /** Map of peers that have been contacted for this request */
-    private Map<Peer, Peer> peerMap = new HashMap<>(25);
+    private final Map<Peer, Peer> peerMap = new HashMap<>(25);
 
     /** Timestamp */
     private long timeStamp;
