@@ -478,9 +478,6 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
          */
         @Override
         public Object getValueAt(int row, int column) {
-            if (row >= blocks.length || column >= columnNames.length)
-                return "";
-
             Object value;
             BlockStatus status;
             synchronized(Parameters.lock) {
@@ -578,13 +575,13 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
     private class AlertTableModel extends AbstractTableModel {
 
         /** Column names */
-        private String[] columnNames;
+        private final String[] columnNames;
 
         /** Column classes */
-        private Class<?>[] columnClasses;
+        private final Class<?>[] columnClasses;
 
         /** Alert list */
-        private List<Alert> alertList;
+        private final List<Alert> alertList;
 
         /** Table refresh pending */
         private boolean refreshPending = false;
@@ -658,8 +655,6 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         @Override
         public Object getValueAt(int row, int column) {
             Object value = null;
-            if (row > alertList.size())
-                return "";
             //
             // The database returns the alerts sorted by the alert ID.
             // We want to show the most recent alert first, so process the
@@ -668,7 +663,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
             Alert alert = alertList.get(alertList.size()-1-row);
             switch (column) {
                 case 0:                     // Alert ID
-                    value = Integer.valueOf(alert.getID());
+                    value = alert.getID();
                     break;
 
                 case 1:                     // Expiration date
@@ -792,8 +787,6 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         @Override
         public Object getValueAt(int row, int column) {
             Object value = null;
-            if (row >= connectionList.size() || column >= columnClasses.length)
-                return "";
             Peer peer = connectionList.get(row);
             switch (column) {
                 case 0:                         // IP address

@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +37,10 @@ import java.util.List;
  *   8 bytes    Expires         Alert expires at this time (seconds)
  *   4 bytes    AlertID         Unique identifier for this alert
  *   4 bytes    CancelID        Cancel the alert with this identifier
- *   Set<int>   CancelSet       Set of alert identifiers to cancel
+ *    IntSet    CancelSet       Set of alert identifiers to cancel
+ *   4 bytes    MinVersion      Minimum applicable protocol version
+ *   4 bytes    MaxVersion      Maximum applicable protocol version
+ *    StrSet    SubVersionSet   Applicable subversions
  *   4 bytes    Priority        Relative priority
  *   String     Comment         Comment about the alert
  *   String     Status          Alert message to display and log
@@ -46,10 +50,10 @@ import java.util.List;
 public class Alert {
 
     /** Alert payload */
-    private byte[] payload;
+    private final byte[] payload;
 
     /** Alert signature */
-    private byte[] signature;
+    private final byte[] signature;
 
     /** Alert version */
     private int version;
@@ -76,7 +80,7 @@ public class Alert {
     private int maxVersion;
 
     /** Subversion */
-    private String subVersion;
+    private List<String> subVersions;
 
     /** Priority */
     private int priority;
@@ -127,7 +131,7 @@ public class Alert {
                     count = inStream.read(bytes, 0, 4);
                     if (count != 4)
                         throw new EOFException("End-of-data processing payload");
-                    cancelSet.add(Integer.valueOf((int)Utils.readUint32LE(bytes, 0)));
+                    cancelSet.add((int)Utils.readUint32LE(bytes, 0));
                 }
             } else {
                 cancelSet = new ArrayList<>(1);
@@ -141,20 +145,24 @@ public class Alert {
             minVersion = (int)Utils.readUint32LE(bytes, 0);
             maxVersion = (int)Utils.readUint32LE(bytes, 4);
             //
-            // Get the subversion
+            // Get the subversions
             //
-            int strLength = new VarInt(inStream).toInt();
-            if (strLength == 0) {
-                subVersion = "";
+            int subCount = new VarInt(inStream).toInt();
+            if (subCount == 0) {
+                subVersions = new ArrayList<>(1);
             } else {
-                StringBuilder subString = new StringBuilder(strLength);
-                for (int i=0; i<strLength; i++) {
-                    int codePoint = inStream.read();
-                    if (codePoint < 0)
-                        throw new EOFException("End-of-data processing payload");
-                    subString.appendCodePoint(codePoint);
+                subVersions = new ArrayList<>(subCount);
+                for (int i=0; i<subCount; i++) {
+                    int strLength = new VarInt(inStream).toInt();
+                    StringBuilder subString = new StringBuilder(strLength);
+                    for (int j=0; j<strLength; j++) {
+                        int codePoint = inStream.read();
+                        if (codePoint < 0)
+                            throw new EOFException("End-of-data processing payload");
+                        subString.appendCodePoint(codePoint);
+                    }
+                    subVersions.add(subString.toString());
                 }
-                subVersion = subString.toString();
             }
             //
             // Get the priority
@@ -166,7 +174,7 @@ public class Alert {
             //
             // Get the comment
             //
-            strLength = new VarInt(inStream).toInt();
+            int strLength = new VarInt(inStream).toInt();
             if (strLength == 0) {
                 comment = "";
             } else {
@@ -307,12 +315,12 @@ public class Alert {
     }
 
     /**
-     * Returns the user agent (subVersion)
+     * Returns the user agent (subVersion) list
      *
-     * @return      User agent
+     * @return      User agent list
      */
-    public String getSubVersion() {
-        return subVersion;
+    public List<String> getSubVersions() {
+        return subVersions;
     }
 
     /**

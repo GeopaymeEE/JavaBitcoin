@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,9 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+
 import java.nio.ByteBuffer;
+
 import java.util.List;
 
 /**
@@ -82,7 +84,9 @@ public class AlertMessage {
         // Build the message
         //
         ByteBuffer buffer = MessageHeader.buildMessage("alert", msgData);
-        return new Message(buffer, peer, MessageHeader.ALERT_CMD);
+        Message msg = new Message(buffer, peer, MessageHeader.ALERT_CMD);
+        msg.setAlert(alert);
+        return msg;
     }
 
     /**
@@ -150,6 +154,9 @@ public class AlertMessage {
                 Message alertMsg = buildAlertMessage(null, alert);
                 Parameters.networkListener.broadcastMessage(alertMsg);
             }
+        } catch (IOException exc) {
+            Main.dumpData("Failing Alert Payload", payload);
+            throw exc;
         } catch (BlockStoreException exc) {
             throw new IOException("Unable to store alert in database", exc);
         }
