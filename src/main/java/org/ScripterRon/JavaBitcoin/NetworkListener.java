@@ -975,7 +975,7 @@ public class NetworkListener implements Runnable {
                 //
                 long currentTime = System.currentTimeMillis()/1000;
                 for (Alert alert : alerts) {
-                    if (!alert.isCanceled() && alert.getRelayTime() > currentTime) {
+                    if (!alert.isCanceled() && alert.getExpireTime() > currentTime) {
                         Message alertMsg = AlertMessage.buildAlertMessage(peer, alert);
                         synchronized(Parameters.lock) {
                             peer.getOutputList().add(alertMsg);

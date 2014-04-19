@@ -151,8 +151,10 @@ public class AlertMessage {
                 //
                 // Broadcast the alert to our peers
                 //
-                Message alertMsg = buildAlertMessage(null, alert);
-                Parameters.networkListener.broadcastMessage(alertMsg);
+                if (alert.getRelayTime() > System.currentTimeMillis()/1000) {
+                    Message alertMsg = buildAlertMessage(null, alert);
+                    Parameters.networkListener.broadcastMessage(alertMsg);
+                }
             }
         } catch (IOException exc) {
             Main.dumpData("Failing Alert Payload", payload);
