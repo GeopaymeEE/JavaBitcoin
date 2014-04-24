@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import javax.swing.table.*;
 public final class DateRenderer extends DefaultTableCellRenderer {
 
     /** Gregorian calendar */
-    private GregorianCalendar cal;
+    private final GregorianCalendar cal;
 
     /**
      * Create a date renderer
@@ -56,9 +56,11 @@ public final class DateRenderer extends DefaultTableCellRenderer {
             throw new IllegalArgumentException("Value is not a Date");
 
         cal.setTime((Date)value);
-        setText(String.format("%02d/%02d/%04d",
+        setText(String.format("%02d/%02d/%04d %02d:%02d",
                               cal.get(Calendar.MONTH)+1,
                               cal.get(Calendar.DAY_OF_MONTH),
-                              cal.get(Calendar.YEAR)));
+                              cal.get(Calendar.YEAR),
+                              cal.get(Calendar.HOUR_OF_DAY),
+                              cal.get(Calendar.MINUTE)));
     }
 }
