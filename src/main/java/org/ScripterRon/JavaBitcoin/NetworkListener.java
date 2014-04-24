@@ -89,13 +89,16 @@ public class NetworkListener implements Runnable {
     private Timer timer;
 
     /** Maximum number of connections */
-    private int maxConnections;
+    private final int maxConnections;
 
     /** Maximum number of outbound connections */
     private int maxOutbound;
 
     /** Current number of outbound connections */
     private int outboundCount;
+    
+    /** Host name */
+    private final String hostName;
 
     /** Listen channel */
     private ServerSocketChannel listenChannel;
@@ -104,7 +107,7 @@ public class NetworkListener implements Runnable {
     private SelectionKey listenKey;
 
     /** Network selector */
-    private Selector networkSelector;
+    private final Selector networkSelector;
 
     /** Connections list */
     private final List<Peer> connections = new ArrayList<>(128);
@@ -144,14 +147,17 @@ public class NetworkListener implements Runnable {
      *
      * @param       maxConnections      The maximum number of connections
      * @param       maxOutbound         The maximum number of outbound connections
+     * @param       hostName            The host name for this port or null
      * @param       listenPort          The port to listen on
      * @param       staticAddresses     Static peer address
      * @throws      IOException
      */
-    public NetworkListener(int maxConnections, int maxOutbound, int listenPort, PeerAddress[] staticAddresses)
+    public NetworkListener(int maxConnections, int maxOutbound, String hostName, int listenPort, 
+                                        PeerAddress[] staticAddresses)
                                         throws IOException {
         this.maxConnections = maxConnections;
         this.maxOutbound = maxOutbound;
+        this.hostName = hostName;
         Parameters.listenPort = listenPort;
         //
         // Create the selector for listening for network events
@@ -1143,31 +1149,41 @@ public class NetworkListener implements Runnable {
     private void getExternalIP() {
         int inChar;
         try {
-            URL url = new URL("http://checkip.dyndns.org:80/");
-            log.info("Getting external IP address from checkip.dyndns.org");
-            try (InputStream inStream = url.openStream()) {
-                StringBuilder outString = new StringBuilder(128);
-                while ((inChar=inStream.read()) >= 0)
-                    outString.appendCodePoint(inChar);
-                String ipString = outString.toString();
-                int start = ipString.indexOf(':');
-                if (start < 0) {
-                    log.error(String.format("Unrecognized response from checkip.dyndns.org\n  Response: %s",
-                                            ipString));
-                    Parameters.listenAddress = InetAddress.getByAddress(new byte[4]);
-                } else {
-                    int stop = ipString.indexOf('<', start);
-                    String ipAddress = ipString.substring(start+1, stop).trim();
-                    Parameters.listenAddress = InetAddress.getByName(ipAddress);
-                    Parameters.listenAddressValid = true;
-                    log.info(String.format("External IP address is %s", ipAddress));
+            if (hostName != null) {
+                Parameters.listenAddress = InetAddress.getByName(hostName);
+                Parameters.listenAddressValid = true;
+                log.info(String.format("External IP address is %s", Parameters.listenAddress.toString()));
+            } else {
+                URL url = new URL("http://checkip.dyndns.org:80/");
+                log.info("Getting external IP address from checkip.dyndns.org");
+                try (InputStream inStream = url.openStream()) {
+                    StringBuilder outString = new StringBuilder(128);
+                    while ((inChar=inStream.read()) >= 0)
+                        outString.appendCodePoint(inChar);
+                    String ipString = outString.toString();
+                    int start = ipString.indexOf(':');
+                    if (start < 0) {
+                        log.error(String.format("Unrecognized response from checkip.dyndns.org\n  Response: %s",
+                                                ipString));
+                        Parameters.listenAddress = InetAddress.getByAddress(new byte[4]);
+                    } else {
+                        int stop = ipString.indexOf('<', start);
+                        String ipAddress = ipString.substring(start+1, stop).trim();
+                        Parameters.listenAddress = InetAddress.getByName(ipAddress);
+                        Parameters.listenAddressValid = true;
+                        log.info(String.format("External IP address is %s", ipAddress));
+                    }
                 }
             }
+        } catch (UnknownHostException exc) {
+            log.error(String.format("Unknown host name %s", hostName));
         } catch (IOException exc) {
             log.error("Unable to get external IP address from checkip.dyndns.org", exc);
+        }
+        if (Parameters.listenAddress == null) {
             try {
                 Parameters.listenAddress = InetAddress.getByAddress(new byte[4]);
-            } catch (Exception exc1) {
+            } catch (UnknownHostException exc) {
                 // Should never happen
             }
         }

@@ -93,6 +93,9 @@ The following configuration options can be specified in JavaBitcoin.conf.  This 
   - connect=[address]:port		
     Specifies the address and port of a peer node.  This statement can be repeated to define multiple nodes.  If this option is specified, outbound connections will be created to only the listed addresses and DNS discovery will not be used.
 	
+  - hostname=host.domain		
+	Specifies the host name for this node.  An HTTP request will be made to checkip.dyndns.org to resolve the external IP address if no host name is specified in the configuration file.
+	
   - maxconnections=n	
     Specifies the maximum number of inbound and outbound connections and defaults to 32.
 	

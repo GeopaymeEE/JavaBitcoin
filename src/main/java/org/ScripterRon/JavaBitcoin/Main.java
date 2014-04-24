@@ -137,6 +137,10 @@ import javax.swing.*;
  *
  * <tr><td>maxoutbound=n</td>
  * <td>Specifies the maximum number of outbound connections and defaults to 8.</td></tr>
+ * 
+ * <tr><td>hostname=host.domain</td>
+ * <td>Specifies the host name for this node.  An HTTP request will be made to checkip.dyndns.org
+ * to resolve the external IP address if no host name is specified.</td></tr>
  *
  * <tr><td>port=n</td>
  * <td>Specifies the port for receiving inbound connections and defaults to 8333</td></tr>
@@ -191,6 +195,9 @@ public class Main {
 
     /** Test network */
     private static boolean testNetwork = false;
+    
+    /** Host name */
+    private static String hostName;
 
     /** Listen port */
     private static int listenPort = 8333;
@@ -454,7 +461,7 @@ public class Main {
             thread.start();
             threads.add(thread);
 
-            Parameters.networkListener = new NetworkListener(maxConnections, maxOutbound, listenPort,
+            Parameters.networkListener = new NetworkListener(maxConnections, maxOutbound, hostName, listenPort,
                                                              peerAddresses);
             thread = new Thread(threadGroup, Parameters.networkListener);
             thread.start();
@@ -729,6 +736,9 @@ public class Main {
                     case "connect":
                         PeerAddress addr = new PeerAddress(value);
                         addressList.add(addr);
+                        break;
+                    case "hostname":
+                        hostName = value;
                         break;
                     case "maxconnections":
                         maxConnections = Integer.parseInt(value);
