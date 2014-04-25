@@ -295,6 +295,7 @@ public class TransactionMessage {
             if (output.isCoinBase()) {
                 try {
                     int txDepth = Parameters.blockStore.getTxDepth(outPoint.getHash());
+                    txDepth += Parameters.networkChainHeight - Parameters.blockStore.getChainHeight();
                     if (txDepth < Parameters.COINBASE_MATURITY)
                         throw new VerificationException("Spending immature coinbase output",
                                                         Parameters.REJECT_INVALID, txHash);

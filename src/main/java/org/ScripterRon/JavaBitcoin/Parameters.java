@@ -161,7 +161,7 @@ public class Parameters {
     public static long txRejected;
 
     /** Network chain height */
-    public static long networkChainHeight;
+    public static int networkChainHeight;
 
     /** List of peer requests that are waiting to be sent */
     public static final List<PeerRequest> pendingRequests = new LinkedList<>();
