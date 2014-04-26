@@ -37,17 +37,16 @@ public class Script {
     private static final Logger log = LoggerFactory.getLogger(Script.class);
 
     /**
-     * Checks that the script consists of only push-data operations.
+     * Checks that the script consists of only canonical push-data operations.
      *
      * For canonical scripts, each push-data operation must use the shortest opcode possible.
      * Numeric values between 0 and 16 must use OP_n opcodes.
      *
      * @param       scriptBytes     Script bytes
-     * @param       canonical       TRUE for canonical checking
      * @return                      TRUE if only canonical push-data operations were found
      * @throws      EOFException    Script is too short
      */
-    public static boolean checkInputScript(byte[] scriptBytes, boolean canonical) throws EOFException {
+    public static boolean checkInputScript(byte[] scriptBytes) throws EOFException {
         boolean scriptValid = true;
         int offset = 0;
         int length = scriptBytes.length;
@@ -57,27 +56,25 @@ public class Script {
                 int[] result = getDataLength(opcode, scriptBytes, offset);
                 int dataLength = result[0];
                 offset = result[1];
-                if (canonical) {
-                    if (dataLength == 1) {
-                        if (opcode != 1 || ((int)scriptBytes[offset]&0xff) <= 16) {
-                            log.warn("Pushing numeric value between 0 and 16");
-                            scriptValid = false;
-                        }
-                    } else if (dataLength < 76) {
-                        if (opcode >= ScriptOpCodes.OP_PUSHDATA1) {
-                            log.warn("Pushing data length less than 76 with multi-byte opcode");
-                            scriptValid = false;
-                        }
-                    } else if (dataLength < 256) {
-                        if (opcode != ScriptOpCodes.OP_PUSHDATA1) {
-                            log.warn("Pushing data length less than 256 with multi-byte opcode");
-                            scriptValid = false;
-                        }
-                    } else if (dataLength < 65536) {
-                        if (opcode != ScriptOpCodes.OP_PUSHDATA2) {
-                            log.warn("Pushing data length less than 65536 with multi-byte opcode");
-                            scriptValid = false;
-                        }
+                if (dataLength == 1) {
+                    if (opcode != 1 || ((int)scriptBytes[offset]&0xff) <= 16) {
+                        log.warn("Pushing numeric value between 0 and 16");
+                        scriptValid = false;
+                    }
+                } else if (dataLength < 76) {
+                    if (opcode >= ScriptOpCodes.OP_PUSHDATA1) {
+                        log.warn("Pushing data length less than 76 with multi-byte opcode");
+                        scriptValid = false;
+                    }
+                } else if (dataLength < 256) {
+                    if (opcode != ScriptOpCodes.OP_PUSHDATA1) {
+                        log.warn("Pushing data length less than 256 with multi-byte opcode");
+                        scriptValid = false;
+                    }
+                } else if (dataLength < 65536) {
+                    if (opcode != ScriptOpCodes.OP_PUSHDATA2) {
+                        log.warn("Pushing data length less than 65536 with multi-byte opcode");
+                        scriptValid = false;
                     }
                 }
                 offset += dataLength;

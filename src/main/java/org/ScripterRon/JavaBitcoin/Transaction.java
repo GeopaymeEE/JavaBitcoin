@@ -332,15 +332,12 @@ public class Transaction {
                                                         Parameters.REJECT_INVALID, txHash);
                     }
                     outPoints.add(outPoint);
-                    scriptBytes = txIn.getScriptBytes();
-                    if (!Script.checkInputScript(scriptBytes, canonical)) {
-                        String errMsg;
-                        if (canonical)
-                            errMsg = "Input script must contain only canonical push-data operations";
-                        else
-                            errMsg = "Input script must contain only push-data operations";
-                        log.error(String.format(errMsg+"\n  %s", txHash));
-                        throw new VerificationException(errMsg, Parameters.REJECT_NONSTANDARD, txHash);
+                    if (canonical) {
+                        if (!Script.checkInputScript(txIn.getScriptBytes())) {
+                            String errMsg = "Input script must contain only canonical push-data operations";
+                            log.error(String.format(errMsg+"\n  %s", txHash));
+                            throw new VerificationException(errMsg, Parameters.REJECT_NONSTANDARD, txHash);
+                        }
                     }
                 }
             }
