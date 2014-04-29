@@ -49,7 +49,7 @@ java -Xmx384m -Dbitcoin.verify.blocks=1 -Djava.library.path=%LibPath% -jar "%Tes
 goto :DONE
 
 :loadProd
-java -Xmx384m -Dbitcoin.verify.blocks=1 -Djava.library.path=%LibPath% -jar "%ProdJar%" LOAD PROD "%Blocks%" %3
+java -Xmx384m -Dbitcoin.verify.blocks=0 -Djava.library.path=%LibPath% -jar "%ProdJar%" LOAD PROD "%Blocks%" %3
 goto :DONE
 
 :runRetry

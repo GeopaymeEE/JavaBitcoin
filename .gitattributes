@@ -4,6 +4,9 @@
 # Use LF only for .java files
 *.java text eol=lf
 
+# Use CR/LF for batch files
+*.bat text eol=crlf
+
 # Image files are binary
 *.dat binary
 *.gif binary
