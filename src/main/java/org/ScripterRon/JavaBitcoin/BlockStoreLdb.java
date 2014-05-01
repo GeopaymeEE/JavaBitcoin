@@ -135,7 +135,7 @@ public class BlockStoreLdb extends BlockStore {
             //
             // Open the TxOutputs database
             //
-            options.maxOpenFiles(1024);
+            options.maxOpenFiles(768);
             File fileTxOutputs = new File(dbPath+"TxOutputsDB");
             dbTxOutputs = JniDBFactory.factory.open(fileTxOutputs, options);
             //
@@ -879,7 +879,7 @@ public class BlockStoreLdb extends BlockStore {
                 //
                 dbChild.put(block.getPrevBlockHash().getBytes(), blockHash.getBytes());
             } catch (DBException exc) {
-                log.error(String.format("Unable to store block\n  Block %s", 
+                log.error(String.format("Unable to store block\n  Block %s",
                                         storedBlock.getHash().toString()), exc);
                 throw new BlockStoreException("Unable to store block", storedBlock.getHash());
             }
@@ -1022,7 +1022,7 @@ public class BlockStoreLdb extends BlockStore {
                             }
                             chainList.add(0, chainStoredBlock);
                         } else {
-                            log.warn(String.format("Chain block is not available\n  Block %s", 
+                            log.warn(String.format("Chain block is not available\n  Block %s",
                                                    blockHash.toString()));
                             throw new BlockNotFoundException("Unable to resolve block chain", blockHash);
                         }
@@ -1612,10 +1612,10 @@ public class BlockStoreLdb extends BlockStore {
         public int getFileNumber() {
             return fileNumber;
         }
-        
+
         /**
          * Sets the block file number
-         * 
+         *
          * @param       fileNumber      The new block file number
          */
         public void setFileNumber(int fileNumber) {
@@ -1630,10 +1630,10 @@ public class BlockStoreLdb extends BlockStore {
         public int getFileOffset() {
             return fileOffset;
         }
-        
+
         /**
          * Sets the block file offset
-         * 
+         *
          * @param       fileOffset      The new block file offset
          */
         public void setFileOffset(int fileOffset) {
@@ -2066,10 +2066,10 @@ public class BlockStoreLdb extends BlockStore {
             this.isCanceled = isCanceled;
         }
     }
-    
+
     /**
      * Rebuilds the block file entries when an existing database is used with a new Blocks directory.
-     * 
+     *
      * @param       blockChainPath          Block chain path
      * @throws      BlockStoreException     Unable to rebuild the block index
      */
