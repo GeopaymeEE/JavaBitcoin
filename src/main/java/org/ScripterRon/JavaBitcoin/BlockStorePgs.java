@@ -124,7 +124,8 @@ public class BlockStorePgs extends BlockStore {
     private static final String TxOutputs_Table = "CREATE TABLE TxOutputs ("+
             "txHash             BYTEA                   NOT NULL,"+
             "txIndex            INTEGER                 NOT NULL,"+
-            "blockHash          BYTEA                   NOT NULL,"+
+            "blockHash          BYTEA                   NOT NULL "+
+                                "REFERENCES Blocks(blockHash) ON DELETE CASCADE,"+
             "blockHeight        INTEGER                 NOT NULL,"+
             "timeSpent          BIGINT                  NOT NULL,"+
             "isCoinbase         BOOLEAN                 NOT NULL,"+
