@@ -51,31 +51,17 @@ import javax.swing.*;
  * <table>
  * <col width=30%/>
  * <col width=70%/>
- * <tr><td>INDEX PROD|TEST directory-path</td>
- * <td>Rebuild the block index for an existing database.  Existing block chain files will
- * be read and the file pointers in the database will be updated to point to the new block
- * locations.  The Blocks subdirectory must be empty before starting this operation.</td>
- * 
  * <tr><td>LOAD PROD|TEST directory-path start-block stop-block</td>
  * <td>Load the block chain from the reference client data directory and create the block database.  Specify PROD
  * to load the production database or TEST to load the test database.  The
  * reference client default data directory will be used if no directory path is specified.  The database load
- * will start with blk00000.dat if no starting block file number is specified and will continue until a block file 
+ * will start with blk00000.dat if no starting block file number is specified and will continue until a block file
  * is not found if a stop block file number is not specified.
  * The program will terminate after loading the block chain.</td></tr>
  *
  * <tr><td>PROD</td>
  * <td>Start the program using the production network.  Application files are stored in the application data
  * directory and the production database is used.</td></tr>
- * 
- * <tr><td>REGRESSION start-height start-height stop-height</td>
- * <td>Run a regression test using the current production network block chain database.  The transaction
- * signatures will be verified for each block in the chain.  The test will start at block height 0 if
- * no starting height is specified and will stop when the chain head is reach if no stop height is
- * specified.  The program will terminate after processing all of the blocks.  The start height must be
- * 0 the first time the regression test is run since the transaction output script database must be built.
- * This also means the start height can not be greater than any previous stop height since the script
- * database will be incomplete.</td></tr>
  *
  * <tr><td>RETRY PROD|TEST block-hash</td>
  * <td>Retry a block which is currently held.  Specify PROD to use the production database or TEST to use the
@@ -132,12 +118,28 @@ import javax.swing.*;
  * If no connect option is specified, DNS discovery will be used along with the broadcast peer addresses to create
  * outbound connections.</td></tr>
  *
+ * <tr><td>dbName=name</td>
+ * <td>Specifies the name of the PostgreSQL database and defaults to 'bitcoin'</td></tr>
+ *
+ * <tr><td>dbPassword=password</td>
+ * <td>Specifies the database user password and defaults to 'dbpass'</td></tr>
+ *
+ * <tr><td>dbPort=port</td>
+ * <td>Specifies the PostgreSQL database port and defaults to 5432</td></tr>
+ *
+ * /<tr><td>dbType=type</td>
+ * <td>Specifies the database manager and can be 'LevelDB' or 'PostgreSQL'.  The LevelDB
+ * database will be used if no database manager is specified.</td></tr>
+ *
+ * <tr><td>dbUser=user</td>
+ * <td>Specifies the PostgreSQL database user and defaults to 'dbuser'</td></tr>
+ *
  * <tr><td>maxconnections=n</td>
  * <td>Specifies the maximum number of inbound and outbound connections and defaults to 32.</td></tr>
  *
  * <tr><td>maxoutbound=n</td>
  * <td>Specifies the maximum number of outbound connections and defaults to 8.</td></tr>
- * 
+ *
  * <tr><td>hostname=host.domain</td>
  * <td>Specifies the host name for this node.  An HTTP request will be made to checkip.dyndns.org
  * to resolve the external IP address if no host name is specified.</td></tr>
@@ -162,13 +164,13 @@ public class Main {
 
     /** Operating system */
     public static String osName;
-    
+
     /** Application identifier */
     public static String applicationID;
-    
+
     /** Application name */
     public static String applicationName;
-    
+
     /** Application version */
     public static String applicationVersion;
 
@@ -195,7 +197,7 @@ public class Main {
 
     /** Test network */
     private static boolean testNetwork = false;
-    
+
     /** Host name */
     private static String hostName;
 
@@ -208,17 +210,26 @@ public class Main {
     /** Maximum number of outbound connections */
     private static int maxOutbound = 8;
 
+    /** Database type */
+    private static String dbType = "LevelDB";
+
+    /** Database name (PostgreSQL) */
+    private static String dbName = "bitcoin";
+
+    /** Database user (PostgreSQL) */
+    private static String dbUser = "dbuser";
+
+    /** Database password (PostgreSQL) */
+    private static String dbPassword = "dbpass";
+
+    /** Database port (PostgreSQL) */
+    private static int dbPort = 5432;
+
     /** Load block chain */
     private static boolean loadBlockChain = false;
-    
-    /** Regression test */
-    private static boolean regressionTest = false;
 
     /** Retry block */
     private static boolean retryBlock = false;
-    
-    /** Rebuild block index */
-    private static boolean rebuildIndex = false;
 
     /** Bypass block verification */
     private static boolean verifyBlocks = true;
@@ -228,7 +239,7 @@ public class Main {
 
     /** Starting block number */
     private static int startBlock;
-    
+
     /** Stop block number */
     private static int stopBlock;
 
@@ -381,18 +392,12 @@ public class Main {
                 }
             }
             //
-            // Rebuild the block index and then continue to load the block chain
-            //
-            if (rebuildIndex) {
-                blockStore = new BlockStoreLdb(dataPath, true);
-                blockStore.rebuildIndex(blockChainPath);
-                blockStore.close();
-                loadBlockChain = true;
-            }
-            //
             // Create the block store
             //
-            blockStore = new BlockStoreLdb(dataPath, false);
+            if (dbType.equalsIgnoreCase("leveldb"))
+                blockStore = new BlockStoreLdb(dataPath);
+            else
+                blockStore = new BlockStorePgs(dataPath, dbName, dbUser, dbPassword, dbPort);
             Parameters.blockStore = blockStore;
             //
             // Create the block chain
@@ -414,14 +419,6 @@ public class Main {
                 } else{
                     log.error(String.format("Block not found\n  Block %s", retryHash.toString()));
                 }
-                blockStore.close();
-                System.exit(0);
-            }
-            //
-            // Run the regression test
-            //
-            if (regressionTest) {
-                TransactionRegressionTest.start(dataPath, startBlock, stopBlock);
                 blockStore.close();
                 System.exit(0);
             }
@@ -597,8 +594,6 @@ public class Main {
         // TEST indicates we should use the test network
         // LOAD indicates we should load the block chain from the reference client data directory
         // RETRY indicates we should retry a block that is currently held
-        // INDEX indicates we should rebuild the block index
-        // REGRESSION indicate we should run a transaction regression test
         //
         switch (args[0].toLowerCase()) {
             case "load":
@@ -649,46 +644,6 @@ public class Main {
                 if (args.length > 3)
                     throw new IllegalArgumentException("Unrecognized command line parameter");
                 break;
-            case "index":
-                rebuildIndex = true;
-                if (args.length < 2)
-                    throw new IllegalArgumentException("Specify PROD or TEST with the INDEX option");
-                if (args[1].equalsIgnoreCase("TEST")) {
-                    testNetwork = true;
-                } else if (!args[1].equalsIgnoreCase("PROD")) {
-                    throw new IllegalArgumentException("Specify PROD or TEST after the INDEX option");
-                }
-                if (args.length > 2) {
-                    blockChainPath = args[2];
-                } else if (osName.startsWith("win")) {
-                    blockChainPath = userHome+"\\AppData\\Roaming\\Bitcoin";
-                } else if (osName.startsWith("linux")) {
-                    blockChainPath = userHome+"/.bitcoin";
-                } else if (osName.startsWith("mac os")) {
-                    blockChainPath = userHome+"/Library/Application Support/Bitcoin";
-                } else {
-                    blockChainPath = userHome+"/Bitcoin";
-                }
-                if (args.length > 3)
-                    throw new IllegalArgumentException("Unrecognized command line parameter");
-                break;
-            case "regression":
-                regressionTest = true;
-                if (args.length > 1) {
-                    startBlock = Integer.parseInt(args[1]);
-                } else {
-                    startBlock = 0;
-                }
-                if (args.length > 2) {
-                    stopBlock = Integer.parseInt(args[2]);
-                    if (stopBlock < startBlock)
-                        throw new IllegalArgumentException("Stop height is less than start height");
-                } else {
-                    stopBlock = Integer.MAX_VALUE;
-                }
-                if (args.length > 3)
-                    throw new IllegalArgumentException("Unrecognized command line parameter");
-                break;
             case "test":
                 testNetwork = true;
                 if (args.length > 1)
@@ -736,6 +691,23 @@ public class Main {
                     case "connect":
                         PeerAddress addr = new PeerAddress(value);
                         addressList.add(addr);
+                        break;
+                    case "dbname":
+                        dbName = value;
+                        break;
+                    case "dbpassword":
+                        dbPassword = value;
+                        break;
+                    case "dbport":
+                        dbPort = Integer.parseInt(value);
+                        break;
+                    case "dbtype":
+                        if (!value.equalsIgnoreCase("leveldb") && !value.equalsIgnoreCase("postgresql"))
+                            throw new IllegalArgumentException("Invalid database type specified");
+                        dbType = value;
+                        break;
+                    case "dbuser":
+                        dbUser = value;
                         break;
                     case "hostname":
                         hostName = value;

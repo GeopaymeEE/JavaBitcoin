@@ -1,5 +1,5 @@
 /**
- * Copyright-2014 2013 Ronald W Hoffman
+ * Copyright 2013-2014 Ronald W Hoffman
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -398,14 +398,6 @@ public abstract class BlockStore {
     public abstract void setChainHead(List<StoredBlock> chainList)
                                             throws BlockStoreException, VerificationException;
 
-    /**
-     * Rebuilds the block file entries when an existing database is used with a new Blocks directory.
-     * 
-     * @param       blockChainPath          Block chain path
-     * @throws      BlockStoreException     Unable to rebuild the block index
-     */
-    public abstract void rebuildIndex(String blockChainPath) throws BlockStoreException;
-    
     /**
      * Returns a block that was stored in one of the block files
      *

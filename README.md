@@ -7,13 +7,13 @@ It does full verification for blocks that it receives and will reject blocks tha
 
 There is a graphical user interface that displays alerts, peer connections (network address and client version) and recent blocks (both chain and orphan).
 
+JavaBitcoin supports LevelDB or PostgreSQL for the database support.  
+
+LevelDB requires no setup and runs in the same address space as JavaBitcoin.  There are no database query functions available.  You should backup the LevelDB subdirectory periodically using normal filesystem operations.
+
+PostgreSQL must be installed and configured before it can be used.  However, it is a full-function relational database and supports concurrent database queries.  It runs in its own address space.  The pgAdmin console provides backup and restore functions as well as server and database monitoring facilities.
+
 You can use the production network (PROD) or the regression test network (TEST).  The regression test network is useful because bitcoind will immediately generate a specified number of blocks.  To use the regression test network, start bitcoind with the -regtest option.  You can then generate blocks using bitcoin-cli to issue 'setgenerate true n' where 'n' is the number of blocks to generate.  Block generation will stop after the requested number of blocks have been generated.  Note that the genesis block, address formats and magic numbers are different between the two networks.  JavaBitcoin will create files related to the TEST network in the TestNet subdirectory of the application data directory.
-
-BouncyCastle (1.51 or later) is used for the elliptic curve functions.  Version 1.51 provides a custom SecP256K1 curve which significantly improves ECDSA performance.  Earlier versions of BouncyCastle do not provide this support and will not work with JavaBitcoin.
-
-Simple Logging Facade (1.7.5 or later) is used for console and file logging.  I'm using the JDK logger implementation which is controlled by the logging.properties file located in the application data directory.  If no logging.properties file is found, the system logging.properties file will be used (which defaults to logging to the console only).
-
-LevelDB is used for the database.  The LevelDB support is provided by leveldbjni (1.8 or later).  leveldbjni provides a native interface to the LevelDB routines.  The native LevelDB library is included in the leveldbjni.jar file and is extracted when you run the program.  On Windows, this causes a new temporary file to be created each time the program is run.  To get around this, extract the Windows version of leveldbjni.dll from the leveldbjni.jar and place it in a directory in the executable path (specified by the PATH environment variable).  Alternately, you can define the path to leveldbjni.dll by specifying '-Djava.library.path=directory-path' on the command line used to start JavaBitcoin.
 
 A compiled version is available here: https://drive.google.com/folderview?id=0B1312_6UqRHPYjUtbU1hdW9VMW8&usp=sharing.  Download the desired archive file and extract the files to a directory of your choice.  If you are building from the source, the dependent jar files can also be obtained here.  The files are signed with the GPG key for Ronald.Hoffman6@gmail.com (D6190F05).
 
@@ -27,7 +27,7 @@ Here are the steps for a manual build.  You will need to install Maven 3 and Jav
 
   - Create the executable: mvn clean install
   - [Optional] Create the documentation: mvn javadoc:javadoc
-  - [Optional] Copy target/JavaBitcoin-v.r.jar to wherever you want to store the executable.
+  - [Optional] Copy target/JavaBitcoin-v.r.jar and target/lib/* to wherever you want to store the executable.
   - Create a shortcut to start JavaBitcoin using java.exe for a command window or javaw.exe for GUI only. 
   
   
@@ -54,9 +54,6 @@ Runtime Options
 
 The following command-line arguments are supported:
 
-  - INDEX PROD|TEST directory-path		
-    Rebuild the block index in the LevelDB database using a new block chain.  The Blocks subdirectory in the application directory must be empty.  New files will be created using the supplied block chain files (for example, the block chain files created by the reference client).  This allows the LevelDB database to be copied to a new system which already has the block chain files.  The existing block chain must be at the database level or higher (that is, if the chain head in the database is 275000, then the block chain files must contain block 275000).  After the block index has been rebuilt, the block chain files will be processed to add any additional blocks to the database.  Upon completion, the LevelDB database will contain entries for all blocks in the block chain files.
-	
   - LOAD PROD|TEST directory-path start-block stop-block		
     Load the block chain from the reference client data directory and create the block database. Specify PROD to load the production database or TEST to load the test database. The default reference client data directory will be used if no directory path is specified.  The block file names are blknnnnn.dat where nnnnn is the block file number specified by start-block and stop-block.  start-block defaults to 0 and stop-block defaults to the highest contiguous block file number following the start block.  The program will terminate after loading the block chain.
 	
@@ -93,6 +90,22 @@ The following configuration options can be specified in JavaBitcoin.conf.  This 
   - connect=[address]:port		
     Specifies the address and port of a peer node.  This statement can be repeated to define multiple nodes.  If this option is specified, outbound connections will be created to only the listed addresses and DNS discovery will not be used.
 	
+  - dbName=name		
+	Specifies the PostgreSQL database name and defaults to 'bitcoin'
+	
+  - dbPassword=password		
+	Specifies the password for the PostgreSQL database user and defaults to 'dbpass'
+	
+  - dbPort=port		
+	Specifies the PostgreSQL database port and defaults to 5432
+	
+  - dbType=type		
+    Specifies the database type and may be 'LevelDB' or 'PostgreSQL'.  The LevelDB database
+	will be used if no database type is specified.
+	
+  - dbUser=user		
+	Specifies the PostgreSQL database user and defaults to 'dbuser'
+	
   - hostname=host.domain		
 	Specifies the host name for this node.  An HTTP request will be made to checkip.dyndns.org to resolve the external IP address if no host name is specified in the configuration file.
 	
@@ -112,3 +125,8 @@ Sample Windows shortcut:
 Replace javaw.exe with java.exe if you want to run from a command prompt.  This will allow you to view log messages as they occur.
 
 In this example, the leveldbjni.dll file was extracted from the jar file and placed in the \Bitcoin\JavaBitcoin directory.  Specifying java.library.path tells the JVM where to find the native resources.
+
+If you are using the PostgreSQL database, you need to create the Bitcoin database before starting JavaBitcoin.  You do not need to create any tables or indexes since JavaBitcoin will create them for you.
+
+	CREATE ROLE dbuser LOGIN PASSWORD 'dbpass' CREATEDB INHERIT REPLICATION
+	CREATE DATABASE bitcoin WITH ENCODING='UTF8' OWNER=dbuser LC_COLLATE='C' LC_CTYPE='C'
