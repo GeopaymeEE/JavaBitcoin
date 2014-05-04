@@ -198,6 +198,12 @@ public class Main {
     /** Test network */
     private static boolean testNetwork = false;
 
+    /** Shutdown initiated */
+    private static boolean shutdownCompleted = false;
+
+    /** JVM shutdown started */
+    private static boolean jvmShutdown = false;
+
     /** Host name */
     private static String hostName;
 
@@ -379,7 +385,7 @@ public class Main {
             }
             Parameters.SOFTWARE_NAME = String.format("/%s:%s/", applicationID, applicationVersion);
             log.info(String.format("%s Version %s", applicationName, applicationVersion));
-            log.info(String.format("Application data path: '%s'", dataPath));
+            log.info(String.format("Application data path: %s", dataPath));
             log.info(String.format("Block verification is %s", (verifyBlocks?"enabled":"disabled")));
             //
             // Load the saved application properties
@@ -391,6 +397,17 @@ public class Main {
                     properties.load(in);
                 }
             }
+            //
+            // Set a shutdown hook
+            //
+            Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    jvmShutdown = true;
+                    if (!shutdownCompleted)
+                        shutdown();
+                }
+            }));
             //
             // Create the block store
             //
@@ -527,6 +544,7 @@ public class Main {
      * Shutdown and exit
      */
     public static void shutdown() {
+        log.info("Shutdown started");
         //
         // Stop the worker threads
         //
@@ -574,11 +592,15 @@ public class Main {
             fileLock.release();
             lockFile.close();
         } catch (IOException exc) {
+            log.error("Unable to release application lock", exc);
         }
         //
         // All done
         //
-        System.exit(0);
+        shutdownCompleted = true;
+        log.info("Shutdown completed");
+        if (!jvmShutdown)
+            System.exit(0);
     }
 
     /**
@@ -776,8 +798,10 @@ public class Main {
                     }
                 });
             } catch (Exception logexc) {
-                log.error("Unable to log exception during program initialization");
+                log.error(text, exc);
             }
+        } else {
+            log.error(text, exc);
         }
     }
 
