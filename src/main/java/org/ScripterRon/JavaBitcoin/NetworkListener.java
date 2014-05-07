@@ -96,7 +96,7 @@ public class NetworkListener implements Runnable {
 
     /** Current number of outbound connections */
     private int outboundCount;
-    
+
     /** Host name */
     private final String hostName;
 
@@ -138,7 +138,7 @@ public class NetworkListener implements Runnable {
 
     /** Static connections */
     private boolean staticConnections = false;
-    
+
     /** GetBlock time */
     private long getBlocksTime = 0;
 
@@ -152,7 +152,7 @@ public class NetworkListener implements Runnable {
      * @param       staticAddresses     Static peer address
      * @throws      IOException
      */
-    public NetworkListener(int maxConnections, int maxOutbound, String hostName, int listenPort, 
+    public NetworkListener(int maxConnections, int maxOutbound, String hostName, int listenPort,
                                         PeerAddress[] staticAddresses)
                                         throws IOException {
         this.maxConnections = maxConnections;
@@ -869,11 +869,7 @@ public class NetworkListener implements Runnable {
             peer.setInputBuffer(null);
             peer.setOutputBuffer(null);
             peer.setDeferredMessage(null);
-            List<Message> outputList = peer.getOutputList();
-            while (!outputList.isEmpty()) {
-                Message outputMsg = outputList.remove(0);
-                outputMsg.setPeer(null);
-            }
+            peer.getOutputList().clear();
             if (address.isOutbound())
                 outboundCount--;
             address.setConnected(false);
@@ -916,7 +912,6 @@ public class NetworkListener implements Runnable {
             Peer peer = msg.getPeer();
             PeerAddress address = peer.getAddress();
             SelectionKey key = peer.getKey();
-            msg.setPeer(null);
             //
             // Nothing to do if the connection has been closed
             //
@@ -1049,7 +1044,7 @@ public class NetworkListener implements Runnable {
         while (!Parameters.pendingRequests.isEmpty()) {
             synchronized(Parameters.lock) {
                 request = Parameters.pendingRequests.get(0);
-                if (request.getType() == Parameters.INV_BLOCK && 
+                if (request.getType() == Parameters.INV_BLOCK &&
                             (Parameters.databaseQueue.size() >= 10 || Parameters.processedRequests.size() > 50)) {
                     request = null;
                 } else {
@@ -1129,7 +1124,7 @@ public class NetworkListener implements Runnable {
             //
             // Send a 'getblocks' message if we are down-level and the request is for a block
             //
-            if (request.getType() == Parameters.INV_BLOCK && 
+            if (request.getType() == Parameters.INV_BLOCK &&
                             getBlocksTime < System.currentTimeMillis()/1000-300 &&
                             Parameters.pendingRequests.size() < 10 &&
                             Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight - 100) {

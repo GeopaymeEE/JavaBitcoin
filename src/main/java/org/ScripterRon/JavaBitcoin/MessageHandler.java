@@ -80,6 +80,10 @@ public class MessageHandler implements Runnable {
      */
     private void processMessage(Message msg) throws InterruptedException {
         Peer peer = msg.getPeer();
+        if (peer == null) {
+            Main.dumpData("Message With No Peer", msg.getBuffer().array());
+            return;
+        }
         PeerAddress address = peer.getAddress();
         String cmd = "N/A";
         int cmdOp = 0;

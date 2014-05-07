@@ -542,9 +542,9 @@ public class Main {
 
     /**
      * Shutdown and exit
+     *
      */
     public static void shutdown() {
-        log.info("Shutdown started");
         //
         // Stop the worker threads
         //
@@ -552,12 +552,10 @@ public class Main {
             Parameters.networkListener.shutdown();
             Parameters.databaseQueue.put(new ShutdownDatabase());
             Parameters.messageQueue.put(new ShutdownMessage());
-            log.info("Waiting for worker threads to stop");
             for (Thread thread : threads)
-                thread.join();
-            log.info("Worker threads have stopped");
+                thread.join(15000);
         } catch (InterruptedException exc) {
-            log.info("Interrupted while waiting for threads to stop");
+            // Nothing to be done at this point
         }
         //
         // Close the database
@@ -579,7 +577,12 @@ public class Main {
                 }
             }
         } catch (IOException exc) {
-            log.error("Unable to save peer addresses", exc);
+            if (jvmShutdown) {
+                System.err.println("Unable to save peer addresses");
+                exc.printStackTrace(System.out);
+            } else {
+                log.error("Unable to save peer addresses", exc);
+            }
         }
         //
         // Save the application properties
@@ -592,13 +595,17 @@ public class Main {
             fileLock.release();
             lockFile.close();
         } catch (IOException exc) {
-            log.error("Unable to release application lock", exc);
+            if (jvmShutdown) {
+                System.err.println("Unable to release application lock");
+                exc.printStackTrace();
+            } else {
+                log.error("Unable to release application lock", exc);
+            }
         }
         //
         // All done
         //
         shutdownCompleted = true;
-        log.info("Shutdown completed");
         if (!jvmShutdown)
             System.exit(0);
     }
