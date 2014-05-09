@@ -15,9 +15,6 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 
 import javax.swing.*;
@@ -28,9 +25,6 @@ import java.awt.event.*;
  * This is the main application window
  */
 public final class MainWindow extends JFrame implements ActionListener {
-
-    /** Create our logger */
-    private static final Logger log = LoggerFactory.getLogger(MainWindow.class);
 
     /** Main window is minimized */
     private boolean windowMinimized = false;

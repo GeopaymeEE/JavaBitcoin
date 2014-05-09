@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -31,9 +29,6 @@ import java.util.List;
  * The database handler terminates when its shutdown() method is called.
  */
 public class DatabaseHandler implements Runnable {
-
-    /** Logger instance */
-    private static final Logger log = LoggerFactory.getLogger(DatabaseHandler.class);
 
     /**
      * Creates the database listener

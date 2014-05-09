@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.io.File;
 import java.io.FileOutputStream;

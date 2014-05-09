@@ -18,6 +18,7 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+
 import java.util.List;
 
 /**

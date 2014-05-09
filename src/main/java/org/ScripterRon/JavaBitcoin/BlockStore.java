@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,9 +36,6 @@ import java.util.Map;
  * and a new file is created.
  */
 public abstract class BlockStore {
-
-    /** Logger instance */
-    protected static final Logger log = LoggerFactory.getLogger(BlockStore.class);
 
     /** Maximum block file size */
     protected static final long MAX_BLOCK_FILE_SIZE = 256 * 1024 * 1024;

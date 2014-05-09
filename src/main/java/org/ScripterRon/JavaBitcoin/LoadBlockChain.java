@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -30,13 +28,10 @@ import java.util.List;
  * the blknnnnn.dat files created by the reference client)
  */
 public class LoadBlockChain {
-    
-    /** Logger instance */
-    private static final Logger log = LoggerFactory.getLogger(LoadBlockChain.class);
 
     /**
      * Load the block chain from the reference client data directory
-     * 
+     *
      * @param       blockChainPath      Reference client application directory path
      * @param       startBlock          Starting block file number
      * @param       stopBlock           Stop block file number

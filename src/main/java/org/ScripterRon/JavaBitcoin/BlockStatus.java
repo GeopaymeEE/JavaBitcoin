@@ -21,10 +21,10 @@ package org.ScripterRon.JavaBitcoin;
 public class BlockStatus {
 
     /** Block timestamp */
-    private long timeStamp;
+    private final long timeStamp;
 
     /** Block hash */
-    private Sha256Hash blockHash;
+    private final Sha256Hash blockHash;
 
     /** Block height */
     private int blockHeight;

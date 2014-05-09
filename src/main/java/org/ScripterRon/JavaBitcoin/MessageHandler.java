@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -36,9 +34,6 @@ import java.util.List;
  * is available.
  */
 public class MessageHandler implements Runnable {
-
-    /** Logger instance */
-    private static final Logger log = LoggerFactory.getLogger(MessageHandler.class);
 
     /**
      * Creates a message handler

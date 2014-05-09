@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.io.InputStream;
 import java.io.IOException;
@@ -59,9 +57,6 @@ import java.util.TimerTask;
  * The network listener terminates when its shutdown() method is called.
  */
 public class NetworkListener implements Runnable {
-
-    /** Logger instance */
-    private static final Logger log = LoggerFactory.getLogger(NetworkListener.class);
 
     /** Maximum number of pending input messages for a single peer */
     private static final int MAX_INPUT_MESSAGES = 10;

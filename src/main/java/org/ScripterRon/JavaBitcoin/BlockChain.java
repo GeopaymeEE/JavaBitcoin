@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.math.BigInteger;
 
@@ -34,11 +32,8 @@ import java.util.Map;
  */
 public class BlockChain {
 
-    /** Logger instance */
-    private static final Logger log = LoggerFactory.getLogger(BlockChain.class);
-
     /** Verify blocks */
-    private boolean verifyBlocks;
+    private final boolean verifyBlocks;
 
     /** Chain listeners */
     private final List<ChainListener> listeners = new ArrayList<>();

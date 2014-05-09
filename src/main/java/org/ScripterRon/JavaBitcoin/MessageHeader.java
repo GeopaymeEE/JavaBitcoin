@@ -18,7 +18,9 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+
 import java.nio.ByteBuffer;
+
 import java.util.Map;
 import java.util.HashMap;
 

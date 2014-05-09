@@ -151,7 +151,7 @@ import javax.swing.*;
 public class Main {
 
     /** Logger instance */
-    private static final Logger log = LoggerFactory.getLogger(Main.class);
+    public static final Logger log = LoggerFactory.getLogger("org.ScripterRon.JavaBitcoin");
 
     /** File separator */
     public static String fileSeparator;

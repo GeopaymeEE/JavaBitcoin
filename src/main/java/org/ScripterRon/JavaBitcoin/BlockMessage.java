@@ -26,10 +26,10 @@ import java.util.List;
  * of a single serialized block.
  */
 public class BlockMessage {
-    
+
     /**
      * Processes a 'block' message
-     * 
+     *
      * @param       msg                     Message
      * @param       inStream                Message data stream
      * @throws      EOFException            Serialized data is too short
@@ -37,7 +37,7 @@ public class BlockMessage {
      * @throws      IOException             Error reading input stream
      * @throws      VerificationException   Block verification failed
      */
-    public static void processBlockMessage(Message msg, ByteArrayInputStream inStream) 
+    public static void processBlockMessage(Message msg, ByteArrayInputStream inStream)
                                             throws EOFException, InterruptedException,
                                                    IOException, VerificationException{
         //
@@ -82,6 +82,6 @@ public class BlockMessage {
         //
         // Add the block to the database handler queue
         //
-        Parameters.databaseQueue.put(block);        
+        Parameters.databaseQueue.put(block);
     }
 }

@@ -61,7 +61,7 @@ public class GetBlocksMessage {
     public static Message buildGetBlocksMessage(Peer peer) {
         return buildGetBlocksMessage(peer, Sha256Hash.ZERO_HASH);
     }
-    
+
     /**
      * Build a 'getblocks' message requesting blocks up to the stop block
      *

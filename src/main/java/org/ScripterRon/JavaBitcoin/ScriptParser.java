@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
@@ -33,20 +31,17 @@ import java.util.List;
 
 /**
  * Transaction script parser
- * 
+ *
  * A script is a small program contained in the transaction which determines whether or not
  * an output can be spent.  The first half of the script is provided by the transaction input
  * and the second half of the script is provided by the transaction output.
  */
 public class ScriptParser {
-    
-    /** Logger instance */
-    private static final Logger log = LoggerFactory.getLogger(ScriptParser.class);
-    
+
     /**
-     * Processes a transaction script to determine if the spending transaction 
+     * Processes a transaction script to determine if the spending transaction
      * is authorized to spend the output coins
-     * 
+     *
      * @param       txInput             Transaction input spending the coins
      * @param       txOutput            Transaction output providing the coins
      * @return                          The script result
@@ -102,7 +97,7 @@ public class ScriptParser {
                 if (count < 2)
                     pay2ScriptHash = false;
             } catch (EOFException exc) {
-                log.error(String.format("End-of-datat while scanning input script\n  Tx %s", 
+                log.error(String.format("End-of-datat while scanning input script\n  Tx %s",
                                          tx.getHash().toString()));
                 Main.dumpData("Failing Input Script", inputScriptBytes);
                 throw new ScriptException("End-of-data while scanning input script");
@@ -118,14 +113,14 @@ public class ScriptParser {
                 scriptStack.remove(0);
                 if (pay2ScriptHash && !scriptStack.isEmpty()) {
                     byte[] scriptBytes = scriptStack.get(0);
-                    p2sh = (scriptBytes.length == 23 && 
+                    p2sh = (scriptBytes.length == 23 &&
                             scriptBytes[0] == (byte)ScriptOpCodes.OP_HASH160 &&
                             scriptBytes[1] == 20 &&
                             scriptBytes[22] == (byte)ScriptOpCodes.OP_EQUAL);
                 }
             }
         } catch (Throwable exc) {
-            log.error(String.format("%s: %s\n  Tx %s\n  Index %d", exc.getClass().getName(),exc.getMessage(), 
+            log.error(String.format("%s: %s\n  Tx %s\n  Index %d", exc.getClass().getName(),exc.getMessage(),
                                     tx.getHash().toString(), txInput.getIndex()), exc);
             Main.dumpData("Current Script Segment", scriptStack.get(0));
             if (inputScriptBytes.length != 0)
@@ -146,7 +141,7 @@ public class ScriptParser {
             }
         }
         if (!txValid) {
-            log.error(String.format("Signature verification failed\n  Tx %s\n  Index %d", 
+            log.error(String.format("Signature verification failed\n  Tx %s\n  Index %d",
                                     tx.getHash().toString(), txInput.getIndex()));
             if (inputScriptBytes.length != 0)
                 Main.dumpData("Input Script", inputScriptBytes);
@@ -155,10 +150,10 @@ public class ScriptParser {
         }
         return txValid;
     }
-    
+
     /**
      * Processes the current script
-     * 
+     *
      * @param       txInput             The current transaction input
      * @param       scriptStack         Script stack
      * @param       elemStack           Element stack
@@ -169,7 +164,7 @@ public class ScriptParser {
      * @throws      IOException         Unable to process signature
      * @throws      ScriptException     Unable to process script
      */
-    private static boolean processScript(TransactionInput txInput, List<byte[]> scriptStack, 
+    private static boolean processScript(TransactionInput txInput, List<byte[]> scriptStack,
                                         List<StackElement> elemStack, List<StackElement> altStack,
                                         boolean p2sh) throws EOFException, IOException, ScriptException {
         boolean txValid = true;
@@ -595,10 +590,10 @@ public class ScriptParser {
         }
         return txValid;
     }
-    
+
     /**
      * Returns the top element from the stack but does not remove it from the stack
-     * 
+     *
      * @param       elemStack           The element stack
      * @return                          The top stack element
      * @throws      ScriptException     The stack is empty
@@ -627,7 +622,7 @@ public class ScriptParser {
      *
      * Checks the top element on the stack and removes it if it is non-zero.  The return value
      * is TRUE if the top element is non-zero and FALSE otherwise.
-     * 
+     *
      * @param       elemStack           The element stack
      * @return                          TRUE if the top stack element is non-zero
      */
@@ -659,8 +654,8 @@ public class ScriptParser {
      * @throws      IOException         Unable to process encoded element
      * @throws      ScriptException     Unable to verify signature
      */
-    private static void processCheckSig(TransactionInput txInput, List<StackElement> elemStack, 
-                                        byte[] scriptBytes, int lastSeparator) 
+    private static void processCheckSig(TransactionInput txInput, List<StackElement> elemStack,
+                                        byte[] scriptBytes, int lastSeparator)
                                         throws IOException, ScriptException {
         byte[] bytes;
         boolean result;
@@ -717,7 +712,7 @@ public class ScriptParser {
      *
      * TRUE is pushed on the stack if all signatures have been verified,
      * otherwise FALSE is pushed on the stack.
-     * 
+     *
      * @param       txInput             The current transaction input
      * @param       elemStack           The element stack
      * @param       scriptBytes         The current script program
@@ -725,8 +720,8 @@ public class ScriptParser {
      * @throws      IOException         Unable to process signature
      * @throws      ScriptException     Unable to verify signature
      */
-    private static void processMultiSig(TransactionInput txInput, List<StackElement> elemStack, 
-                                        byte[] scriptBytes, int lastSeparator) 
+    private static void processMultiSig(TransactionInput txInput, List<StackElement> elemStack,
+                                        byte[] scriptBytes, int lastSeparator)
                                         throws IOException, ScriptException {
         List<StackElement> keys = new ArrayList<>(ScriptOpCodes.MAX_SIG_OPS);
         List<StackElement> sigs = new ArrayList<>(ScriptOpCodes.MAX_SIG_OPS);
@@ -737,8 +732,8 @@ public class ScriptParser {
         // Get the public keys
         //
         // Some transactions are storing application data as one of the public
-        // keys.  So we need to check for a valid initial byte (02, 03, 04).  
-        // The garbage key will be ignored and the transaction will be valid as long 
+        // keys.  So we need to check for a valid initial byte (02, 03, 04).
+        // The garbage key will be ignored and the transaction will be valid as long
         // as the signature is verified using one of the valid keys.
         //
         int pubKeyCount = popStack(elemStack).getBigInteger().intValue();
@@ -771,7 +766,7 @@ public class ScriptParser {
         // of all signature are removed
         //
         byte[] subProgram = Arrays.copyOfRange(scriptBytes, lastSeparator, scriptBytes.length);
-        for (StackElement sig : sigs) 
+        for (StackElement sig : sigs)
             subProgram = Script.removeDataElement(sig.getBytes(), subProgram, 0);
         //
         // Verify each signature and stop if we have a verification failure
@@ -808,7 +803,7 @@ public class ScriptParser {
      * @throw       IOException         Unable to process signature
      * @throw       ScriptException     Unable to verify signature
      */
-    private static boolean checkSig(TransactionInput txInput, StackElement sig, List<StackElement> pubKeys, 
+    private static boolean checkSig(TransactionInput txInput, StackElement sig, List<StackElement> pubKeys,
                                         byte[] subProgram)  throws IOException, ScriptException {
         byte[] sigBytes = sig.getBytes();
         boolean isValid = false;

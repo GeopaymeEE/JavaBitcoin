@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import org.iq80.leveldb.CompressionType;
 import org.iq80.leveldb.DB;

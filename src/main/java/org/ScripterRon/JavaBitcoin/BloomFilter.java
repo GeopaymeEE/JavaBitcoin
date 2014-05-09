@@ -225,7 +225,7 @@ public class BloomFilter {
                 //
                 if (nFlags==BloomFilter.UPDATE_ALL ||
                             (nFlags==BloomFilter.UPDATE_P2PUBKEY_ONLY &&
-                                (type==ScriptOpCodes.PAY_TO_PUBKEY || 
+                                (type==ScriptOpCodes.PAY_TO_PUBKEY ||
                                  type==ScriptOpCodes.PAY_TO_MULTISIG))) {
                     System.arraycopy(Utils.reverseBytes(txHash.getBytes()), 0, outpointData, 0, 32);
                     Utils.uint32ToByteArrayLE(index, outpointData, 32);

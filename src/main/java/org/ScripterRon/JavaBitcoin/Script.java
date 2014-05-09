@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
@@ -32,9 +30,6 @@ import java.util.Arrays;
  * and the second half of the script is provided by the transaction output.
  */
 public class Script {
-
-    /** Logger instance */
-    private static final Logger log = LoggerFactory.getLogger(Script.class);
 
     /**
      * Checks that the script consists of only canonical push-data operations.
@@ -316,10 +311,10 @@ public class Script {
         result[1] = offset;
         return result;
     }
-    
+
     /**
      * Remove all instances of a data element from a script
-     * 
+     *
      * @param       dataBytes           The bytes to be removed
      * @param       scriptBytes         The script bytes
      * @param       lastSeparator       Last code separator
