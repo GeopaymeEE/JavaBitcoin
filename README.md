@@ -7,9 +7,9 @@ It does full verification for blocks that it receives and will reject blocks tha
 
 There is a graphical user interface that displays alerts, peer connections (network address and client version) and recent blocks (both chain and orphan).
 
-JavaBitcoin supports LevelDB or PostgreSQL for the database support.  
+JavaBitcoin supports LevelDB, H2 or PostgreSQL for the database support.  
 
-LevelDB requires no setup and runs in the same address space as JavaBitcoin.  There are no database query functions available.  You should backup the LevelDB subdirectory periodically using normal filesystem operations.
+LevelDB and H2 require no setup and run in the same address space as JavaBitcoin.  You should backup the JavaBitcoin application directory periodically using normal filesystem operations.  H2 provides a console that can be used to issue SQL statements against the JavaBitcoin database.
 
 PostgreSQL must be installed and configured before it can be used.  However, it is a full-function relational database and supports concurrent database queries.  It runs in its own address space.  The pgAdmin console provides backup and restore functions as well as server and database monitoring facilities.
 

@@ -198,12 +198,6 @@ public class Main {
     /** Test network */
     private static boolean testNetwork = false;
 
-    /** Shutdown initiated */
-    private static boolean shutdownCompleted = false;
-
-    /** JVM shutdown started */
-    private static boolean jvmShutdown = false;
-
     /** Host name */
     private static String hostName;
 
@@ -398,23 +392,15 @@ public class Main {
                 }
             }
             //
-            // Set a shutdown hook
-            //
-            Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    jvmShutdown = true;
-                    if (!shutdownCompleted)
-                        shutdown();
-                }
-            }));
-            //
             // Create the block store
             //
             if (dbType.equalsIgnoreCase("leveldb"))
                 blockStore = new BlockStoreLdb(dataPath);
+            else if (dbType.equalsIgnoreCase("h2"))
+                blockStore = new BlockStoreSql(BlockStoreSql.DBTYPE.H2, dataPath, "", "", "", 0);
             else
-                blockStore = new BlockStorePgs(dataPath, dbName, dbUser, dbPassword, dbPort);
+                blockStore = new BlockStoreSql(BlockStoreSql.DBTYPE.POSTGRESQL,
+                                               dataPath, dbName, dbUser, dbPassword, dbPort);
             Parameters.blockStore = blockStore;
             //
             // Create the block chain
@@ -577,12 +563,7 @@ public class Main {
                 }
             }
         } catch (IOException exc) {
-            if (jvmShutdown) {
-                System.err.println("Unable to save peer addresses");
-                exc.printStackTrace(System.out);
-            } else {
-                log.error("Unable to save peer addresses", exc);
-            }
+            log.error("Unable to save peer addresses", exc);
         }
         //
         // Save the application properties
@@ -595,19 +576,12 @@ public class Main {
             fileLock.release();
             lockFile.close();
         } catch (IOException exc) {
-            if (jvmShutdown) {
-                System.err.println("Unable to release application lock");
-                exc.printStackTrace();
-            } else {
-                log.error("Unable to release application lock", exc);
-            }
+            log.error("Unable to release application lock", exc);
         }
         //
         // All done
         //
-        shutdownCompleted = true;
-        if (!jvmShutdown)
-            System.exit(0);
+        System.exit(0);
     }
 
     /**
@@ -731,7 +705,8 @@ public class Main {
                         dbPort = Integer.parseInt(value);
                         break;
                     case "dbtype":
-                        if (!value.equalsIgnoreCase("leveldb") && !value.equalsIgnoreCase("postgresql"))
+                        if (!value.equalsIgnoreCase("leveldb") && !value.equalsIgnoreCase("postgresql") &&
+                                                                  !value.equalsIgnoreCase("h2"))
                             throw new IllegalArgumentException("Invalid database type specified");
                         dbType = value;
                         break;

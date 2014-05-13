@@ -35,7 +35,7 @@ import java.util.logging.Logger;
 public class BriefLogFormatter extends Formatter {
 
     /** Format used for log messages */
-    private static final MessageFormat messageFormat = new MessageFormat("{3,date,hh:mm:ss} {0} {1}.{2}: {4}\n{5}");
+    private static final MessageFormat messageFormat = new MessageFormat("{3,date,MM/dd HH:mm} {0} {1}.{2}: {4}\n{5}");
 
     // OpenJDK made a questionable, backwards incompatible change to the Logger implementation. It internally uses
     // weak references now which means simply fetching the logger and changing its configuration won't work. We must

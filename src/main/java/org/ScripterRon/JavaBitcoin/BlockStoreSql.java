@@ -31,11 +31,12 @@ import java.sql.Statement;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
 /**
- * <p>BlockStorePgs manages the PostgreSQL database containing the block chain information.
+ * <p>BlockStoreSql manages the SQL database containing the block chain information.
  * The database is periodically pruned to reduce storage requirements by removing transactions
  * with completely-spent outputs.</p>
  *
@@ -99,7 +100,13 @@ import java.util.List;
  *   signature          BYTEA               Alert signature
  * </pre>
  */
-public class BlockStorePgs extends BlockStore {
+public class BlockStoreSql extends BlockStore {
+
+    /** Supported database managers */
+    public static enum DBTYPE {
+        H2,                                 // H2 database
+        POSTGRESQL                          // PostgreSQL database
+    }
 
    /** Settings table definition */
     private static final String Settings_Table = "CREATE TABLE Settings ("+
@@ -125,8 +132,7 @@ public class BlockStorePgs extends BlockStore {
     private static final String TxOutputs_Table = "CREATE TABLE TxOutputs ("+
             "txHash             BYTEA                   NOT NULL,"+
             "txIndex            INTEGER                 NOT NULL,"+
-            "blockHash          BYTEA                   NOT NULL "+
-                                "REFERENCES Blocks(blockHash) ON DELETE CASCADE,"+
+            "blockHash          BYTEA                   NOT NULL,"+
             "blockHeight        INTEGER                 NOT NULL,"+
             "timeSpent          BIGINT                  NOT NULL,"+
             "isCoinbase         BOOLEAN                 NOT NULL,"+
@@ -152,7 +158,7 @@ public class BlockStorePgs extends BlockStore {
     private final ThreadLocal<Connection> threadConnection = new ThreadLocal<>();
 
     /** List of all database connections */
-    private final List<Connection> allConnections = new ArrayList<>();
+    private final List<Connection> allConnections = Collections.synchronizedList(new ArrayList<Connection>());
 
     /** Database connection URL */
     private final String connectionURL;
@@ -163,9 +169,13 @@ public class BlockStorePgs extends BlockStore {
     /** Database connection password */
     private final String connectionPassword;
 
+    /** Database type */
+    private final DBTYPE dbType;
+
     /**
      * Creates a BlockStore using the PostgreSQL database
      *
+     * @param       dbType              Database type
      * @param       dataPath            Application data path
      * @param       dbName              Database name
      * @param       user                Database user
@@ -173,23 +183,38 @@ public class BlockStorePgs extends BlockStore {
      * @param       port                Database server port
      * @throws      BlockStoreException Unable to initialize the database
      */
-    public BlockStorePgs(String dataPath, String dbName, String user, String password, int port)
+    public BlockStoreSql(DBTYPE dbType, String dataPath, String dbName,
+                                        String user, String password, int port)
                                         throws BlockStoreException {
         super(dataPath);
-        //
-        // We will use the PostgreSQL database
-        //
-        connectionURL = String.format("jdbc:postgresql://127.0.0.1:%d/%s", port, dbName);
+        this.dbType = dbType;
         connectionUser = user;
         connectionPassword = password;
         //
-        // Load the JDBC driver (Jaybird)
+        // Set up the connection URL
+        //
+        String driver;
+        switch (dbType) {
+            case H2:
+                String databasePath = dataPath.replace('\\', '/');
+                connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;MAX_COMPACT_TIME=15000", databasePath);
+                driver = "org.h2.Driver";
+                break;
+            case POSTGRESQL:
+                connectionURL = String.format("jdbc:postgresql://127.0.0.1:%d/%s", port, dbName);
+                driver = "org.postgresql.Driver";
+                break;
+            default:
+                throw new BlockStoreException("Unsupported database manager type");
+        }
+        //
+        // Load the JDBC driver
         //
         try {
-            Class.forName("org.postgresql.Driver");
+            Class.forName(driver);
         } catch (ClassNotFoundException exc) {
-            log.error("Unable to load the PostgreSQL JDBC driver", exc);
-            throw new BlockStoreException("Unable to load the PostgreSQL JDBC driver", exc);
+            log.error("Unable to load the JDBC driver", exc);
+            throw new BlockStoreException("Unable to load the JDBC driver", exc);
         }
         //
         // Initialize the database
@@ -677,8 +702,7 @@ public class BlockStorePgs extends BlockStore {
             try (PreparedStatement s = conn.prepareStatement(
                                 "DELETE FROM TxOutputs WHERE timespent>0 AND timespent<?")) {
                 s.setLong(1, ageLimit);
-                int txPurged = s.executeUpdate();
-                log.info(String.format("%,d spent transaction outputs deleted", txPurged));
+                s.executeUpdate();
             }
         } catch (SQLException exc) {
             log.error("Unable to delete spent transaction outputs", exc);
@@ -1302,8 +1326,11 @@ public class BlockStorePgs extends BlockStore {
         //
         synchronized (lock) {
             try {
-                threadConnection.set(
-                        DriverManager.getConnection(connectionURL, connectionUser, connectionPassword));
+                if (connectionUser.length() > 0)
+                    threadConnection.set(
+                            DriverManager.getConnection(connectionURL, connectionUser, connectionPassword));
+                else
+                    threadConnection.set(DriverManager.getConnection(connectionURL));
                 conn = threadConnection.get();
                 allConnections.add(conn);
                 log.info(String.format("New connection created to SQL database %s", connectionURL));
@@ -1364,11 +1391,19 @@ public class BlockStorePgs extends BlockStore {
         try {
             try (Statement s = conn.createStatement()) {
                 conn.setAutoCommit(false);
+                switch (dbType) {
+                    case H2:
+                        s.executeUpdate(TxOutputs_Table.replaceAll("BYTEA", "BINARY"));
+                        s.executeUpdate(Blocks_Table.replaceAll("BYTEA", "BINARY"));
+                        break;
+                    case POSTGRESQL:
+                        s.executeUpdate(TxOutputs_Table);
+                        s.executeUpdate(Blocks_Table);
+                        break;
+                }
                 s.executeUpdate(Settings_Table);
-                s.executeUpdate(TxOutputs_Table);
                 s.executeUpdate(TxOutputs_IX1);
                 s.executeUpdate(TxOutputs_IX2);
-                s.executeUpdate(Blocks_Table);
                 s.executeUpdate(Blocks_IX1);
                 s.executeUpdate(Blocks_IX2);
                 s.executeUpdate(Alerts_Table);
