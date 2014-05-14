@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import org.bouncycastle.asn1.ASN1InputStream;
 import org.bouncycastle.asn1.ASN1Integer;
@@ -158,7 +159,8 @@ public class ECKey {
                 s = ((ASN1Integer)seq.getObjectAt(1)).getPositiveValue();
             }
         } catch (IOException | ClassCastException exc) {
-            throw new ECException("ASN.1 failure while decoding signature", exc);
+            log.warn(String.format("Signature verification failed: %s", exc.getMessage()));
+            throw new ECException("ASN.1 failure while decoding signature");
         }
         //
         // Get the double SHA-256 hash of the signed contents
@@ -185,7 +187,8 @@ public class ECKey {
             signer.init(false, params);
             isValid = signer.verifySignature(contentsHash, r, s);
         } catch (RuntimeException exc) {
-            throw new ECException("Runtime exception while verifying signature", exc);
+            log.warn(String.format("Signature verification failed: %s", exc.getMessage()));
+            throw new ECException("Runtime exception while verifying signature");
         }
         return isValid;
     }

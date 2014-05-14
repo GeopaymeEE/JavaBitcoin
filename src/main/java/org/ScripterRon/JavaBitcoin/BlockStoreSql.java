@@ -892,38 +892,36 @@ public class BlockStoreSql extends BlockStore {
             int[] fileLocation = storeBlock(block);
             try {
                 Connection conn = checkConnection();
-                conn.setAutoCommit(false);
-                //
-                // Store the block in the Blocks table
-                //
-                try (PreparedStatement s = conn.prepareStatement(
+                try (PreparedStatement s1 = conn.prepareStatement(
                                 "INSERT INTO Blocks (blockHash,prevHash,blockHeight,timeStamp,"+
                                         "chainWork,onChain,onHold,fileNumber,fileOffset) "+
-                                        "VALUES(?,?,?,?,?,?,?,?,?)")) {
-                    s.setBytes(1, block.getHash().getBytes());
-                    s.setBytes(2, block.getPrevBlockHash().getBytes());
-                    s.setInt(3, storedBlock.getHeight());
-                    s.setLong(4, block.getTimeStamp());
-                    s.setBytes(5, storedBlock.getChainWork().toByteArray());
-                    s.setBoolean(6, storedBlock.isOnChain());
-                    s.setBoolean(7, storedBlock.isOnHold());
-                    s.setInt(8, fileLocation[0]);
-                    s.setInt(9, fileLocation[1]);
-                    s.executeUpdate();
+                                        "VALUES(?,?,?,?,?,?,?,?,?)");
+                        PreparedStatement s2 = conn.prepareStatement("UPDATE Settings SET fileNumber=?")) {
+                    conn.setAutoCommit(false);
+                    //
+                    // Store the block in the Blocks table
+                    //
+                    s1.setBytes(1, block.getHash().getBytes());
+                    s1.setBytes(2, block.getPrevBlockHash().getBytes());
+                    s1.setInt(3, storedBlock.getHeight());
+                    s1.setLong(4, block.getTimeStamp());
+                    s1.setBytes(5, storedBlock.getChainWork().toByteArray());
+                    s1.setBoolean(6, storedBlock.isOnChain());
+                    s1.setBoolean(7, storedBlock.isOnHold());
+                    s1.setInt(8, fileLocation[0]);
+                    s1.setInt(9, fileLocation[1]);
+                    s1.executeUpdate();
+                    //
+                    // Update the current block file number in the Settings table
+                    //
+                    s2.setInt(1, blockFileNumber);
+                    s2.executeUpdate();
+                    //
+                    // Commit the transaction
+                    //
+                    conn.commit();
+                    conn.setAutoCommit(true);
                 }
-                //
-                // Update the current block file number in the Settings table
-                //
-                try (PreparedStatement s = conn.prepareStatement (
-                                "UPDATE Settings SET fileNumber=?")) {
-                    s.setInt(1, blockFileNumber);
-                    s.executeUpdate();
-                }
-                //
-                // Commit the transaction
-                //
-                conn.commit();
-                conn.setAutoCommit(true);
             } catch (SQLException exc) {
                 log.error(String.format("Unable to store block in database\n  Block %s",
                                         storedBlock.getHash().toString()), exc);
@@ -1168,14 +1166,6 @@ public class BlockStoreSql extends BlockStore {
                         //
                         blockHash = block.getPrevBlockHash();
                     }
-                    s1.close();
-                    s1 = null;
-                    s2.close();
-                    s2 = null;
-                    s3.close();
-                    s3 = null;
-                    s4.close();
-                    s4 = null;
                 }
                 //
                 // Now add the new blocks to the block chain starting with the
@@ -1276,14 +1266,6 @@ public class BlockStoreSql extends BlockStore {
                     log.info(String.format("Block added to block chain at height %d\n  Block %s",
                                            blockHeight, block.getHashAsString()));
                 }
-                s1.close();
-                s1 = null;
-                s2.close();
-                s2 = null;
-                s3.close();
-                s3 = null;
-                s4.close();
-                s4 = null;
                 //
                 // Commit the changes
                 //
