@@ -15,8 +15,6 @@ PostgreSQL must be installed and configured before it can be used.  However, it 
 
 You can use the production network (PROD) or the regression test network (TEST).  The regression test network is useful because bitcoind will immediately generate a specified number of blocks.  To use the regression test network, start bitcoind with the -regtest option.  You can then generate blocks using bitcoin-cli to issue 'setgenerate true n' where 'n' is the number of blocks to generate.  Block generation will stop after the requested number of blocks have been generated.  Note that the genesis block, address formats and magic numbers are different between the two networks.  JavaBitcoin will create files related to the TEST network in the TestNet subdirectory of the application data directory.
 
-A compiled version is available here: https://drive.google.com/folderview?id=0B1312_6UqRHPYjUtbU1hdW9VMW8&usp=sharing.  Download the desired archive file and extract the files to a directory of your choice.  If you are building from the source, the dependent jar files can also be obtained here.  The files are signed with the GPG key for Ronald.Hoffman6@gmail.com (D6190F05).
-
 
 Build
 =====
