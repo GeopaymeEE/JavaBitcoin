@@ -36,11 +36,11 @@ public class FilterAddMessage {
     /**
      * Processes a 'filteradd' message
      *
-     * @param       msg             Message
-     * @param       inStream        Message data stream
-     * @throws      EOFException
-     * @throws      IOException
-     * @throws      VerificationException
+     * @param       msg                     Message
+     * @param       inStream                Message data stream
+     * @throws      EOFException            End-of-data while processing stream
+     * @throws      IOException             I/O error while processing stream
+     * @throws      VerificationException   Message verification failed
      */
     public static void processFilterAddMessage(Message msg, ByteArrayInputStream inStream)
                                     throws EOFException, IOException, VerificationException {

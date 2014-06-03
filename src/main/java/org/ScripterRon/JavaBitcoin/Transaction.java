@@ -374,8 +374,8 @@ public class Transaction {
      * @param       sigHashType         Signature hash type
      * @param       subScriptBytes      Replacement script for the current input
      * @param       outStream           The output stream
-     * @throws      IOException
-     * @throws      ScriptException
+     * @throws      IOException         I/O processing stream
+     * @throws      ScriptException     Scripting error
      */
     public void serializeForSignature(int index, int sigHashType, byte[] subScriptBytes, OutputStream outStream)
                                         throws IOException, ScriptException {
@@ -415,8 +415,8 @@ public class Transaction {
         //
         anyoneCanPay = ((sigHashType&ScriptOpCodes.SIGHASH_ANYONE_CAN_PAY) != 0);
         hashType = sigHashType&(255-ScriptOpCodes.SIGHASH_ANYONE_CAN_PAY);
-        if (hashType != ScriptOpCodes.SIGHASH_ALL && 
-                        hashType != ScriptOpCodes.SIGHASH_NONE && 
+        if (hashType != ScriptOpCodes.SIGHASH_ALL &&
+                        hashType != ScriptOpCodes.SIGHASH_NONE &&
                         hashType != ScriptOpCodes.SIGHASH_SINGLE) {
             log.warn(String.format("Unsupported signature hash type %d\n  Tx %s", hashType, txHash.toString()));
             hashType = ScriptOpCodes.SIGHASH_ALL;

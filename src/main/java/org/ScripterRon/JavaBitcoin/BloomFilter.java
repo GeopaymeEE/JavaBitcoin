@@ -271,8 +271,8 @@ public class BloomFilter {
      * Find matching transactions in the supplied block
      *
      * @param       block           Block containing the transactions
-     * @return      List of matching transactions (List size will be 0 if no matches found)
-     * @throws      EOFException
+     * @return                      List of matching transactions (List size will be 0 if no matches found)
+     * @throws      EOFException    End-of-data while processing stream
      */
     public List<Sha256Hash> findMatches(Block block) throws EOFException {
         List<Transaction> txList = block.getTransactions();

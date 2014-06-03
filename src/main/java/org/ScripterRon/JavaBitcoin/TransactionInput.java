@@ -156,7 +156,7 @@ public class TransactionInput {
      * @param       hashType        Hash type
      * @param       subScriptBytes  Replacement script bytes
      * @param       outStream       Output stream
-     * @throws      IOException
+     * @throws      IOException     I/O error processing stream
      */
     public void serializeForSignature(int index, int hashType, byte[] subScriptBytes, OutputStream outStream)
                                     throws IOException {

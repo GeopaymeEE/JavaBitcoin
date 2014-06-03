@@ -145,7 +145,7 @@ public class TransactionOutput {
      * @param       index           Index of input being signed
      * @param       hashType        The signature hash type
      * @param       outStream       Output stream
-     * @throws      IOException
+     * @throws      IOException     I/O error on stream
      */
     public void serializeForSignature(int index, int hashType, OutputStream outStream) throws IOException {
         if (hashType == ScriptOpCodes.SIGHASH_SINGLE && index != txIndex) {

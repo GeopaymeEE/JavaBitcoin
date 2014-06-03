@@ -155,10 +155,10 @@ public class Utils {
             return digest.digest(first);
         }
     }
-    
+
     /**
      * Calculate the SHA-1 hash of the input
-     * 
+     *
      * @param       input           The byte array to be hashed
      * @return                      The hashed result
      */
@@ -172,10 +172,10 @@ public class Utils {
         }
         return out;
     }
-    
+
     /**
      * Calculate the RIPEMD160 hash of the input
-     * 
+     *
      * @param       input           The byte array to be hashed
      * @return                      The hashed result
      */
@@ -280,7 +280,7 @@ public class Utils {
     public static void setBitLE(byte[] data, int index) {
         data[index>>>3] |= bitMask[7&index];
     }
-    
+
     /**
      * The representation of nBits uses another home-brew encoding, as a way to represent a large
      * hash value in only 32 bits.
@@ -324,12 +324,12 @@ public class Utils {
         BigInteger result = new BigInteger(buf);
         return isNegative ? result.negate() : result;
     }
-    
+
     /**
      * MPI encoded numbers are produced by the OpenSSL BN_bn2mpi function. They consist of
      * a 4 byte big endian length field, followed by the stated number of bytes representing
      * the number in big endian format as a positive number with a sign bit.
-     * 
+     *
      * @param       value           BigInteger value
      * @param       includeLength   TRUE to include the 4 byte length field
      * @return                      Encoded value
@@ -489,7 +489,7 @@ public class Utils {
      * @param       val             Value to be written
      * @param       stream          Output stream
      *
-     * @throws                      IOException
+     * @throws      IOException     I/O error on stream
      */
     public static void uint32ToByteStreamLE(long val, OutputStream stream) throws IOException {
         stream.write((int)(0x00FF&val));
@@ -539,7 +539,7 @@ public class Utils {
      *
      * @param       val             The value to be written
      * @param       stream          The output stream
-     * @throws      IOException
+     * @throws      IOException     I/O error on stream
      */
     public static void uint64ToByteStreamLE(long val, OutputStream stream) throws IOException {
         stream.write((int)(0x00FF&val));
@@ -557,7 +557,7 @@ public class Utils {
      *
      * @param       val             BigInteger to be written
      * @param       stream          Output stream
-     * @throws      IOException
+     * @throws      IOException     I/O error on stream
      */
     public static void uint64ToByteStreamLE(BigInteger val, OutputStream stream) throws IOException {
         byte[] bytes = val.toByteArray();

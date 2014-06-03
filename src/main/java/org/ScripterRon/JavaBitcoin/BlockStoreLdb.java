@@ -441,9 +441,9 @@ public class BlockStoreLdb extends BlockStore {
      * Returns a block that was stored in the database.  The returned block contains
      * the protocol block plus information about its current location within the block chain.
      *
-     * @param       blockHash       The block hash
-     * @return                      The stored block or null if the block is not found
-     * @throws      BlockStoreException
+     * @param       blockHash               The block hash
+     * @return                              The stored block or null if the block is not found
+     * @throws      BlockStoreException     Unable to store block
      */
     @Override
     public StoredBlock getStoredBlock(Sha256Hash blockHash) throws BlockStoreException {

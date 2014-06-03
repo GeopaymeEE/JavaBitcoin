@@ -90,8 +90,8 @@ public final class VarInt {
      * Creates a new VarInt from an input stream encoded in little-endian format
      *
      * @param       in              Input stream
-     * @throws      EOFException
-     * @throws      IOException
+     * @throws      EOFException    End-of-data processing stream
+     * @throws      IOException     I/O error processing stream
      */
     public VarInt(InputStream in) throws EOFException, IOException {
         int count;

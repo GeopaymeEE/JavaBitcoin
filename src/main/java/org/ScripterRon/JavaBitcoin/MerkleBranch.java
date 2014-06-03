@@ -26,25 +26,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * <p>A Merkle branch is a data structure that contains proofs of block inclusion for one or
- * more transactions in an efficient manner.</p>
+ * A Merkle branch is a data structure that contains proofs of block inclusion for one or
+ * more transactions in an efficient manner.
  *
- * <p>The encoding works as follows: we traverse the tree in depth-first order, storing a bit
+ * The encoding works as follows: we traverse the tree in depth-first order, storing a bit
  * for each traversed node, signifying whether the node is the parent of at least one matched
  * leaf txid (or a matched txid itself). In case we are at the leaf level, or this bit is 0,
  * its Merkle node hash is stored, and its children are not explored further.  Otherwise, no
  * hash is stored, but we recurse into both (or the only) child branches. During decoding, the
  * same depth-first traversal is performed, consuming bits and hashes as they were written during
- * encoding.</p>
+ * encoding.
  *
- * <p>The serialization is fixed and provides a hard guarantee about the encoded size,
- * <tt>SIZE <= 10 + ceil(32.25*N)</tt> where N represents the number of leaf nodes of the partial tree. N itself
- * is bounded by:</p>
+ * The serialization is fixed and provides a hard guarantee about the encoded size,
+ * SIZE LE 10 + ceil(32.25*N) where N represents the number of leaf nodes of the partial tree. N itself
+ * is bounded by:
  *
- * <p>
- * N <= total_transactions<br>
- * N <= 1 + matched_transactions*tree_height
- * </p>
+ * N LE total_transactions
+ * N LE 1 + matched_transactions*tree_height
  *
  * <p>Merkle Branch</p>
  * <pre>
@@ -194,7 +192,7 @@ public class MerkleBranch {
      * Creates the serialized Merkle branch
      *
      * @param       outStream       Output stream for the serialized data
-     * @throws      IOException
+     * @throws      IOException     I/O error processing stream
      */
     public void bitcoinSerialize(OutputStream outStream) throws IOException {
         //

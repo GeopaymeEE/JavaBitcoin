@@ -145,7 +145,7 @@ public class NetworkListener implements Runnable {
      * @param       hostName            The host name for this port or null
      * @param       listenPort          The port to listen on
      * @param       staticAddresses     Static peer address
-     * @throws      IOException
+     * @throws      IOException         I/O error
      */
     public NetworkListener(int maxConnections, int maxOutbound, String hostName, int listenPort,
                                         PeerAddress[] staticAddresses)

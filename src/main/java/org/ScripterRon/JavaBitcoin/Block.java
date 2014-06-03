@@ -245,7 +245,7 @@ public class Block {
     }
 
     /**
-     * <p>Returns the work represented by this block.<p>
+     * <p>Returns the work represented by this block.</p>
      *
      * <p>Work is defined as the number of tries needed to solve a block in the
      * average case.  As the target gets lower, the amount of work goes up.</p>

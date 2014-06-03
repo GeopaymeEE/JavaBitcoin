@@ -22,7 +22,7 @@ import java.util.Iterator;
 
 /**
  * <p>A 'notfound' message is returned when one or more items in a 'getdata' request
- * were not found.<p>
+ * were not found.</p>
  *
  * <p>NotFound Message:</p>
  * <pre>

@@ -144,9 +144,9 @@ public class MessageHeader {
      * @param       inStream            Message data stream
      * @param       msgBytes            Message bytes
      * @return      Message command
-     * @throws      EOFException
-     * @throws      IOException
-     * @throws      VerificationException
+     * @throws      EOFException        End-of-data processing stream
+     * @throws      IOException         I/O error processing stream
+     * @throws      VerificationException   Message verification failed
      */
     public static String processMessage(ByteArrayInputStream inStream, byte[] msgBytes)
                                         throws EOFException, IOException, VerificationException {

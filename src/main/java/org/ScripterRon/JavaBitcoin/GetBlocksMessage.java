@@ -131,11 +131,11 @@ public class GetBlocksMessage {
     /**
      * Process the 'getblocks' message and return an 'inv' message
      *
-     * @param       msg             Message
-     * @param       inStream        Message data stream
-     * @throws      EOFException
-     * @throws      IOException
-     * @throws      VerificationException
+     * @param       msg                     Message
+     * @param       inStream                Message data stream
+     * @throws      EOFException            End-of-data processing stream
+     * @throws      IOException             I/O error processing stream
+     * @throws      VerificationException   Message verification failed
      */
     public static void processGetBlocksMessage(Message msg, ByteArrayInputStream inStream)
                                     throws EOFException, IOException, VerificationException {
