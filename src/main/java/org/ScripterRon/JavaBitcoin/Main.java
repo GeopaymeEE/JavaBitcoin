@@ -109,17 +109,8 @@ public class Main {
     /** Database type */
     private static String dbType = "LevelDB";
 
-    /** Database name (PostgreSQL) */
-    private static String dbName = "bitcoin";
-
-    /** Database user (PostgreSQL) */
-    private static String dbUser = "dbuser";
-
-    /** Database password (PostgreSQL) */
-    private static String dbPassword = "dbpass";
-
-    /** Database port (PostgreSQL) */
-    private static int dbPort = 5432;
+    /** Migrate the LevelDB database to the H2 database */
+    private static boolean migrateDatabase = false;
 
     /** Load block chain */
     private static boolean loadBlockChain = false;
@@ -288,15 +279,21 @@ public class Main {
                 }
             }
             //
+            // Migrate the LevelDB database to an H2 database
+            //
+            if (migrateDatabase) {
+                MigrateLdb db = new MigrateLdb(dataPath);
+                db.migrateDb();
+                db.close();
+                System.exit(0);
+            }
+            //
             // Create the block store
             //
             if (dbType.equalsIgnoreCase("leveldb"))
                 blockStore = new BlockStoreLdb(dataPath);
             else if (dbType.equalsIgnoreCase("h2"))
-                blockStore = new BlockStoreSql(BlockStoreSql.DBTYPE.H2, dataPath, "", "", "", 0);
-            else
-                blockStore = new BlockStoreSql(BlockStoreSql.DBTYPE.POSTGRESQL,
-                                               dataPath, dbName, dbUser, dbPassword, dbPort);
+                blockStore = new BlockStoreSql(dataPath);
             Parameters.blockStore = blockStore;
             //
             // Create the block chain
@@ -371,11 +368,8 @@ public class Main {
             // Start the GUI
             //
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            javax.swing.SwingUtilities.invokeLater(new Runnable() {
-                @Override
-                public void run() {
-                    createAndShowGUI();
-                }
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                createAndShowGUI();
             });
         } catch (Throwable exc) {
             log.error(String.format("%s: %s", exc.getClass().getName(), exc.getMessage()));
@@ -493,6 +487,7 @@ public class Main {
         // TEST indicates we should use the test network
         // LOAD indicates we should load the block chain from the reference client data directory
         // RETRY indicates we should retry a block that is currently held
+        // MIGRATE indicate we should migrate a LevelDB database to an H2 database
         //
         switch (args[0].toLowerCase()) {
             case "load":
@@ -528,6 +523,18 @@ public class Main {
                     stopBlock = Integer.MAX_VALUE;
                 }
                 if (args.length > 5)
+                    throw new IllegalArgumentException("Unrecognized command line parameter");
+                break;
+            case "migrate":
+                migrateDatabase = true;
+                if (args.length < 2)
+                    throw new IllegalArgumentException("Specify PROD or TEST with the MIGRATE option");
+                if (args[1].equalsIgnoreCase("TEST")) {
+                    testNetwork = true;
+                } else if (!args[1].equalsIgnoreCase("PROD")) {
+                    throw new IllegalArgumentException("Specify PROD or TEST after the MIGRATE option");
+                }
+                if (args.length > 2)
                     throw new IllegalArgumentException("Unrecognized command line parameter");
                 break;
             case "retry":
@@ -591,23 +598,10 @@ public class Main {
                         PeerAddress addr = new PeerAddress(value);
                         addressList.add(addr);
                         break;
-                    case "dbname":
-                        dbName = value;
-                        break;
-                    case "dbpassword":
-                        dbPassword = value;
-                        break;
-                    case "dbport":
-                        dbPort = Integer.parseInt(value);
-                        break;
                     case "dbtype":
-                        if (!value.equalsIgnoreCase("leveldb") && !value.equalsIgnoreCase("postgresql") &&
-                                                                  !value.equalsIgnoreCase("h2"))
+                        if (!value.equalsIgnoreCase("leveldb") && !value.equalsIgnoreCase("h2"))
                             throw new IllegalArgumentException("Invalid database type specified");
                         dbType = value;
-                        break;
-                    case "dbuser":
-                        dbUser = value;
                         break;
                     case "hostname":
                         hostName = value;
@@ -667,13 +661,10 @@ public class Main {
             deferredText = text;
             deferredException = exc;
             try {
-                javax.swing.SwingUtilities.invokeAndWait(new Runnable() {
-                    @Override
-                    public void run() {
-                        Main.logException(deferredText, deferredException);
-                        deferredException = null;
-                        deferredText = null;
-                    }
+                javax.swing.SwingUtilities.invokeAndWait(() -> {
+                    Main.logException(deferredText, deferredException);
+                    deferredException = null;
+                    deferredText = null;
                 });
             } catch (Exception logexc) {
                 log.error(text, exc);

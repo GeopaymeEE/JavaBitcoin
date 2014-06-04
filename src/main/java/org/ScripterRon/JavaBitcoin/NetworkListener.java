@@ -485,18 +485,17 @@ public class NetworkListener implements Runnable {
      */
     public void sendMessage(Message msg) {
         Peer peer = msg.getPeer();
-        SelectionKey key = peer.getKey();
-        PeerAddress address = peer.getAddress();
-        synchronized(Parameters.lock) {
-            if (address.isConnected()) {
-                peer.getOutputList().add(msg);
-                key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+        if (peer != null) {
+            SelectionKey key = peer.getKey();
+            PeerAddress address = peer.getAddress();
+            synchronized(Parameters.lock) {
+                if (address.isConnected()) {
+                    peer.getOutputList().add(msg);
+                    key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+                }
             }
+            wakeup();
         }
-        //
-        // Wakeup the network listener to send the message
-        //
-        wakeup();
     }
 
     /**

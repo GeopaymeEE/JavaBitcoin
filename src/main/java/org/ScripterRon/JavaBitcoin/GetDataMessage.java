@@ -93,6 +93,8 @@ public class GetDataMessage {
         Peer peer = msg.getPeer();
         int blocksSent = 0;
         int txSent = 0;
+        if (peer == null)
+            throw new VerificationException("Invalid peer for GetDataMessage");
         //
         // Get the number of inventory entries
         //

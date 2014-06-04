@@ -121,7 +121,8 @@ public abstract class BlockStore {
     /**
      * Closes the database
      */
-    public abstract void close();
+    public void close() {
+    }
 
     /**
      * Returns the block hash for the current chain head
@@ -291,7 +292,8 @@ public abstract class BlockStore {
      *
      * @throws      BlockStoreException     Unable to delete spent transaction outputs
      */
-    public abstract void deleteSpentTxOutputs() throws BlockStoreException;
+    public void deleteSpentTxOutputs() throws BlockStoreException {
+    }
 
     /**
      * Returns the chain list from the block following the start block up to the stop
@@ -353,7 +355,8 @@ public abstract class BlockStore {
      *
      * @throws      BlockStoreException     Unable to compact database
      */
-    public abstract void compactDatabase() throws BlockStoreException;
+    public void compactDatabase() throws BlockStoreException {
+    }
 
     /**
      * Locates the junction where the chain represented by the specified block joins
