@@ -16,14 +16,11 @@
 package org.ScripterRon.JavaBitcoin;
 
 import java.math.BigInteger;
-
 import java.net.InetAddress;
-
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**

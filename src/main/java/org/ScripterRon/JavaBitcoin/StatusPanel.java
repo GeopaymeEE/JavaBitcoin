@@ -19,7 +19,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigInteger;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -27,7 +26,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
@@ -99,25 +97,25 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         SizedTable.ADDRESS, SizedTable.INTEGER, SizedTable.SUBVERSION, SizedTable.SERVICES};
 
     /** Connection table model */
-    private ConnectionTableModel connectionTableModel;
+    private final ConnectionTableModel connectionTableModel;
 
     /** Connection table */
-    private JTable connectionTable;
+    private final JTable connectionTable;
 
     /** Connection scroll pane */
-    private JScrollPane connectionScrollPane;
+    private final JScrollPane connectionScrollPane;
 
     /** Chain head field */
-    private JLabel chainHeadField;
+    private final JLabel chainHeadField;
 
     /** Chain height field */
-    private JLabel chainHeightField;
+    private final JLabel chainHeightField;
 
     /** Network difficulty field */
-    private JLabel networkDifficultyField;
+    private final JLabel networkDifficultyField;
 
     /** Peer connections field */
-    private JLabel peerConnectionsField;
+    private final JLabel peerConnectionsField;
 
     /**
      * Create the status panel
@@ -148,7 +146,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         try {
             alertTableModel = new AlertTableModel(alertColumnNames, alertColumnClasses);
             alertTable = new SizedTable(alertTableModel, alertColumnTypes);
-            alertTable.setRowSorter(new TableRowSorter<TableModel>(alertTableModel));
+            alertTable.setRowSorter(new TableRowSorter<>(alertTableModel));
             alertTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             tableHeight = frameHeight/8;
             rowHeight = alertTable.getRowHeight();
@@ -166,7 +164,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         //
         connectionTableModel = new ConnectionTableModel(connectionColumnNames, connectionColumnClasses);
         connectionTable = new SizedTable(connectionTableModel, connectionColumnTypes);
-        connectionTable.setRowSorter(new TableRowSorter<TableModel>(connectionTableModel));
+        connectionTable.setRowSorter(new TableRowSorter<>(connectionTableModel));
         connectionTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         tableHeight = frameHeight/5;
         rowHeight = connectionTable.getRowHeight();
@@ -182,7 +180,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         try {
             blockTableModel = new BlockTableModel(blockColumnNames, blockColumnClasses);
             blockTable = new SizedTable(blockTableModel, blockColumnTypes);
-            blockTable.setRowSorter(new TableRowSorter<TableModel>(blockTableModel));
+            blockTable.setRowSorter(new TableRowSorter<>(blockTableModel));
             blockTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             tableHeight = frameHeight/4;
             rowHeight = blockTable.getRowHeight();
@@ -283,11 +281,8 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
      */
     @Override
     public void chainUpdated() {
-        javax.swing.SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                updateStatus();
-            }
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            updateStatus();
         });
     }
 
@@ -300,11 +295,8 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
     @Override
     public void connectionStarted(Peer peer, int count) {
         connectionTableModel.addConnection(peer);
-        javax.swing.SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                updateStatus();
-            }
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            updateStatus();
         });
     }
 
@@ -317,11 +309,8 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
     @Override
     public void connectionEnded(Peer peer, int count) {
         connectionTableModel.removeConnection(peer);
-        javax.swing.SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                updateStatus();
-            }
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            updateStatus();
         });
     }
 
@@ -387,19 +376,19 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
     private class BlockTableModel extends AbstractTableModel {
 
         /** Column names */
-        private String[] columnNames;
+        private final String[] columnNames;
 
         /** Column classes */
-        private Class<?>[] columnClasses;
+        private final Class<?>[] columnClasses;
 
         /** Block status list */
         private BlockStatus[] blocks;
 
         /** Block hash map */
-        private Map<Sha256Hash, BlockStatus> blockMap = new HashMap<>(50);
+        private final Map<Sha256Hash, BlockStatus> blockMap = new HashMap<>(50);
 
         /** Block height map */
-        private Map<Integer, BlockStatus> heightMap = new HashMap<>(50);
+        private final Map<Integer, BlockStatus> heightMap = new HashMap<>(50);
 
         /** Table refresh pending */
         private boolean refreshPending;
@@ -423,7 +412,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
             for (BlockStatus block : blocks) {
                 blockMap.put(block.getHash(), block);
                 if (block.isOnChain())
-                    heightMap.put(Integer.valueOf(block.getHeight()), block);
+                    heightMap.put(block.getHeight(), block);
             }
         }
 
@@ -491,7 +480,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
                     value = new Date(status.getTimeStamp()*1000);
                     break;
                 case 1:                             // Height
-                    value = Integer.valueOf(status.isOnChain() ? status.getHeight() : 0);
+                    value = status.isOnChain() ? status.getHeight() : 0;
                     break;
                 case 2:                             // Block hash
                     value = status.getHash().toString();
@@ -517,7 +506,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         */
         public void blockStored(StoredBlock storedBlock) {
             Sha256Hash blockHash = storedBlock.getHash();
-            Integer blockHeight = Integer.valueOf(storedBlock.getHeight());
+            Integer blockHeight = storedBlock.getHeight();
             synchronized(Parameters.lock) {
                 //
                 // Update the block status
@@ -558,12 +547,9 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
             //
             if (!refreshPending) {
                 refreshPending = true;
-                javax.swing.SwingUtilities.invokeLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        fireTableDataChanged();
-                        refreshPending = false;
-                    }
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    fireTableDataChanged();
+                    refreshPending = false;
                 });
             }
         }
@@ -698,12 +684,9 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
             //
             if (!refreshPending) {
                 refreshPending = true;
-                javax.swing.SwingUtilities.invokeLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        fireTableDataChanged();
-                        refreshPending = false;
-                    }
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    fireTableDataChanged();
+                    refreshPending = false;
                 });
             }
         }
@@ -794,7 +777,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
                     break;
 
                 case 1:                         // Protocol version
-                    value = Integer.valueOf(peer.getVersion());
+                    value = peer.getVersion();
                     break;
 
                 case 2:                         // Subversion
@@ -819,10 +802,9 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
          */
         public void updateConnections() {
             List<Peer> connections = Parameters.networkListener.getConnections();
-            for (Peer peer : connections) {
-                if (!connectionList.contains(peer))
-                    connectionList.add(peer);
-            }
+            connections.stream().filter((peer) -> (!connectionList.contains(peer))).forEach((peer) -> {
+                connectionList.add(peer);
+            });
         }
 
         /**
@@ -853,13 +835,13 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
     private class ConnectionUpdate implements Runnable {
 
         /** Update action */
-        private boolean addConnection;
+        private final boolean addConnection;
 
         /** Peer */
-        private Peer peer;
+        private final Peer peer;
 
         /** Connection list */
-        private List<Peer> connectionList;
+        private final List<Peer> connectionList;
 
         /**
          * Creates a new connection update

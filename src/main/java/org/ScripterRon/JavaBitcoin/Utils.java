@@ -20,10 +20,8 @@ import org.bouncycastle.crypto.digests.RIPEMD160Digest;
 
 import java.io.IOException;
 import java.io.OutputStream;
-
 import java.math.BigInteger;
 import java.math.BigDecimal;
-
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 

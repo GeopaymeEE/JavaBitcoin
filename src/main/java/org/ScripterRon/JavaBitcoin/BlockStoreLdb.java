@@ -30,9 +30,7 @@ import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
-
 import java.math.BigInteger;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -908,9 +906,9 @@ public class BlockStoreLdb extends BlockStore {
                 }
                 WriteOptions options = new WriteOptions();
                 options.sync(false);
-                for (int i=0; i<purgeList.size(); i++) {
-                    dbTxSpent.delete(purgeList.get(i), options);
-                    dbTxOutputs.delete(purgeList.get(i), options);
+                for (byte[] purgeList1 : purgeList) {
+                    dbTxSpent.delete(purgeList1, options);
+                    dbTxOutputs.delete(purgeList1, options);
                 }
                 log.info(String.format("%,d spent transaction outputs deleted", txPurged));
             } catch (DBException | IOException exc) {

@@ -21,7 +21,6 @@ import java.io.EOFException;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -155,7 +154,7 @@ public class MerkleBranch {
         int[][] nodePath = new int[height][txList.size()];
         for (int i=0; i<txList.size(); i++) {
             int pos = 0;
-            int index = txList.get(i).intValue();
+            int index = txList.get(i);
             for (int pHeight=height-1; pHeight>=0; pHeight--) {
                 int p2 = 1<<pHeight;
                 pos = pos*2 + index/p2;

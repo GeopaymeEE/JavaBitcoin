@@ -18,7 +18,6 @@ package org.ScripterRon.JavaBitcoin;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,13 +32,13 @@ import java.util.List;
 public class Peer {
 
     /** Peer address */
-    private PeerAddress address;
+    private final PeerAddress address;
 
     /** Socket channel */
-    private SocketChannel channel;
+    private final SocketChannel channel;
 
     /** Selection key */
-    private SelectionKey key;
+    private final SelectionKey key;
 
     /** Transaction Bloom filter */
     private BloomFilter bloomFilter;

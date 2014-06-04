@@ -21,15 +21,12 @@ import org.bouncycastle.asn1.ASN1InputStream;
 import org.bouncycastle.asn1.ASN1Integer;
 import org.bouncycastle.asn1.DLSequence;
 import org.bouncycastle.asn1.x9.X9ECParameters;
-
 import org.bouncycastle.crypto.ec.CustomNamedCurves;
-
 import org.bouncycastle.crypto.params.ECDomainParameters;
 import org.bouncycastle.crypto.params.ECPublicKeyParameters;
 import org.bouncycastle.crypto.signers.ECDSASigner;
 
 import java.io.IOException;
-
 import java.math.BigInteger;
 
 /**
@@ -47,7 +44,7 @@ public class ECKey {
     }
 
     /** Public key */
-    private byte[] pubKey;
+    private final byte[] pubKey;
 
     /**
      * Creates an ECKey with just a public key

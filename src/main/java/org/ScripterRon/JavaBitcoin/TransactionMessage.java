@@ -18,9 +18,7 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
-
 import java.math.BigInteger;
-
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -124,8 +122,9 @@ public class TransactionMessage {
         synchronized(Parameters.lock) {
             orphanTxList = Parameters.orphanTxMap.remove(txHash);
             if (orphanTxList != null) {
-                for (StoredTransaction orphanStoredTx : orphanTxList)
+                orphanTxList.stream().forEach((orphanStoredTx) -> {
                     Parameters.orphanTxList.remove(orphanStoredTx);
+                });
             }
         }
         if (orphanTxList != null) {

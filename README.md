@@ -17,7 +17,7 @@ Build
 
 I use the Netbeans IDE but any build environment with Maven and the Java compiler available should work.  The documentation is generated from the source code using javadoc.
 
-Here are the steps for a manual build.  You will need to install Maven 3 and Java SE Development Kit 7 if you don't already have them.
+Here are the steps for a manual build.  You will need to install Maven 3 and Java SE Development Kit 8 if you don't already have them.
 
   - Create the executable: mvn clean package
   - [Optional] Create the documentation: mvn javadoc:javadoc

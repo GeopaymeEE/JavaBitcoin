@@ -19,9 +19,7 @@ import static org.ScripterRon.JavaBitcoin.Main.log;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
-
 import java.math.BigInteger;
-
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;

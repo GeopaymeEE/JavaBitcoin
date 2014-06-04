@@ -19,11 +19,8 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
-
 import java.text.MessageFormat;
-
 import java.util.Date;
-
 import java.util.logging.Formatter;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;

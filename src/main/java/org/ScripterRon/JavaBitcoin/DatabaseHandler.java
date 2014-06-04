@@ -86,16 +86,17 @@ public class DatabaseHandler implements Runnable {
                 // 'inv' message if we are more than 3 blocks behind the best network chain.
                 //
                 if (chainList != null) {
-                    for (StoredBlock storedBlock : chainList) {
+                    chainList.stream().forEach((storedBlock) -> {
                         Block chainBlock = storedBlock.getBlock();
                         if (chainBlock != null) {
                             updateTxPool(chainBlock);
                             int chainHeight = storedBlock.getHeight();
                             Parameters.networkChainHeight = Math.max(chainHeight, Parameters.networkChainHeight);
-                            if (chainHeight >= Parameters.networkChainHeight-3)
+                            if (chainHeight >= Parameters.networkChainHeight-3) {
                                 notifyPeers(storedBlock);
+                            }
                         }
-                    }
+                    });
                     StoredBlock parentBlock = chainList.get(chainList.size()-1);
                     while (parentBlock != null)
                         parentBlock = processChildBlock(parentBlock);
@@ -163,14 +164,13 @@ public class DatabaseHandler implements Runnable {
     private void updateTxPool(Block block) {
         List<Transaction> txList = block.getTransactions();
         synchronized(Parameters.lock) {
-            for (Transaction tx : txList) {
-                Sha256Hash txHash = tx.getHash();
+            txList.stream().map((tx) -> tx.getHash()).forEach((txHash) -> {
                 StoredTransaction storedTx = Parameters.txMap.get(txHash);
                 if (storedTx != null) {
                     Parameters.txPool.remove(storedTx);
                     Parameters.txMap.remove(txHash);
                 }
-            }
+            });
         }
     }
 

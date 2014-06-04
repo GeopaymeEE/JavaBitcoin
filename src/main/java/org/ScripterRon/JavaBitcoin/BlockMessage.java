@@ -18,7 +18,6 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
-
 import java.util.List;
 
 /**
@@ -65,18 +64,19 @@ public class BlockMessage {
         //
         List<Transaction> txList = block.getTransactions();
         synchronized(Parameters.lock) {
-            for (Transaction tx : txList) {
-                Sha256Hash txHash = tx.getHash();
+            txList.stream().map((tx) -> tx.getHash()).map((txHash) -> {
                 StoredTransaction storedTx = Parameters.txMap.get(txHash);
                 if (storedTx != null) {
                     Parameters.txPool.remove(storedTx);
                     Parameters.txMap.remove(txHash);
                 }
-                if (Parameters.recentTxMap.get(txHash) == null) {
-                    Parameters.recentTxList.add(txHash);
-                    Parameters.recentTxMap.put(txHash, txHash);
-                }
-            }
+                return txHash;
+            }).filter((txHash) -> (Parameters.recentTxMap.get(txHash) == null)).map((txHash) -> {
+                Parameters.recentTxList.add(txHash);
+                return txHash;
+            }).forEach((txHash) -> {
+                Parameters.recentTxMap.put(txHash, txHash);
+            });
             Parameters.blocksReceived++;
         }
         //

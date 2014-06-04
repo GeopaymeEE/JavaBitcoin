@@ -19,16 +19,13 @@ import static org.ScripterRon.JavaBitcoin.Main.log;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-
 import java.math.BigInteger;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -118,7 +115,8 @@ public class BlockStoreSql extends BlockStore {
     public BlockStoreSql(String dataPath) throws BlockStoreException {
         super(dataPath);
         String databasePath = dataPath.replace('\\', '/');
-        connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;MAX_COMPACT_TIME=15000;MVCC=TRUE", databasePath);
+        connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;"
+                    + "MAX_COMPACT_TIME=15000;MVCC=TRUE", databasePath);
         //
         // Load the JDBC driver
         //

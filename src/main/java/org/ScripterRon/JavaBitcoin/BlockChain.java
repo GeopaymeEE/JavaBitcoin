@@ -17,7 +17,6 @@ package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.math.BigInteger;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -84,11 +83,9 @@ public class BlockChain {
         StoredBlock storedBlock = new StoredBlock(block, BigInteger.ZERO, 0);
         storedBlock.setHold(true);
         Parameters.blockStore.storeBlock(storedBlock);
-        //
-        // Notify listeners that a new block has been added to the block store
-        //
-        for (ChainListener listener : listeners)
+        listeners.stream().forEach((listener) -> {
             listener.blockStored(storedBlock);
+        });
         //
         // Update the block chain
         //
@@ -226,8 +223,9 @@ public class BlockChain {
                         Parameters.blockStore.releaseBlock(chainStoredBlock.getHash());
                         log.info(String.format(String.format("Held block released\n  Block %s",
                                                              chainBlock.getHashAsString())));
-                        for (ChainListener listener : listeners)
+                        listeners.stream().forEach((listener) -> {
                             listener.blockUpdated(chainStoredBlock);
+                        });
                     }
                 }
             }
@@ -262,8 +260,9 @@ public class BlockChain {
         //
         storedBlock.setHold(false);
         Parameters.blockStore.releaseBlock(storedBlock.getHash());
-        for (ChainListener listener : listeners)
+        listeners.stream().forEach((listener) -> {
             listener.blockUpdated(storedBlock);
+        });
         //
         // Make this block the new chain head if it is a better chain than the current chain.
         // This means the cumulative chain work is greater.
@@ -279,24 +278,26 @@ public class BlockChain {
                     // Notify listeners that we updated the block
                     //
                     updatedStoredBlock.setChain(true);
-                    for (ChainListener listener : listeners)
+                    listeners.stream().forEach((listener) -> {
                         listener.blockUpdated(updatedStoredBlock);
+                    });
                     //
                     // Get any orphan transactions that are waiting for transactions in this block
                     //
                     List<StoredTransaction> retryList = new ArrayList<>(50);
                     List<Transaction> txList = updatedBlock.getTransactions();
                     synchronized(Parameters.lock) {
-                        for (Transaction tx : txList) {
-                            List<StoredTransaction> orphanList =
-                                            Parameters.orphanTxMap.remove(tx.getHash());
-                            if (orphanList != null) {
-                                for (StoredTransaction orphan : orphanList) {
+                        txList.stream()
+                            .map((tx) -> Parameters.orphanTxMap.remove(tx.getHash()))
+                            .filter((orphanList) -> (orphanList != null))
+                            .forEach((orphanList) -> {
+                                orphanList.stream().map((orphan) -> {
                                     Parameters.orphanTxList.remove(orphan);
+                                    return orphan;
+                                }).forEach((orphan) -> {
                                     retryList.add(orphan);
-                                }
-                            }
-                        }
+                                });
+                            });
                     }
                     //
                     // Retry transactions that are still not in the database
@@ -308,11 +309,9 @@ public class BlockChain {
                         }
                     }
                 }
-                //
-                // Notify listeners that the block chain has been updated
-                //
-                for (ChainListener listener : listeners)
+                listeners.stream().forEach((listener) -> {
                     listener.chainUpdated();
+                });
                 //
                 // Delete spent transaction outputs
                 //
@@ -374,7 +373,7 @@ public class BlockChain {
                         chainHeight = chainHeight | (((int)scriptBytes[i+1]&0xff)<<(i*8));
                     if (chainHeight != storedBlock.getHeight()) {
                         log.error(String.format("Coinbase height %d does not match block height %d\n  Tx %s",
-                                                chainHeight, storedBlock.getHeight()), tx.getHash().toString());
+                                                chainHeight, storedBlock.getHeight(), tx.getHash().toString()));
                         Main.dumpData("Coinbase Script", scriptBytes);
                         txValid = false;
                         break;
@@ -426,8 +425,8 @@ public class BlockChain {
                 if (txValid) {
                     StoredOutput output = null;
                     boolean foundOutput = false;
-                    for (int i=0; i<outputs.size(); i++) {
-                        output = outputs.get(i);
+                    for (StoredOutput output1 : outputs) {
+                        output = output1;
                         if (output.getIndex() == opIndex) {
                             foundOutput = true;
                             break;

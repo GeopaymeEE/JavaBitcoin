@@ -18,7 +18,6 @@ package org.ScripterRon.JavaBitcoin;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
-
 import javax.swing.*;
 import javax.swing.table.*;
 

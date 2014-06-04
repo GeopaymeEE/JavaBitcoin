@@ -27,16 +27,13 @@ import org.fusesource.leveldbjni.JniDBFactory;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
-
 import java.math.BigInteger;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-
 import java.util.Arrays;
 import java.util.Map.Entry;
 
@@ -257,67 +254,6 @@ public class MigrateLdb {
         } catch (DBException | IOException | SQLException exc) {
             log.error("Unable to close the databases", exc);
         }
-    }
-
-    /**
-     * Get the 4-byte key for an integer value.  The key uses big-endian format
-     * since LevelDB uses a byte comparator to sort the keys.  This will result
-     * in the keys being sorted by ascending value.
-     *
-     * @param       intVal          Integer value
-     * @return      4-byte array containing the integer
-     */
-    private byte[] getIntegerBytes(int intVal) {
-        byte[] intBytes = new byte[4];
-        intBytes[0] = (byte)(intVal>>>24);
-        intBytes[1] = (byte)(intVal>>>16);
-        intBytes[2] = (byte)(intVal>>>8);
-        intBytes[3] = (byte)intVal;
-        return intBytes;
-    }
-
-    /**
-     * Get the integer value from the 4-byte key
-     *
-     * @param       key         Key bytes
-     * @return      Integer value
-     */
-    private int getInteger(byte[] key) {
-        return (((int)key[0]&0xff)<<24) | (((int)key[1]&0xff)<<16) | (((int)key[2]&0xff)<<8) | ((int)key[3]&0xff);
-    }
-
-    /**
-     * Get the 8-byte key for a long value.  The key uses big-endian format
-     * since LevelDB uses a byte comparator to sort the keys.  This will result
-     * in the keys being sorted by ascending value.
-     *
-     * @param       longVal         Long value
-     * @return                      8-byte array containing the integer
-     */
-    private byte[] getLongBytes(long longVal) {
-        byte[] longBytes = new byte[8];
-        longBytes[0] = (byte)(longVal>>>56);
-        longBytes[1] = (byte)(longVal>>>48);
-        longBytes[2] = (byte)(longVal>>>40);
-        longBytes[3] = (byte)(longVal>>>32);
-        longBytes[4] = (byte)(longVal>>>24);
-        longBytes[5] = (byte)(longVal>>>16);
-        longBytes[6] = (byte)(longVal>>>8);
-        longBytes[7] = (byte)longVal;
-        return longBytes;
-    }
-
-    /**
-     * Get the long value from the 8-byte key
-     *
-     * @param       key         Key bytes
-     * @return                  Long value
-     */
-    private long getLong(byte[] key) {
-        return (((long)key[0]&0xff)<<56) | (((long)key[1]&0xff)<<48) |
-                                (((long)key[2]&0xff)<<40) | (((long)key[3]&0xff)<<32) |
-                                (((long)key[4]&0xff)<<24) | (((long)key[5]&0xff)<<16) |
-                                (((long)key[6]&0xff)<<8)  |  ((long)key[7]&0xff);
     }
 
     /**
@@ -893,5 +829,4 @@ public class MigrateLdb {
             this.blockHeight = blockHeight;
         }
     }
-
 }

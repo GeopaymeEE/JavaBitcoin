@@ -18,9 +18,7 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
-
 import java.nio.ByteBuffer;
-
 import java.util.Map;
 import java.util.HashMap;
 
@@ -75,27 +73,27 @@ public class MessageHeader {
     /** Message command map */
     public static final Map<String, Integer> cmdMap = new HashMap<>(20);
     static {
-        cmdMap.put("addr", Integer.valueOf(ADDR_CMD));
-        cmdMap.put("alert", Integer.valueOf(ALERT_CMD));
-        cmdMap.put("block", Integer.valueOf(BLOCK_CMD));
-        cmdMap.put("filteradd", Integer.valueOf(FILTERADD_CMD));
-        cmdMap.put("filterclear", Integer.valueOf(FILTERCLEAR_CMD));
-        cmdMap.put("filterload", Integer.valueOf(FILTERLOAD_CMD));
-        cmdMap.put("getaddr", Integer.valueOf(GETADDR_CMD));
-        cmdMap.put("getblocks", Integer.valueOf(GETBLOCKS_CMD));
-        cmdMap.put("getdata", Integer.valueOf(GETDATA_CMD));
-        cmdMap.put("getheaders", Integer.valueOf(GETHEADERS_CMD));
-        cmdMap.put("headers", Integer.valueOf(HEADERS_CMD));
-        cmdMap.put("inv", Integer.valueOf(INV_CMD));
-        cmdMap.put("mempool", Integer.valueOf(MEMPOOL_CMD));
-        cmdMap.put("merkleblock", Integer.valueOf(MERKLEBLOCK_CMD));
-        cmdMap.put("notfound", Integer.valueOf(NOTFOUND_CMD));
-        cmdMap.put("ping", Integer.valueOf(PING_CMD));
-        cmdMap.put("pong", Integer.valueOf(PONG_CMD));
-        cmdMap.put("reject", Integer.valueOf(REJECT_CMD));
-        cmdMap.put("tx", Integer.valueOf(TX_CMD));
-        cmdMap.put("verack", Integer.valueOf(VERACK_CMD));
-        cmdMap.put("version", Integer.valueOf(VERSION_CMD));
+        cmdMap.put("addr", ADDR_CMD);
+        cmdMap.put("alert", ALERT_CMD);
+        cmdMap.put("block", BLOCK_CMD);
+        cmdMap.put("filteradd", FILTERADD_CMD);
+        cmdMap.put("filterclear", FILTERCLEAR_CMD);
+        cmdMap.put("filterload", FILTERLOAD_CMD);
+        cmdMap.put("getaddr", GETADDR_CMD);
+        cmdMap.put("getblocks", GETBLOCKS_CMD);
+        cmdMap.put("getdata", GETDATA_CMD);
+        cmdMap.put("getheaders", GETHEADERS_CMD);
+        cmdMap.put("headers", HEADERS_CMD);
+        cmdMap.put("inv", INV_CMD);
+        cmdMap.put("mempool", MEMPOOL_CMD);
+        cmdMap.put("merkleblock", MERKLEBLOCK_CMD);
+        cmdMap.put("notfound", NOTFOUND_CMD);
+        cmdMap.put("ping", PING_CMD);
+        cmdMap.put("pong", PONG_CMD);
+        cmdMap.put("reject", REJECT_CMD);
+        cmdMap.put("tx", TX_CMD);
+        cmdMap.put("verack", VERACK_CMD);
+        cmdMap.put("version", VERSION_CMD);
     }
 
     /**

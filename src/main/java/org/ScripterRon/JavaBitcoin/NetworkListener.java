@@ -18,17 +18,14 @@ import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import java.io.InputStream;
 import java.io.IOException;
-
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.net.UnknownHostException;
 import java.net.URL;
-
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -200,13 +197,10 @@ public class NetworkListener implements Runnable {
             //
             if (!staticConnections) {
                 dnsDiscovery();
-                Collections.sort(Parameters.peerAddresses, new Comparator<PeerAddress>() {
-                    @Override
-                    public int compare(PeerAddress addr1, PeerAddress addr2) {
-                        long t1 = addr1.getTimeStamp();
-                        long t2 = addr2.getTimeStamp();
-                        return (t1>t2 ? -1 : (t1<t2 ? 1 : 0));
-                    }
+                Collections.sort(Parameters.peerAddresses, (PeerAddress addr1, PeerAddress addr2) -> {
+                    long t1 = addr1.getTimeStamp();
+                    long t2 = addr2.getTimeStamp();
+                    return (t1>t2 ? -1 : (t1<t2 ? 1 : 0));
                 });
             }
             //
@@ -336,7 +330,7 @@ public class NetworkListener implements Runnable {
                 if (currentTime > lastConnectionCheckTime+2*60) {
                     lastConnectionCheckTime = currentTime;
                     List<Peer> inactiveList = new ArrayList<>();
-                    for (Peer chkPeer : connections) {
+                    connections.stream().forEach((chkPeer) -> {
                         PeerAddress chkAddress = chkPeer.getAddress();
                         if (chkAddress.getTimeStamp() < currentTime-4*60) {
                             inactiveList.add(chkPeer);
@@ -354,20 +348,21 @@ public class NetworkListener implements Runnable {
                                 }
                             }
                         }
-                    }
-                    //
-                    // Close inactive connections and remove the peer from the address list
-                    //
-                    for (Peer chkPeer : inactiveList) {
+                    });
+                    inactiveList.stream().map((chkPeer) -> {
                         log.info(String.format("Closing connection due to inactivity: %s",
-                                               chkPeer.getAddress().toString()));
+                                chkPeer.getAddress().toString()));
+                        return chkPeer;
+                    }).map((chkPeer) -> {
                         closeConnection(chkPeer);
+                        return chkPeer;
+                    }).forEach((chkPeer) -> {
                         synchronized(Parameters.lock) {
                             PeerAddress chkAddress = chkPeer.getAddress();
                             Parameters.peerMap.remove(chkAddress);
                             Parameters.peerAddresses.remove(chkAddress);
                         }
-                    }
+                    });
                 }
                 //
                 // Create a new outbound connection if we have less than the
@@ -512,9 +507,7 @@ public class NetworkListener implements Runnable {
         // Send the message to each connected peer
         //
         synchronized(Parameters.lock) {
-            for (Peer relayPeer : connections) {
-                if (relayPeer.getVersionCount() < 2)
-                    continue;
+            connections.stream().filter((relayPeer) -> !(relayPeer.getVersionCount() < 2)).forEach((relayPeer) -> {
                 boolean sendMsg = false;
                 int cmd = msg.getCommand();
                 if (cmd == MessageHeader.INVBLOCK_CMD) {
@@ -531,7 +524,7 @@ public class NetworkListener implements Runnable {
                     SelectionKey relayKey = relayPeer.getKey();
                     relayKey.interestOps(relayKey.interestOps() | SelectionKey.OP_WRITE);
                 }
-            }
+            });
         }
         //
         // Notify alert listeners if this is an alert broadcast
@@ -539,8 +532,9 @@ public class NetworkListener implements Runnable {
         if (msg.getCommand() == MessageHeader.ALERT_CMD) {
             Alert alert = msg.getAlert();
             alerts.add(alert);
-            for (AlertListener listener : alertListeners)
+            alertListeners.stream().forEach((listener) -> {
                 listener.alertReceived(alert);
+            });
         }
         //
         // Wakeup the network listener to send the broadcast messages
@@ -880,8 +874,9 @@ public class NetworkListener implements Runnable {
             // Notify listeners that a connection has ended
             //
             if (peer.getVersionCount() > 2) {
-                for (ConnectionListener listener : connectionListeners)
+                connectionListeners.stream().forEach((listener) -> {
                     listener.connectionEnded(peer, connections.size());
+                });
             }
             //
             // Close the channel
@@ -969,16 +964,15 @@ public class NetworkListener implements Runnable {
                 // Send current alert messages
                 //
                 long currentTime = System.currentTimeMillis()/1000;
-                for (Alert alert : alerts) {
-                    if (!alert.isCanceled() && alert.getExpireTime() > currentTime) {
-                        Message alertMsg = AlertMessage.buildAlertMessage(peer, alert);
-                        synchronized(Parameters.lock) {
-                            peer.getOutputList().add(alertMsg);
-                            key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
-                        }
-                        log.info(String.format("Sent alert %d to %s", alert.getID(), address.toString()));
+                alerts.stream().filter((alert) -> (!alert.isCanceled() &&
+                                alert.getExpireTime() > currentTime)).forEach((alert) -> {
+                    Message alertMsg = AlertMessage.buildAlertMessage(peer, alert);
+                    synchronized(Parameters.lock) {
+                        peer.getOutputList().add(alertMsg);
+                        key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                     }
-                }
+                    log.info(String.format("Sent alert %d to %s", alert.getID(), address.toString()));
+                });
                 //
                 // Send a 'getblocks' message if we are down-level and we haven't sent
                 // one yet
@@ -994,11 +988,9 @@ public class NetworkListener implements Runnable {
                         log.info(String.format("Sent 'getblocks' message to %s", address.toString()));
                     }
                 }
-                //
-                // Notify listeners that we have a new connection
-                //
-                for (ConnectionListener listener : connectionListeners)
+                connectionListeners.stream().forEach((listener) -> {
                     listener.connectionStarted(peer, connections.size());
+                });
             }
         }
     }

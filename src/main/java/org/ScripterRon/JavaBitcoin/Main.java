@@ -26,16 +26,12 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-
 import java.net.UnknownHostException;
-
 import java.nio.channels.FileLock;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.LogManager;
 import java.util.Properties;
-
 import javax.swing.*;
 
 /**

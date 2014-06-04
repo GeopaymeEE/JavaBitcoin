@@ -21,9 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
-
 import java.math.BigInteger;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,7 +33,7 @@ import java.util.List;
  *
  * <p>Each transaction input is connected to the output of a proceeding transaction.  The input contains the
  * first half of a script (ScriptSig) and the output contains the second half (ScriptPubKey).  The script
- * is interpreted to determines if the transaction input is allowed to spend the transaction output.
+ * is interpreted to determines if the transaction input is allowed to spend the transaction output.</p>
  *
  * <p>A transaction has the following format:</p>
  * <pre>

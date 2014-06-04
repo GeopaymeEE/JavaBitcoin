@@ -18,9 +18,7 @@ package org.ScripterRon.JavaBitcoin;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
-
 import java.nio.ByteBuffer;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -255,7 +253,7 @@ public class GetDataMessage {
             int index = 0;
             for (Transaction tx : txList) {
                 if (matches.contains(tx.getHash()))
-                    txIndexes.add(Integer.valueOf(index));
+                    txIndexes.add(index);
                 index++;
             }
         }

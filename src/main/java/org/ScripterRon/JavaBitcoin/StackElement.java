@@ -16,7 +16,6 @@
 package org.ScripterRon.JavaBitcoin;
 
 import java.math.BigInteger;
-
 import java.util.Arrays;
 
 /**
@@ -37,29 +36,29 @@ public class StackElement implements Comparable<StackElement> {
     public StackElement(byte[] bytes) {
         this.bytes = bytes;
     }
-    
+
     /**
      * Creates a new stack element from an existing stack element
-     * 
+     *
      * @param       elem            Existing stack element
      */
     public StackElement(StackElement elem) {
         bytes = elem.getBytes();
     }
-    
+
     /**
      * Creates a new stack element from a BigInteger.  Numeric values are stored
      * on the stack in MPI format with the bytes reversed.
-     * 
+     *
      * @param       bigInteger      BigInteger
      */
     public StackElement(BigInteger bigInteger) {
         bytes = Utils.reverseBytes(Utils.encodeMPI(bigInteger, false));
      }
-    
+
     /**
      * Creates a new stack element containing TRUE or FALSE
-     * 
+     *
      * @param       isTrue          TRUE if stack element is TRUE
      */
     public StackElement(boolean isTrue) {
@@ -79,7 +78,7 @@ public class StackElement implements Comparable<StackElement> {
     /**
      * Returns a BigInteger representing the bytes for this stack element.  Numeric
      * values are stored on the stack in MPI format with the bytes reversed.
-     * 
+     *
      * @return                      Unsigned BigInteger
      */
     public BigInteger getBigInteger() {
@@ -142,4 +141,4 @@ public class StackElement implements Comparable<StackElement> {
         BigInteger cmp2 = cmpElem.getBigInteger();
         return cmp1.compareTo(cmp2);
     }
-}   
+}

@@ -50,14 +50,14 @@ public class RejectMessage {
     /** Reject message reason codes */
     private static final Map<Integer, String> reasonCodes = new HashMap<>();
     static {
-        reasonCodes.put(Integer.valueOf(Parameters.REJECT_MALFORMED), "Malformed");
-        reasonCodes.put(Integer.valueOf(Parameters.REJECT_INVALID), "Invalid");
-        reasonCodes.put(Integer.valueOf(Parameters.REJECT_OBSOLETE), "Obsolete");
-        reasonCodes.put(Integer.valueOf(Parameters.REJECT_DUPLICATE), "Duplicate");
-        reasonCodes.put(Integer.valueOf(Parameters.REJECT_NONSTANDARD), "Nonstandard");
-        reasonCodes.put(Integer.valueOf(Parameters.REJECT_DUST), "Dust");
-        reasonCodes.put(Integer.valueOf(Parameters.REJECT_INSUFFICIENT_FEE), "Insufficient fee");
-        reasonCodes.put(Integer.valueOf(Parameters.REJECT_CHECKPOINT), "Checkpoint");
+        reasonCodes.put(Parameters.REJECT_MALFORMED, "Malformed");
+        reasonCodes.put(Parameters.REJECT_INVALID, "Invalid");
+        reasonCodes.put(Parameters.REJECT_OBSOLETE, "Obsolete");
+        reasonCodes.put(Parameters.REJECT_DUPLICATE, "Duplicate");
+        reasonCodes.put(Parameters.REJECT_NONSTANDARD, "Nonstandard");
+        reasonCodes.put(Parameters.REJECT_DUST, "Dust");
+        reasonCodes.put(Parameters.REJECT_INSUFFICIENT_FEE, "Insufficient fee");
+        reasonCodes.put(Parameters.REJECT_CHECKPOINT, "Checkpoint");
     }
 
     /**

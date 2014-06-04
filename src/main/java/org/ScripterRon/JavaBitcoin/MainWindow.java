@@ -16,7 +16,6 @@
 package org.ScripterRon.JavaBitcoin;
 
 import java.io.IOException;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -30,7 +29,7 @@ public final class MainWindow extends JFrame implements ActionListener {
     private boolean windowMinimized = false;
 
     /** Main window status panel */
-    private StatusPanel statusPanel;
+    private final StatusPanel statusPanel;
 
     /**
      * Create the application window
@@ -110,7 +109,7 @@ public final class MainWindow extends JFrame implements ActionListener {
         //
         // Receive WindowListener events
         //
-        addWindowListener(new ApplicationWindowListener(this));
+        addWindowListener(new ApplicationWindowListener());
     }
 
     /**
@@ -213,16 +212,10 @@ public final class MainWindow extends JFrame implements ActionListener {
      */
     private class ApplicationWindowListener extends WindowAdapter {
 
-        /** Application window */
-        private JFrame window;
-
         /**
          * Create the window listener
-         *
-         * @param       window      The application window
          */
-        public ApplicationWindowListener(JFrame window) {
-            this.window = window;
+        public ApplicationWindowListener() {
         }
 
         /**

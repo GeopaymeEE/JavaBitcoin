@@ -24,16 +24,16 @@ import java.io.IOException;
 public class StoredTransaction {
 
     /** Serialized transaction */
-    private byte[] txData;
+    private final byte[] txData;
 
     /** Transaction hash */
-    private Sha256Hash hash;
+    private final Sha256Hash hash;
 
     /** Parent transaction hash */
     private Sha256Hash parentHash;
 
     /** Time when transaction was broadcast */
-    private long txTimeStamp;
+    private final long txTimeStamp;
 
     /**
      * Creates a new stored transaction

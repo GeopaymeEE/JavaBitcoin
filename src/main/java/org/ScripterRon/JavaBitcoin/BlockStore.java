@@ -19,9 +19,7 @@ import static org.ScripterRon.JavaBitcoin.Main.log;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-
 import java.math.BigInteger;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
