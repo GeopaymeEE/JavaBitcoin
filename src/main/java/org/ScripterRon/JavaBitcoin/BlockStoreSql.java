@@ -74,7 +74,6 @@ public class BlockStoreSql extends BlockStore {
             "value          BIGINT          NOT NULL,"+     // Value
             "script_bytes   BINARY          NOT NULL)";     // Script bytes
     private static final String TxOutputs_IX1 = "CREATE UNIQUE INDEX TxOutputs_IX1 ON TxOutputs(tx_hash,tx_index)";
-    private static final String TxOutputs_IX2 = "CREATE INDEX TxOutputs_IX2 ON TxOutputs(time_spent)";
 
     /** TxSpentOutputs table definition */
     private static final String TxSpentOutputs_Table = "CREATE TABLE TxSpentOutputs ("+
@@ -1143,7 +1142,6 @@ public class BlockStoreSql extends BlockStore {
             s.executeUpdate(Settings_Table);
             s.executeUpdate(TxOutputs_Table);
             s.executeUpdate(TxOutputs_IX1);
-            s.executeUpdate(TxOutputs_IX2);
             s.executeUpdate(TxSpentOutputs_Table);
             s.executeUpdate(TxSpentOutputs_IX1);
             s.executeUpdate(Blocks_Table);
