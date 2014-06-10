@@ -16,6 +16,18 @@
 package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
+import org.ScripterRon.BitcoinCore.Alert;
+import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.BlockHeader;
+import org.ScripterRon.BitcoinCore.OutPoint;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.Transaction;
+import org.ScripterRon.BitcoinCore.TransactionInput;
+import org.ScripterRon.BitcoinCore.TransactionOutput;
+import org.ScripterRon.BitcoinCore.Utils;
+import org.ScripterRon.BitcoinCore.VarInt;
+import org.ScripterRon.BitcoinCore.VerificationException;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -684,8 +696,8 @@ public class BlockStoreSql extends BlockStore {
                     int fileNumber = r.getInt(1);
                     int fileOffset = r.getInt(2);
                     Block block = getBlock(fileNumber, fileOffset);
-                    byte[] blockData = block.bitcoinSerialize();
-                    int length = Block.HEADER_SIZE;
+                    byte[] blockData = block.getBytes();
+                    int length = BlockHeader.HEADER_SIZE;
                     length += VarInt.sizeOf(blockData, length);
                     byte[] headerData = Arrays.copyOf(blockData, length);
                     headerList.add(headerData);

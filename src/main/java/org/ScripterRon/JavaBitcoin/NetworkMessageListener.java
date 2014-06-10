@@ -17,17 +17,66 @@
 package org.ScripterRon.JavaBitcoin;
 
 import java.util.List;
+import org.ScripterRon.BitcoinCore.AddressMessage;
+import org.ScripterRon.BitcoinCore.BloomFilter;
+import org.ScripterRon.BitcoinCore.Message;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
 /**
  *
  * @author Ronald Hoffman
  */
 public class NetworkMessageListener {
+
+    //**********************************************************************************
+    // Receive version message
+    //                    VersionAckMessage.buildVersionResponse(msg);
+                    peer.incVersionCount();
+                    address.setServices(peer.getServices());
+                    log.info(String.format("Peer %s: Protocol level %d, Services %d, Agent %s, Height %d, "+
+                                           "Relay blocks %s, Relay tx %s",
+                             address.toString(), peer.getVersion(), peer.getServices(),
+                             peer.getUserAgent(), peer.getHeight(),
+                             peer.shouldRelayBlocks()?"Yes":"No",
+                             peer.shouldRelayTx()?"Yes":"No"));
+
+    //*********************************************************************************
+    // Process verack
+    //
+                    peer.incVersionCount();
+
+     //*********************************************************************************
+     // Process getaddr
+     //
+     Message addrMsg = AddressMessage.buildAddressMessage(peer, Parameters.peerAddresses,
+                                                                         Parameters.listenAddress,
+                                                                         Parameters.networkMessageListener);
+                    msg.setBuffer(addrMsg.getBuffer());
+                    msg.setCommand(addrMsg.getCommand());
+
+    //****************************************************************
+    // Process pong message
+    //
+                    peer.setPing(false);
+                    log.info(String.format("'pong' response received from %s", address.toString()));
+
+    //******************************************************************
+    // Process the 'filterclear' command
+    //
+                    BloomFilter filter = peer.getBloomFilter();
+                    peer.setBloomFilter(null);
+                    if (filter != null) {
+                        synchronized(Parameters.lock) {
+                            Parameters.bloomFilters.remove(filter);
+                        }
+                    }
+                    log.info(String.format("Bloom filter cleared for peer %s", address.toString()));
+
     //**********************************************************************************
     // Process AddressMessage
-        //
-        // Process the addresses and keep any node addresses that are not too old
-        //
+    //
+    // Process the addresses and keep any node addresses that are not too old
+    //
     long oldestTime = System.currentTimeMillis()/1000 - (30*60);
         for (int i=0; i<addrCount; i++) {
             PeerAddress peerAddress = new PeerAddress(inBuffer);
@@ -62,6 +111,7 @@ public class NetworkMessageListener {
 
     //********************************************************************************************
     // Process AlertMessage
+    //
                 if (Parameters.blockStore.isNewAlert(alert.getID())) {
             //
             // Store the alert in our database
@@ -84,12 +134,13 @@ public class NetworkMessageListener {
                 Parameters.networkListener.broadcastMessage(alertMsg);
             }
         }
+
     //****************************************************************************************************
     // Process BlockMessage
-            //
-        // Indicate the request is being processed so it won't timeout while
-        // the database handler is busy
-        //
+    //
+    // Indicate the request is being processed so it won't timeout while
+    // the database handler is busy
+    //
         synchronized(Parameters.lock) {
             for (PeerRequest chkRequest : Parameters.processedRequests) {
                 if (chkRequest.getType()==Parameters.INV_BLOCK &&
@@ -125,22 +176,22 @@ public class NetworkMessageListener {
         //
         Parameters.databaseQueue.put(block);
 
-        //*************************************************************************
-        // Filter load message
-                //
-        // Add the filter to the list of Bloom filters
-        //
+    //*************************************************************************
+    // Filter load message
+    //
+    // Add the filter to the list of Bloom filters
+    //
         synchronized(Parameters.lock) {
             if (oldFilter != null)
                 Parameters.bloomFilters.remove(filter);
             Parameters.bloomFilters.add(filter);
         }
 
-        //****************************************************************************
-        // Get blocks message
-                //
-        // Check each locator until we find one that is on the main chain
-        //
+    //****************************************************************************
+    // Get blocks message
+    //
+    // Check each locator until we find one that is on the main chain
+    //
         if (varCount < 0 || varCount > 500)
             throw new VerificationException(String.format("'getblocks' message contains more than 500 locators"));
         try {
@@ -189,14 +240,14 @@ public class NetworkMessageListener {
             //
         }
 
-        //***************************************************************************
-        // Process getdata
-                //
-        // Process each request
-        //
-        // If this is a restarted request, we need to skip over the requests that have already
-        // been processed as indicated by the restart index contained in the message.
-        //
+    //***************************************************************************
+    // Process getdata
+    //
+    // Process each request
+    //
+    // If this is a restarted request, we need to skip over the requests that have already
+    // been processed as indicated by the restart index contained in the message.
+    //
         List<byte[]> notFound = new ArrayList<>(25);
         byte[] invBytes = new byte[36];
         int restart = msg.getRestartIndex();
@@ -303,7 +354,7 @@ public class NetworkMessageListener {
                 notFound.add(Arrays.copyOf(invBytes, 36));
             }
         }
-                //
+        //
         // Create a 'notfound' response if we didn't find all of the requested items
         //
         if (!notFound.isEmpty()) {
@@ -319,56 +370,6 @@ public class NetworkMessageListener {
             ByteBuffer buffer = MessageHeader.buildMessage("notfound", msgData);
             msg.setBuffer(buffer);
             msg.setCommand(MessageHeader.NOTFOUND_CMD);
-        }
-    }
-
-    /**
-     * Sends a 'merkleblock' message followed by 'tx' messages for the matched transaction
-     *
-     * @param       peer            Destination peer
-     * @param       block           Block containing the transactions
-     * @param       matches         List of matching transactions
-     * @throws      IOException     Error creating serialized data stream
-     */
-    public static void sendMatchedTransactions(Peer peer, Block block, List<Sha256Hash> matches)
-                                    throws IOException {
-        //
-        // Build the index list for the matching transactions
-        //
-        List<Integer> txIndexes;
-        List<Transaction> txList = null;
-        if (matches.isEmpty()) {
-            txIndexes = new ArrayList<>();
-        } else {
-            txIndexes = new ArrayList<>(matches.size());
-            txList = block.getTransactions();
-            int index = 0;
-            for (Transaction tx : txList) {
-                if (matches.contains(tx.getHash()))
-                    txIndexes.add(index);
-                index++;
-            }
-        }
-        //
-        // Build and send the 'merkleblock' message
-        //
-        Message blockMsg = MerkleBlockMessage.buildMerkleBlockMessage(peer, block, txIndexes);
-        Parameters.networkListener.sendMessage(blockMsg);
-        synchronized(Parameters.lock) {
-            Parameters.filteredBlocksSent++;
-        }
-        //
-        // Send 'tx' messages for each matching transaction
-        //
-        for (Integer txIndex : txIndexes) {
-            Transaction tx = txList.get(txIndex.intValue());
-            byte[] txData = tx.getBytes();
-            ByteBuffer buffer = MessageHeader.buildMessage("tx", txData);
-            Message txMsg = new Message(buffer, peer, MessageHeader.TX_CMD);
-            Parameters.networkListener.sendMessage(txMsg);
-            synchronized(Parameters.lock) {
-                Parameters.txSent++;
-            }
         }
     }
 
@@ -601,6 +602,109 @@ public class NetworkMessageListener {
             while (Parameters.orphanTxList.size() > 1000) {
                 StoredTransaction poolTx = Parameters.orphanTxList.remove(0);
                 Parameters.orphanTxMap.remove(poolTx.getParent());
+            }
+        }
+    }
+/****************************************
+ * mempool message
+ *         //
+        // Get the list of transaction identifiers in the memory pool (return a maximum
+        // of MAX_INV_ENTRIES)
+        //
+        List<Sha256Hash> txList;
+        synchronized(Parameters.lock) {
+            txList = new ArrayList<>(Parameters.txPool.size());
+            for (StoredTransaction tx : Parameters.txPool) {
+                txList.add(tx.getHash());
+                if (txList.size() == InventoryMessage.MAX_INV_ENTRIES)
+                    break;
+            }
+        }
+        //
+        // Build the 'inv' message
+        //
+        Message invMsg = InventoryMessage.buildInventoryMessage(msg.getPeer(), Parameters.INV_TX, txList);
+        msg.setBuffer(invMsg.getBuffer());
+        msg.setCommand(invMsg.getCommand());
+    }
+ */
+/***********************
+ * ping message received
+ *                                         throws EOFException, IOException {
+        //
+        // BIP0031 adds the 'pong' message and requires an 8-byte nonce in the 'ping'
+        // message.  If we receive a 'ping' without a payload, we do not return a
+        // 'pong' since the client has not implemented BIP0031.
+        //
+        if (inStream.available() < 8)
+            return;
+        byte[] bytes = new byte[8];
+        inStream.read(bytes);
+        //
+        // Build the 'pong' response
+        //
+        ByteBuffer buffer = MessageHeader.buildMessage("pong", bytes);
+        msg.setBuffer(buffer);
+        msg.setCommand(MessageHeader.PONG_CMD);
+ */
+/***************************************
+ * reject message received
+ *
+ *         //
+        // Log the message
+        //
+        log.error(String.format("Message rejected by %s\n  Command %s, Reason %s - %s\n  %s",
+                                msg.getPeer().getAddress().toString(), cmd, reason, desc,
+                                hash!=null ? Utils.bytesToHexString(hash) : "N/A"));
+ */
+}
+
+    /**
+     * Sends a 'merkleblock' message followed by 'tx' messages for the matched transaction
+     *
+     * @param       peer            Destination peer
+     * @param       block           Block containing the transactions
+     * @param       matches         List of matching transactions
+     * @throws      IOException     Error creating serialized data stream
+     */
+    public static void sendMatchedTransactions(Peer peer, Block block, List<Sha256Hash> matches)
+                                    throws IOException {
+        //
+        // Build the index list for the matching transactions
+        //
+        List<Integer> txIndexes;
+        List<Transaction> txList = null;
+        if (matches.isEmpty()) {
+            txIndexes = new ArrayList<>();
+        } else {
+            txIndexes = new ArrayList<>(matches.size());
+            txList = block.getTransactions();
+            int index = 0;
+            for (Transaction tx : txList) {
+                if (matches.contains(tx.getHash()))
+                    txIndexes.add(index);
+                index++;
+            }
+        }
+        //
+        // Build and send the 'merkleblock' message
+        //
+        Message blockMsg = MerkleBlockMessage.buildMerkleBlockMessage(peer, block, txIndexes);
+        Parameters.networkListener.sendMessage(blockMsg);
+        synchronized(Parameters.lock) {
+            Parameters.filteredBlocksSent++;
+        }
+        //
+        // Send 'tx' messages for each matching transaction
+        //
+        for (Integer txIndex : txIndexes) {
+            Transaction tx = txList.get(txIndex.intValue());
+            byte[] txData = tx.getBytes();
+            ByteBuffer buffer = MessageHeader.buildMessage("tx", txData);
+            Message txMsg = new Message(buffer, peer, MessageHeader.TX_CMD);
+            Parameters.networkListener.sendMessage(txMsg);
+            synchronized(Parameters.lock) {
+                Parameters.txSent++;
             }
         }
     }
@@ -881,56 +985,4 @@ public class NetworkMessageListener {
             }
         }
     }
-/****************************************
- * mempool message
- *         //
-        // Get the list of transaction identifiers in the memory pool (return a maximum
-        // of MAX_INV_ENTRIES)
-        //
-        List<Sha256Hash> txList;
-        synchronized(Parameters.lock) {
-            txList = new ArrayList<>(Parameters.txPool.size());
-            for (StoredTransaction tx : Parameters.txPool) {
-                txList.add(tx.getHash());
-                if (txList.size() == InventoryMessage.MAX_INV_ENTRIES)
-                    break;
-            }
-        }
-        //
-        // Build the 'inv' message
-        //
-        Message invMsg = InventoryMessage.buildInventoryMessage(msg.getPeer(), Parameters.INV_TX, txList);
-        msg.setBuffer(invMsg.getBuffer());
-        msg.setCommand(invMsg.getCommand());
-    }
- */
-/***********************
- * ping message received
- *                                         throws EOFException, IOException {
-        //
-        // BIP0031 adds the 'pong' message and requires an 8-byte nonce in the 'ping'
-        // message.  If we receive a 'ping' without a payload, we do not return a
-        // 'pong' since the client has not implemented BIP0031.
-        //
-        if (inStream.available() < 8)
-            return;
-        byte[] bytes = new byte[8];
-        inStream.read(bytes);
-        //
-        // Build the 'pong' response
-        //
-        ByteBuffer buffer = MessageHeader.buildMessage("pong", bytes);
-        msg.setBuffer(buffer);
-        msg.setCommand(MessageHeader.PONG_CMD);
- */
-/***************************************
- * reject message received
- *
- *         //
-        // Log the message
-        //
-        log.error(String.format("Message rejected by %s\n  Command %s, Reason %s - %s\n  %s",
-                                msg.getPeer().getAddress().toString(), cmd, reason, desc,
-                                hash!=null ? Utils.bytesToHexString(hash) : "N/A"));
- */
 }

@@ -16,6 +16,10 @@
 package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
+import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.Utils;
+import org.ScripterRon.BitcoinCore.VerificationException;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;

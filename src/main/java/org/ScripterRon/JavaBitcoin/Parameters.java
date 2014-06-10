@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-import org.ScripterRon.BitcoinCore.*;
+
+import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.BloomFilter;
+import org.ScripterRon.BitcoinCore.Message;
+import org.ScripterRon.BitcoinCore.MessageListener;
+import org.ScripterRon.BitcoinCore.OutPoint;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.PeerAddress;
+import org.ScripterRon.BitcoinCore.Utils;
 
 import java.math.BigInteger;
 import java.util.HashMap;
@@ -127,8 +135,11 @@ public class Parameters {
     /** Block chain */
     public static BlockChain blockChain;
 
-    /** Network listener */
+    /** Network handler */
     public static NetworkHandler networkHandler;
+
+    /** Network message handler */
+    public static MessageListener networkMessageListener;
 
     /** Local listen address */
     public static PeerAddress listenAddress;

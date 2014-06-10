@@ -16,6 +16,10 @@
 package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
+import org.ScripterRon.BitcoinCore.SerializedBuffer;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.VarInt;
+
 import org.iq80.leveldb.CompressionType;
 import org.iq80.leveldb.DB;
 import org.iq80.leveldb.DBException;
@@ -34,7 +38,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Arrays;
 import java.util.Map.Entry;
 
 /**
@@ -331,36 +334,15 @@ public class MigrateLdb {
          * @throws      EOFException    End-of-data processing the serialized data
          */
         public BlockEntry(byte[] entryData) throws EOFException {
-            if (entryData.length < 34)
-                throw new EOFException("End-of-data while processing serialized block entry");
-            onChain = (entryData[0]==1);
-            onHold = (entryData[1]==1);
-            prevHash = new Sha256Hash(entryData, 2, 32);
-            int offset = 34;
-            // Decode chainWork
-            VarInt varInt = new VarInt(entryData, offset);
-            int length = varInt.toInt();
-            offset += varInt.getEncodedSize();
-            if (offset+length > entryData.length)
-                throw new EOFException("End-of-data while processing BlockEntry");
-            byte[] bytes = Arrays.copyOfRange(entryData, offset, offset+length);
-            chainWork = new BigInteger(bytes);
-            offset += length;
-            // Decode timeStamp
-            varInt = new VarInt(entryData, offset);
-            timeStamp = varInt.toLong();
-            offset += varInt.getEncodedSize();
-            // Decode blockHeight
-            varInt = new VarInt(entryData, offset);
-            blockHeight = varInt.toInt();
-            offset += varInt.getEncodedSize();
-            // Decode fileNumber
-            varInt = new VarInt(entryData, offset);
-            fileNumber = varInt.toInt();
-            offset += varInt.getEncodedSize();
-            // Decode fileOffset
-            varInt = new VarInt(entryData, offset);
-            fileOffset = varInt.toInt();
+            SerializedBuffer inBuffer = new SerializedBuffer(entryData);
+            onChain = inBuffer.getBoolean();
+            onHold = inBuffer.getBoolean();
+            prevHash = new Sha256Hash(inBuffer.getBytes(32));
+            chainWork = new BigInteger(inBuffer.getBytes());
+            timeStamp = inBuffer.getVarLong();
+            blockHeight = inBuffer.getVarInt();
+            fileNumber = inBuffer.getVarInt();
+            fileOffset = inBuffer.getVarInt();
         }
 
         /**
@@ -369,35 +351,18 @@ public class MigrateLdb {
          * @return      Serialized data stream
          */
         public byte[] getBytes() {
-            byte[] heightData = VarInt.encode(blockHeight);
             byte[] workBytes = chainWork.toByteArray();
-            byte[] workLength = VarInt.encode(workBytes.length);
-            byte[] timeData = VarInt.encode(timeStamp);
-            byte[] numberData = VarInt.encode(fileNumber);
-            byte[] offsetData = VarInt.encode(fileOffset);
-            byte[] entryData = new byte[1+1+32+heightData.length+workLength.length+workBytes.length+
-                            timeData.length+numberData.length+offsetData.length];
-            entryData[0] = (onChain ? (byte)1 : 0);
-            entryData[1] = (onHold ? (byte)1 : 0);
-            System.arraycopy(prevHash.getBytes(), 0, entryData, 2, 32);
-            int offset = 34;
-            // Encode chainWork
-            System.arraycopy(workLength, 0, entryData, offset, workLength.length);
-            offset += workLength.length;
-            System.arraycopy(workBytes, 0, entryData, offset, workBytes.length);
-            offset += workBytes.length;
-            // Encode timeStamp
-            System.arraycopy(timeData, 0, entryData, offset, timeData.length);
-            offset += timeData.length;
-            // Encode blockHeight
-            System.arraycopy(heightData, 0, entryData, offset, heightData.length);
-            offset += heightData.length;
-            // Encode fileNumber
-            System.arraycopy(numberData, 0, entryData, offset, numberData.length);
-            offset += numberData.length;
-            // Encode fileOffset
-            System.arraycopy(offsetData, 0, entryData, offset, offsetData.length);
-            return entryData;
+            SerializedBuffer outBuffer = new SerializedBuffer();
+            outBuffer.putBoolean(onChain)
+                     .putBoolean(onHold)
+                     .putBytes(prevHash.getBytes())
+                     .putVarInt(workBytes.length)
+                     .putBytes(workBytes)
+                     .putVarLong(timeStamp)
+                     .putVarInt(blockHeight)
+                     .putVarInt(fileNumber)
+                     .putVarInt(fileOffset);
+            return outBuffer.toByteArray();
         }
 
         /**
@@ -601,12 +566,8 @@ public class MigrateLdb {
          */
         @Override
         public boolean equals(Object obj) {
-            boolean areEqual = false;
-            if (obj != null && (obj instanceof TransactionID)) {
-                TransactionID cmpObj = (TransactionID)obj;
-                areEqual = (cmpObj.txHash.equals(txHash) && cmpObj.txIndex == txIndex);
-            }
-            return areEqual;
+            return (obj!=null && (obj instanceof TransactionID) &&
+                            txHash.equals(((TransactionID)obj).txHash) && txIndex==((TransactionID)obj).txIndex);
         }
 
         /**
@@ -616,7 +577,7 @@ public class MigrateLdb {
          */
         @Override
         public int hashCode() {
-            return txHash.hashCode();
+            return txHash.hashCode()^txIndex;
         }
     }
 
@@ -683,76 +644,32 @@ public class MigrateLdb {
          * @throws      EOFException    End-of-data processing serialized data
          */
         public TransactionEntry(byte[] entryData) throws EOFException {
-            if (entryData.length < 32)
-                throw new EOFException("End-of-data while processing TransactionEntry");
-            blockHash = new Sha256Hash(entryData, 0, 32);
-            int offset = 32;
-            // Decode timespent
-            VarInt varInt = new VarInt(entryData, offset);
-            timeSpent = varInt.toLong();
-            offset += varInt.getEncodedSize();
-            // Decode blockHeight
-            varInt = new VarInt(entryData, offset);
-            blockHeight = varInt.toInt();
-            offset += varInt.getEncodedSize();
-            // Decode value
-            varInt = new VarInt(entryData, offset);
-            int length = varInt.toInt();
-            offset += varInt.getEncodedSize();
-            if (offset+length > entryData.length)
-                throw new EOFException("End-of-data while processing TransactionEntry");
-            byte[] bytes = Arrays.copyOfRange(entryData, offset, offset+length);
-            value = new BigInteger(bytes);
-            offset += length;
-            // Decode scriptBytes
-            varInt = new VarInt(entryData, offset);
-            length = varInt.toInt();
-            offset += varInt.getEncodedSize();
-            if (offset+length > entryData.length)
-                throw new EOFException("End-of-data while processing TransactionEntry");
-            scriptBytes = Arrays.copyOfRange(entryData, offset, offset+length);
-            offset += length;
-            // Decode isCoinBase
-            if (offset > entryData.length)
-                throw new EOFException("End-of-data while processing TransactionEntry");
-            isCoinBase = (entryData[offset] == 1);
+            SerializedBuffer inBuffer = new SerializedBuffer(entryData);
+            blockHash = new Sha256Hash(inBuffer.getBytes(32));
+            timeSpent = inBuffer.getVarLong();
+            blockHeight = inBuffer.getVarInt();
+            value = new BigInteger(inBuffer.getBytes());
+            scriptBytes = inBuffer.getBytes();
+            isCoinBase = inBuffer.getBoolean();
         }
 
         /**
          * Returns the serialized data stream
          *
          * @return      Serialized data stream
-         * @throws      IOException     Unable to create output stream
          */
-        public byte[] getBytes() throws IOException {
-            byte[] timeData = VarInt.encode(timeSpent);
-            byte[] heightData = VarInt.encode(blockHeight);
+        public byte[] getBytes() {
             byte[] valueData = value.toByteArray();
-            byte[] valueLength = VarInt.encode(valueData.length);
-            byte[] scriptLength = VarInt.encode(scriptBytes.length);
-            byte[] entryData = new byte[32+timeData.length+heightData.length+valueLength.length+
-                            valueData.length+scriptLength.length+scriptBytes.length+1];
-            System.arraycopy(blockHash.getBytes(), 0, entryData, 0, 32);
-            int offset = 32;
-            // Encode timeStamp
-            System.arraycopy(timeData, 0, entryData, offset, timeData.length);
-            offset += timeData.length;
-            // Encode blockHeight
-            System.arraycopy(heightData, 0, entryData, offset, heightData.length);
-            offset += heightData.length;
-            // Encode value
-            System.arraycopy(valueLength, 0, entryData, offset, valueLength.length);
-            offset += valueLength.length;
-            System.arraycopy(valueData, 0, entryData, offset, valueData.length);
-            offset += valueData.length;
-            // Encode scriptBytes
-            System.arraycopy(scriptLength, 0, entryData, offset, scriptLength.length);
-            offset += scriptLength.length;
-            System.arraycopy(scriptBytes, 0, entryData, offset, scriptBytes.length);
-            offset += scriptBytes.length;
-            // Encode isCoinBase
-            entryData[offset] = isCoinBase ? (byte)1 : 0;
-            return entryData;
+            SerializedBuffer outBuffer = new SerializedBuffer();
+            outBuffer.putBytes(blockHash.getBytes())
+                     .putVarLong(timeSpent)
+                     .putVarInt(blockHeight)
+                     .putVarInt(valueData.length)
+                     .putBytes(valueData)
+                     .putVarInt(scriptBytes.length)
+                     .putBytes(scriptBytes)
+                     .putBoolean(isCoinBase);
+            return outBuffer.toByteArray();
         }
 
         /**

@@ -16,6 +16,15 @@
 package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
+import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.ScriptException;
+import org.ScripterRon.BitcoinCore.ScriptParser;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.Transaction;
+import org.ScripterRon.BitcoinCore.TransactionInput;
+import org.ScripterRon.BitcoinCore.TransactionOutput;
+import org.ScripterRon.BitcoinCore.VerificationException;
+
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -154,13 +163,13 @@ public class BlockChain {
             } catch (BlockNotFoundException exc) {
                 onHold = true;
                 PeerRequest request = new PeerRequest(exc.getHash(), Parameters.INV_BLOCK);
-                if (Parameters.networkListener != null) {
+                if (Parameters.networkHandler != null) {
                     synchronized(Parameters.lock) {
                         if (!Parameters.pendingRequests.contains(request) &&
                                             !Parameters.processedRequests.contains(request))
                             Parameters.pendingRequests.add(request);
                     }
-                    Parameters.networkListener.wakeup();
+                    Parameters.networkHandler.wakeup();
                 }
             }
         }
@@ -305,7 +314,7 @@ public class BlockChain {
                     for (StoredTransaction orphan : retryList) {
                         if (Parameters.blockStore.isNewTransaction(orphan.getHash())) {
                             Transaction tx = orphan.getTransaction();
-                            TransactionMessage.retryOrphanTransaction(tx);
+                            NetworkMessageListener.retryOrphanTransaction(tx);
                         }
                     }
                 }

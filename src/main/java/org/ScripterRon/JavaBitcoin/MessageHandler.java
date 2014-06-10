@@ -14,17 +14,44 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-import org.ScripterRon.BitcoinCore.*;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
-import java.io.IOException;
+import org.ScripterRon.BitcoinCore.AddressMessage;
+import org.ScripterRon.BitcoinCore.AlertMessage;
+import org.ScripterRon.BitcoinCore.BlockMessage;
+import org.ScripterRon.BitcoinCore.FilterAddMessage;
+import org.ScripterRon.BitcoinCore.FilterClearMessage;
+import org.ScripterRon.BitcoinCore.FilterLoadMessage;
+import org.ScripterRon.BitcoinCore.GetAddressMessage;
+import org.ScripterRon.BitcoinCore.GetBlocksMessage;
+import org.ScripterRon.BitcoinCore.GetDataMessage;
+import org.ScripterRon.BitcoinCore.GetHeadersMessage;
+import org.ScripterRon.BitcoinCore.InventoryItem;
+import org.ScripterRon.BitcoinCore.InventoryMessage;
+import org.ScripterRon.BitcoinCore.MempoolMessage;
+import org.ScripterRon.BitcoinCore.Message;
+import org.ScripterRon.BitcoinCore.MessageHeader;
+import org.ScripterRon.BitcoinCore.NetParams;
+import org.ScripterRon.BitcoinCore.NotFoundMessage;
+import org.ScripterRon.BitcoinCore.Peer;
+import org.ScripterRon.BitcoinCore.PeerAddress;
+import org.ScripterRon.BitcoinCore.PingMessage;
+import org.ScripterRon.BitcoinCore.PongMessage;
+import org.ScripterRon.BitcoinCore.RejectMessage;
+import org.ScripterRon.BitcoinCore.SerializedBuffer;
+import org.ScripterRon.BitcoinCore.TransactionMessage;
+import org.ScripterRon.BitcoinCore.VerificationException;
+import org.ScripterRon.BitcoinCore.VersionAckMessage;
+import org.ScripterRon.BitcoinCore.VersionMessage;
+
+import java.io.EOFException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * A message handler processes incoming messages on a separate dispatching thread.
- * It creates a response message if needed and then calls the network listener to
+ * It creates a response message if needed and then calls the network handler to
  * process the message completion.
  *
  * The message handler continues running until its shutdown() method is called.  It
@@ -82,7 +109,8 @@ public class MessageHandler implements Runnable {
         int cmdOp = 0;
         int reasonCode = 0;
         try {
-            SerializedBuffer inBuffer = new SerializedBuffer(msg.getBuffer().array());
+            ByteBuffer msgBuffer = msg.getBuffer();
+            SerializedBuffer inBuffer = new SerializedBuffer(msgBuffer.array());
             msg.setBuffer(null);
             //
             // Process the message header and get the command name
@@ -108,57 +136,45 @@ public class MessageHandler implements Runnable {
             switch (cmdOp) {
                 case MessageHeader.VERSION_CMD:
                     //
-                    // Process the 'version' message and generate the 'verack' response
+                    // Process the 'version' message
                     //
-                    VersionMessage.processVersionMessage(msg, inBuffer);
-                    VersionAckMessage.buildVersionResponse(msg);
-                    peer.incVersionCount();
-                    address.setServices(peer.getServices());
-                    log.info(String.format("Peer %s: Protocol level %d, Services %d, Agent %s, Height %d, "+
-                                           "Relay blocks %s, Relay tx %s",
-                             address.toString(), peer.getVersion(), peer.getServices(),
-                             peer.getUserAgent(), peer.getHeight(),
-                             peer.shouldRelayBlocks()?"Yes":"No",
-                             peer.shouldRelayTx()?"Yes":"No"));
+                    VersionMessage.processVersionMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.VERACK_CMD:
                     //
                     // Process the 'verack' message
                     //
-                    peer.incVersionCount();
+                    VersionAckMessage.processVersionAckMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.ADDR_CMD:
                     //
                     // Process the 'addr' message
                     //
-                    AddressMessage.processAddressMessage(msg, inBuffer);
+                    AddressMessage.processAddressMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.INV_CMD:
                     //
                     // Process the 'inv' message
                     //
-                    InventoryMessage.processInventoryMessage(msg, inBuffer);
+                    InventoryMessage.processInventoryMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.BLOCK_CMD:
                     //
                     // Process the 'block' message
                     //
-                    BlockMessage.processBlockMessage(msg, inBuffer);
+                    BlockMessage.processBlockMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.TX_CMD:
                     //
                     // Process the 'tx' message
                     //
-                    TransactionMessage.processTransactionMessage(msg, inBuffer);
+                    TransactionMessage.processTransactionMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.GETADDR_CMD:
                     //
                     // Process the 'getaddr' message
                     //
-                    Message addrMsg = AddressMessage.buildAddressMessage(peer, Parameters.peerAddresses,
-                                                                         Parameters.listenAddress);
-                    msg.setBuffer(addrMsg.getBuffer());
-                    msg.setCommand(addrMsg.getCommand());
+                    GetAddressMessage.processGetAddressMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.GETDATA_CMD:
                     //
@@ -169,7 +185,7 @@ public class MessageHandler implements Runnable {
                     // requests when it is loading the block chain)
                     //
                     if (peer.getDeferredMessage() == null) {
-                        GetDataMessage.processGetDataMessage(msg, inBuffer);
+                        GetDataMessage.processGetDataMessage(msg, inBuffer, Parameters.networkMessageListener);
                         //
                         // The 'getdata' command sends data in batches, so we need
                         // to check if it needs to be restarted.  If it does, we will
@@ -188,13 +204,11 @@ public class MessageHandler implements Runnable {
                     // Send an 'inv' message for the current chain head to restart
                     // the peer download if the previous 'getblocks' was incomplete.
                     //
-                    if (peer.isIncomplete() && msg.getBuffer() == null && peer.getDeferredMessage() == null) {
+                    if (peer.isIncomplete() && msg.getBuffer()==null && peer.getDeferredMessage()==null) {
                         peer.setIncomplete(false);
-                        Sha256Hash chainHead = Parameters.blockStore.getChainHead();
-                        List<Sha256Hash> blockList = new ArrayList<>(1);
-                        blockList.add(chainHead);
-                        Message invMessage = InventoryMessage.buildInventoryMessage(peer,
-                                                            Parameters.INV_BLOCK, blockList);
+                        List<InventoryItem> blockList = new ArrayList<>(1);
+                        blockList.add(new InventoryItem(NetParams.INV_BLOCK, Parameters.blockStore.getChainHead()));
+                        Message invMessage = InventoryMessage.buildInventoryMessage(peer, blockList);
                         msg.setBuffer(invMessage.getBuffer());
                         msg.setCommand(invMessage.getCommand());
                     }
@@ -208,82 +222,73 @@ public class MessageHandler implements Runnable {
                     // requests when it is loading the block chain)
                     //
                     if (peer.getDeferredMessage() == null)
-                        GetBlocksMessage.processGetBlocksMessage(msg, inBuffer);
+                        GetBlocksMessage.processGetBlocksMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.NOTFOUND_CMD:
                     //
                     // Process the 'notfound' message
                     //
-                    NotFoundMessage.processNotFoundMessage(msg, inBuffer);
+                    NotFoundMessage.processNotFoundMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.PING_CMD:
                     //
                     // Process the 'ping' message
                     //
-                    PingMessage.processPingMessage(msg, inBuffer);
+                    PingMessage.processPingMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.PONG_CMD:
                     //
                     // Process the 'pong' message
                     //
-                    peer.setPing(false);
-                    log.info(String.format("'pong' response received from %s", address.toString()));
+                    PongMessage.processPongMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.GETHEADERS_CMD:
                     //
                     // Process the 'getheaders' message
                     //
-                    GetHeadersMessage.processGetHeadersMessage(msg, inBuffer);
+                    GetHeadersMessage.processGetHeadersMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.MEMPOOL_CMD:
                     //
                     // Process the 'mempool' message
                     //
-                    MempoolMessage.processMempoolMessage(msg, inBuffer);
+                    MempoolMessage.processMempoolMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.FILTERLOAD_CMD:
                     //
-                    // Process the 'filterload' cmd
+                    // Process the 'filterload' message
                     //
-                    FilterLoadMessage.processFilterLoadMessage(msg, inBuffer);
+                    FilterLoadMessage.processFilterLoadMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.FILTERADD_CMD:
                     //
-                    // Process the 'filteradd' command
+                    // Process the 'filteradd' message
                     //
-                    FilterAddMessage.processFilterAddMessage(msg, inBuffer);
+                    FilterAddMessage.processFilterAddMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.FILTERCLEAR_CMD:
                     //
-                    // Process the 'filterclear' command
+                    // Process the 'filterclear' message
                     //
-                    BloomFilter filter = peer.getBloomFilter();
-                    peer.setBloomFilter(null);
-                    if (filter != null) {
-                        synchronized(Parameters.lock) {
-                            Parameters.bloomFilters.remove(filter);
-                        }
-                    }
-                    log.info(String.format("Bloom filter cleared for peer %s", address.toString()));
+                    FilterClearMessage.processFilterClearMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.REJECT_CMD:
                     //
-                    // Process the 'reject' command
+                    // Process the 'reject' message
                     //
-                    RejectMessage.processRejectMessage(msg, inBuffer);
+                    RejectMessage.processRejectMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 case MessageHeader.ALERT_CMD:
                     //
-                    // Process the 'alert' command
+                    // Process the 'alert' message
                     //
-                    AlertMessage.processAlertMessage(msg, inBuffer);
+                    AlertMessage.processAlertMessage(msg, inBuffer, Parameters.networkMessageListener);
                     break;
                 default:
                     log.error(String.format("Unrecognized '%s' message from %s", cmd, address.toString()));
-                    Main.dumpData("Unrecognized Message", msgBytes, Math.min(msgBytes.length, 80));
             }
-        } catch (IOException exc) {
-            log.error(String.format("I/O error while processing '%s' message from %s",
+        } catch (EOFException exc) {
+            log.error(String.format("End-of-data while processing '%s' message from %s",
                                     cmd, address.toString()), exc);
             reasonCode = Parameters.REJECT_MALFORMED;
             if (cmdOp == MessageHeader.TX_CMD)
@@ -295,9 +300,6 @@ public class MessageHandler implements Runnable {
                 msg.setBuffer(rejectMsg.getBuffer());
                 msg.setCommand(rejectMsg.getCommand());
             }
-        } catch (BlockStoreException exc) {
-            log.error(String.format("Database error while processing '%s' message from %s",
-                                    cmd, address.toString()), exc);
         } catch (VerificationException exc) {
             log.error(String.format("Message verification failed for '%s' message from %s\n  %s\n  %s",
                                     cmd, address.toString(), exc.getMessage(), exc.getHash().toString()));
@@ -329,6 +331,6 @@ public class MessageHandler implements Runnable {
                 }
             }
         }
-        Parameters.networkListener.wakeup();
+        Parameters.networkHandler.wakeup();
     }
 }

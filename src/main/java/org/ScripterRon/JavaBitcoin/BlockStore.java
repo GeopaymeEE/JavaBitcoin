@@ -16,6 +16,14 @@
 package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
+import org.ScripterRon.BitcoinCore.Alert;
+import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.BlockHeader;
+import org.ScripterRon.BitcoinCore.OutPoint;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.Utils;
+import org.ScripterRon.BitcoinCore.VerificationException;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -425,7 +433,7 @@ public abstract class BlockStore {
                                             magic, fileNumber, fileOffset));
                     throw new BlockStoreException("Incorrect block file format");
                 }
-                if (length < Block.HEADER_SIZE) {
+                if (length < BlockHeader.HEADER_SIZE) {
                     log.error(String.format("Block length %d is too small in block file %d, offset %d",
                                             length, fileNumber, fileOffset));
                     throw new BlockStoreException("Incorrect block length");
@@ -457,7 +465,7 @@ public abstract class BlockStore {
     protected int[] storeBlock(Block block) throws BlockStoreException {
         int[] blockLocation = new int[2];
         try {
-            byte[] blockData = block.bitcoinSerialize();
+            byte[] blockData = block.getBytes();
             File blockFile = new File(String.format("%s%sBlocks%sblk%05d.dat",
                                         dataPath, Main.fileSeparator, Main.fileSeparator, blockFileNumber));
             long filePosition = blockFile.length();
