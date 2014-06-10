@@ -15,21 +15,14 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.TransactionOutput;
+
 import java.math.BigInteger;
 
 /**
  * StoredOutput represents a transaction output when it is stored in the database
  */
-public class StoredOutput {
-
-    /** Index within the transaction output list */
-    private final int txIndex;
-
-    /** Output value */
-    private final BigInteger value;
-
-    /** Script bytes */
-    private final byte[] scriptBytes;
+public class StoredOutput extends TransactionOutput {
 
     /** Coinbase transaction */
     private final boolean isCoinBase;
@@ -49,9 +42,7 @@ public class StoredOutput {
      * @param       isCoinBase          TRUE if this is a coinbase transaction
      */
     public StoredOutput(int txIndex, BigInteger value, byte[] scriptBytes, boolean isCoinBase) {
-        this.txIndex = txIndex;
-        this.value = value;
-        this.scriptBytes = scriptBytes;
+        super(txIndex, value, scriptBytes);
         this.isSpent = false;
         this.isCoinBase = isCoinBase;
     }
@@ -68,39 +59,10 @@ public class StoredOutput {
      */
     public StoredOutput(int txIndex, BigInteger value, byte[] scriptBytes, boolean isCoinBase,
                                         boolean isSpent, int blockHeight) {
-        this.txIndex = txIndex;
-        this.value = value;
-        this.scriptBytes = scriptBytes;
+        super(txIndex, value, scriptBytes);
         this.isCoinBase = isCoinBase;
         this.isSpent = isSpent;
         this.blockHeight = blockHeight;
-    }
-
-    /**
-     * Returns the index within the transaction output list
-     *
-     * @return      Transaction output index
-     */
-    public int getIndex() {
-        return txIndex;
-    }
-
-    /**
-     * Returns the transaction output value
-     *
-     * @return      Transaction output value
-     */
-    public BigInteger getValue() {
-        return value;
-    }
-
-    /**
-     * Returns the script bytes for the transaction output
-     *
-     * @return      Script bytes or null
-     */
-    public byte[] getScriptBytes() {
-        return scriptBytes;
     }
 
     /**

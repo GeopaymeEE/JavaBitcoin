@@ -15,6 +15,8 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+
 /**
  *  BlockStatus contains the current status for a block in the StoredBlocks table
  */

@@ -15,6 +15,8 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Peer;
+
 /**
  * A connection listener receives notification when a connection starts or ends
  */

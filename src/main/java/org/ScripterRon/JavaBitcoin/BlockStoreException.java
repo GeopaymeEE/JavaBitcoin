@@ -15,6 +15,8 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+
 /**
  * This exception is thrown when an error is detected while storing a block
  */

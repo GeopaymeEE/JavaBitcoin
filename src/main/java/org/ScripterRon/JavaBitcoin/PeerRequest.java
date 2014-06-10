@@ -15,6 +15,9 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Peer;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -167,11 +170,7 @@ public class PeerRequest {
      */
     @Override
     public boolean equals(Object obj) {
-        boolean areEqual = false;
-        if (obj != null && (obj instanceof PeerRequest)) {
-            PeerRequest reqObj = (PeerRequest)obj;
-            areEqual = (hash.equals(reqObj.hash) && type == reqObj.type);
-        }
-        return areEqual;
+        return (obj!=null && (obj instanceof PeerRequest) && hash.equals(((PeerRequest)obj).hash) &&
+                                type==((PeerRequest)obj).type);
     }
 }

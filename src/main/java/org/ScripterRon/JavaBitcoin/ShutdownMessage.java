@@ -15,6 +15,8 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Message;
+
 /**
  * ShutdownMessage is placed on the message handler queue
  * to indicate shutdown is in progress.  This will cause the message handler

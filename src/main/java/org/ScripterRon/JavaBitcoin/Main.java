@@ -350,7 +350,7 @@ public class Main {
             thread.start();
             threads.add(thread);
 
-            Parameters.networkListener = new NetworkListener(maxConnections, maxOutbound, hostName, listenPort,
+            Parameters.networkListener = new NetworkHandler(maxConnections, maxOutbound, hostName, listenPort,
                                                              peerAddresses);
             thread = new Thread(threadGroup, Parameters.networkListener);
             thread.start();

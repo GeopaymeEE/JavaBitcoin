@@ -15,6 +15,8 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Block;
+
 /**
  * ShutdownDatabase is placed on the database handler queue
  * to indicate shutdown is in progress.  This will cause the database handler

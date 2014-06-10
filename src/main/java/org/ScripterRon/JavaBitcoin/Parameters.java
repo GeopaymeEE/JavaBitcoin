@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
+import org.ScripterRon.BitcoinCore.*;
 
 import java.math.BigInteger;
-import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -128,16 +128,10 @@ public class Parameters {
     public static BlockChain blockChain;
 
     /** Network listener */
-    public static NetworkListener networkListener;
+    public static NetworkHandler networkHandler;
 
-    /** External listen address */
-    public static InetAddress listenAddress;
-
-    /** Listen address status */
-    public static boolean listenAddressValid;
-
-    /** Listen port */
-    public static int listenPort;
+    /** Local listen address */
+    public static PeerAddress listenAddress;
 
     /** Number of blocks received */
     public static long blocksReceived;

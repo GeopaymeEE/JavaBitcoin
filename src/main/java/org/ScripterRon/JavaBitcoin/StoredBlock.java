@@ -15,6 +15,9 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+
 import java.math.BigInteger;
 
 /**

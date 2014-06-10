@@ -53,7 +53,7 @@ import java.util.TimerTask;
  *
  * The network listener terminates when its shutdown() method is called.
  */
-public class NetworkListener implements Runnable {
+public class NetworkHandler implements Runnable {
 
     /** Maximum number of pending input messages for a single peer */
     private static final int MAX_INPUT_MESSAGES = 10;
@@ -144,7 +144,7 @@ public class NetworkListener implements Runnable {
      * @param       staticAddresses     Static peer address
      * @throws      IOException         I/O error
      */
-    public NetworkListener(int maxConnections, int maxOutbound, String hostName, int listenPort,
+    public NetworkHandler(int maxConnections, int maxOutbound, String hostName, int listenPort,
                                         PeerAddress[] staticAddresses)
                                         throws IOException {
         this.maxConnections = maxConnections;
@@ -1122,6 +1122,45 @@ public class NetworkListener implements Runnable {
                 log.info(String.format("Sent 'getblocks' message to %s", peer.getAddress().toString()));
             }
         }
+    }
+
+    /**
+     * Get block list for 'getblocks' message
+     */
+    private List<Sha256Hash> getBlockList() {
+                List<Sha256Hash> invList = new ArrayList<>(500);
+        try {
+            //
+            // Get the chain list
+            //
+            int chainHeight = Parameters.blockStore.getChainHeight();
+            int blockHeight = Math.max(0, chainHeight-500);
+            List<Sha256Hash> chainList = Parameters.blockStore.getChainList(blockHeight, Sha256Hash.ZERO_HASH);
+            //
+            // Build the locator list starting with the chain head and working backwards towards
+            // the genesis block
+            //
+            int step = 1;
+            int loop = 0;
+            int pos = chainList.size()-1;
+            while (pos >= 0) {
+                invList.add(chainList.get(pos));
+                if (loop == 10) {
+                    step = step*2;
+                    pos = pos-step;
+                } else {
+                    loop++;
+                    pos--;
+                }
+            }
+        } catch (BlockStoreException exc) {
+            //
+            // We can't query the database, so just locate the chain head and hope we
+            // are on the main chain
+            //
+            invList.add(Parameters.blockStore.getChainHead());
+        }
+
     }
 
     /**

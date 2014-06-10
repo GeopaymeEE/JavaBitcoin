@@ -15,6 +15,8 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+
 /**
  * This exception is thrown when the block chain is too long to fit in storage
  */

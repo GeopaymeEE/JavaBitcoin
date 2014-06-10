@@ -15,7 +15,12 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
-import java.io.IOException;
+import org.ScripterRon.BitcoinCore.SerializedBuffer;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.Transaction;
+import org.ScripterRon.BitcoinCore.VerificationException;
+
+import java.io.EOFException;
 
 /**
  * Transactions are stored in a memory pool while they are relayed to other nodes
@@ -39,9 +44,8 @@ public class StoredTransaction {
      * Creates a new stored transaction
      *
      * @param       tx                  Transaction
-     * @throws      VerificationException  Transaction verification failed
      */
-    public StoredTransaction(Transaction tx) throws VerificationException {
+    public StoredTransaction(Transaction tx) {
         hash = tx.getHash();
         txData = tx.getBytes();
         txTimeStamp = System.currentTimeMillis()/1000;
@@ -53,12 +57,12 @@ public class StoredTransaction {
      * @return      Transaction
      */
     public Transaction getTransaction() {
-        Transaction tx = null;
+        SerializedBuffer txBuffer = new SerializedBuffer(txData);
+        Transaction tx;
         try {
-            SerializedInputStream inStream = new SerializedInputStream(txData, 0, txData.length);
-            tx = new Transaction(inStream);
-        } catch (IOException|VerificationException exc) {
-            // Should never happen at this point
+            tx = new Transaction(txBuffer);
+        } catch (EOFException | VerificationException exc) {
+            throw new RuntimeException("Unable to get transaction: "+exc.getMessage());
         }
         return tx;
     }

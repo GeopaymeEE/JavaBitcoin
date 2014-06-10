@@ -443,7 +443,7 @@ public class BlockChain {
                         Main.dumpData("Failing Transaction", txData, txData.length);
                         txValid = false;
                     } else {
-                        if (output.isSpent() && output.getHeight() != 0 && output.getHeight() <= junctionHeight) {
+                        if (output.isSpent() && output.getHeight()!=0 && output.getHeight()<=junctionHeight) {
                             // Connected output has been spent
                             log.error(String.format("Transaction input specifies spent output\n"+
                                                     "  Transaction %s\n  Transaction intput %d\n"+
@@ -466,18 +466,29 @@ public class BlockChain {
                                 }
                             }
                             if (txValid) {
-                                // Update amounts and verify the transaction signature
+                                // Update amounts
                                 txAmount = txAmount.add(output.getValue());
                                 output.setSpent(true);
                                 output.setHeight(storedBlock.getHeight());
-                                txValid = tx.verifyInput(input, output);
-                                if (!txValid)
-                                    log.error(String.format("Transaction failed signature verification\n"+
+                            }
+                        }
+                    }
+                    //
+                    // Verify the transaction signature
+                    //
+                    if (txValid) {
+                        try {
+                            txValid = ScriptParser.process(input, output);
+                            if (!txValid)
+                                log.error(String.format("Transaction failed signature verification\n"+
                                                         "  Transaction %s\n  Transaction input %d\n"+
                                                         "  Outpoint %s\n  Outpoint index %d",
                                                         tx.getHash().toString(), input.getIndex(),
                                                         op.getHash().toString(), op.getIndex()));
-                            }
+                        } catch (ScriptException exc) {
+                            log.warn(String.format("Unable to verify transaction input\n  Tx %s",
+                                                   tx.getHash().toString()), exc);
+                            txValid = false;
                         }
                     }
                 }

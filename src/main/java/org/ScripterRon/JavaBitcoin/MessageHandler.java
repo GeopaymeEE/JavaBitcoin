@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
+import org.ScripterRon.BitcoinCore.*;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -82,14 +82,12 @@ public class MessageHandler implements Runnable {
         int cmdOp = 0;
         int reasonCode = 0;
         try {
-            ByteBuffer msgBuffer = msg.getBuffer();
-            byte[] msgBytes = msgBuffer.array();
-            ByteArrayInputStream inStream = new ByteArrayInputStream(msgBytes);
+            SerializedBuffer inBuffer = new SerializedBuffer(msg.getBuffer().array());
             msg.setBuffer(null);
             //
             // Process the message header and get the command name
             //
-            cmd = MessageHeader.processMessage(inStream, msgBytes);
+            cmd = MessageHeader.processMessage(inBuffer);
             Integer cmdLookup = MessageHeader.cmdMap.get(cmd);
             if (cmdLookup != null)
                 cmdOp = cmdLookup;
@@ -112,7 +110,7 @@ public class MessageHandler implements Runnable {
                     //
                     // Process the 'version' message and generate the 'verack' response
                     //
-                    VersionMessage.processVersionMessage(msg, inStream);
+                    VersionMessage.processVersionMessage(msg, inBuffer);
                     VersionAckMessage.buildVersionResponse(msg);
                     peer.incVersionCount();
                     address.setServices(peer.getServices());
@@ -133,31 +131,32 @@ public class MessageHandler implements Runnable {
                     //
                     // Process the 'addr' message
                     //
-                    AddressMessage.processAddressMessage(msg, inStream);
+                    AddressMessage.processAddressMessage(msg, inBuffer);
                     break;
                 case MessageHeader.INV_CMD:
                     //
                     // Process the 'inv' message
                     //
-                    InventoryMessage.processInventoryMessage(msg, inStream);
+                    InventoryMessage.processInventoryMessage(msg, inBuffer);
                     break;
                 case MessageHeader.BLOCK_CMD:
                     //
                     // Process the 'block' message
                     //
-                    BlockMessage.processBlockMessage(msg, inStream);
+                    BlockMessage.processBlockMessage(msg, inBuffer);
                     break;
                 case MessageHeader.TX_CMD:
                     //
                     // Process the 'tx' message
                     //
-                    TransactionMessage.processTransactionMessage(msg, inStream);
+                    TransactionMessage.processTransactionMessage(msg, inBuffer);
                     break;
                 case MessageHeader.GETADDR_CMD:
                     //
                     // Process the 'getaddr' message
                     //
-                    Message addrMsg = AddressMessage.buildAddressMessage(peer);
+                    Message addrMsg = AddressMessage.buildAddressMessage(peer, Parameters.peerAddresses,
+                                                                         Parameters.listenAddress);
                     msg.setBuffer(addrMsg.getBuffer());
                     msg.setCommand(addrMsg.getCommand());
                     break;
@@ -170,7 +169,7 @@ public class MessageHandler implements Runnable {
                     // requests when it is loading the block chain)
                     //
                     if (peer.getDeferredMessage() == null) {
-                        GetDataMessage.processGetDataMessage(msg, inStream);
+                        GetDataMessage.processGetDataMessage(msg, inBuffer);
                         //
                         // The 'getdata' command sends data in batches, so we need
                         // to check if it needs to be restarted.  If it does, we will
@@ -209,19 +208,19 @@ public class MessageHandler implements Runnable {
                     // requests when it is loading the block chain)
                     //
                     if (peer.getDeferredMessage() == null)
-                        GetBlocksMessage.processGetBlocksMessage(msg, inStream);
+                        GetBlocksMessage.processGetBlocksMessage(msg, inBuffer);
                     break;
                 case MessageHeader.NOTFOUND_CMD:
                     //
                     // Process the 'notfound' message
                     //
-                    NotFoundMessage.processNotFoundMessage(msg, inStream);
+                    NotFoundMessage.processNotFoundMessage(msg, inBuffer);
                     break;
                 case MessageHeader.PING_CMD:
                     //
                     // Process the 'ping' message
                     //
-                    PingMessage.processPingMessage(msg, inStream);
+                    PingMessage.processPingMessage(msg, inBuffer);
                     break;
                 case MessageHeader.PONG_CMD:
                     //
@@ -234,27 +233,25 @@ public class MessageHandler implements Runnable {
                     //
                     // Process the 'getheaders' message
                     //
-                    GetHeadersMessage.processGetHeadersMessage(msg, inStream);
+                    GetHeadersMessage.processGetHeadersMessage(msg, inBuffer);
                     break;
                 case MessageHeader.MEMPOOL_CMD:
                     //
                     // Process the 'mempool' message
                     //
-                    MempoolMessage.processMempoolMessage(msg, inStream);
+                    MempoolMessage.processMempoolMessage(msg, inBuffer);
                     break;
                 case MessageHeader.FILTERLOAD_CMD:
                     //
                     // Process the 'filterload' cmd
                     //
-                    FilterLoadMessage.processFilterLoadMessage(msg, inStream);
-                    log.info(String.format("Bloom filter loaded for peer %s", address.toString()));
+                    FilterLoadMessage.processFilterLoadMessage(msg, inBuffer);
                     break;
                 case MessageHeader.FILTERADD_CMD:
                     //
                     // Process the 'filteradd' command
                     //
-                    FilterAddMessage.processFilterAddMessage(msg, inStream);
-                    log.info(String.format("Bloom filter added for peer %s", address.toString()));
+                    FilterAddMessage.processFilterAddMessage(msg, inBuffer);
                     break;
                 case MessageHeader.FILTERCLEAR_CMD:
                     //
@@ -273,13 +270,13 @@ public class MessageHandler implements Runnable {
                     //
                     // Process the 'reject' command
                     //
-                    RejectMessage.processRejectMessage(msg, inStream);
+                    RejectMessage.processRejectMessage(msg, inBuffer);
                     break;
                 case MessageHeader.ALERT_CMD:
                     //
                     // Process the 'alert' command
                     //
-                    AlertMessage.processAlertMessage(msg, inStream);
+                    AlertMessage.processAlertMessage(msg, inBuffer);
                     break;
                 default:
                     log.error(String.format("Unrecognized '%s' message from %s", cmd, address.toString()));
@@ -298,6 +295,9 @@ public class MessageHandler implements Runnable {
                 msg.setBuffer(rejectMsg.getBuffer());
                 msg.setCommand(rejectMsg.getCommand());
             }
+        } catch (BlockStoreException exc) {
+            log.error(String.format("Database error while processing '%s' message from %s",
+                                    cmd, address.toString()), exc);
         } catch (VerificationException exc) {
             log.error(String.format("Message verification failed for '%s' message from %s\n  %s\n  %s",
                                     cmd, address.toString(), exc.getMessage(), exc.getHash().toString()));

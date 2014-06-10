@@ -15,6 +15,8 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Alert;
+
 /**
  * An alert listener is notified when a new alert is received
  */
