@@ -17,6 +17,8 @@ package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.InventoryItem;
+import org.ScripterRon.BitcoinCore.OutPoint;
 import org.ScripterRon.BitcoinCore.ScriptException;
 import org.ScripterRon.BitcoinCore.ScriptParser;
 import org.ScripterRon.BitcoinCore.Sha256Hash;
@@ -162,7 +164,7 @@ public class BlockChain {
                 }
             } catch (BlockNotFoundException exc) {
                 onHold = true;
-                PeerRequest request = new PeerRequest(exc.getHash(), Parameters.INV_BLOCK);
+                PeerRequest request = new PeerRequest(exc.getHash(), InventoryItem.INV_BLOCK);
                 if (Parameters.networkHandler != null) {
                     synchronized(Parameters.lock) {
                         if (!Parameters.pendingRequests.contains(request) &&
@@ -314,7 +316,7 @@ public class BlockChain {
                     for (StoredTransaction orphan : retryList) {
                         if (Parameters.blockStore.isNewTransaction(orphan.getHash())) {
                             Transaction tx = orphan.getTransaction();
-                            NetworkMessageListener.retryOrphanTransaction(tx);
+                            Parameters.networkMessageListener.retryOrphanTransaction(tx);
                         }
                     }
                 }
@@ -487,7 +489,7 @@ public class BlockChain {
                     //
                     if (txValid) {
                         try {
-                            txValid = ScriptParser.process(input, output);
+                            txValid = ScriptParser.process(input, output, Parameters.blockStore.getChainHeight());
                             if (!txValid)
                                 log.error(String.format("Transaction failed signature verification\n"+
                                                         "  Transaction %s\n  Transaction input %d\n"+

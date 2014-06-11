@@ -16,6 +16,16 @@
 package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
+import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.InventoryItem;
+import org.ScripterRon.BitcoinCore.InventoryMessage;
+import org.ScripterRon.BitcoinCore.Message;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.Transaction;
+import org.ScripterRon.BitcoinCore.TransactionInput;
+import org.ScripterRon.BitcoinCore.TransactionOutput;
+import org.ScripterRon.BitcoinCore.VerificationException;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -109,7 +119,7 @@ public class DatabaseHandler implements Runnable {
                 Iterator<PeerRequest> it = Parameters.processedRequests.iterator();
                 while (it.hasNext()) {
                     PeerRequest request = it.next();
-                    if (request.getType()==Parameters.INV_BLOCK && request.getHash().equals(block.getHash())) {
+                    if (request.getType()==InventoryItem.INV_BLOCK && request.getHash().equals(block.getHash())) {
                         it.remove();
                         break;
                     }
@@ -180,10 +190,10 @@ public class DatabaseHandler implements Runnable {
      * @param       storedBlock     The stored block added to the chain
      */
     private void notifyPeers(StoredBlock storedBlock) {
-        Block block = storedBlock.getBlock();
-        List<Sha256Hash> blockList = new ArrayList<>(1);
-        blockList.add(block.getHash());
-        Message invMsg = InventoryMessage.buildInventoryMessage(null, Parameters.INV_BLOCK, blockList);
-        Parameters.networkListener.broadcastMessage(invMsg);
+        List<InventoryItem> invList = new ArrayList<>(1);
+        invList.add(new InventoryItem(InventoryItem.INV_BLOCK, storedBlock.getHash()));
+        Message invMsg = InventoryMessage.buildInventoryMessage(null, invList);
+        invMsg.setInventoryType(InventoryItem.INV_BLOCK);
+        Parameters.networkHandler.broadcastMessage(invMsg);
     }
 }

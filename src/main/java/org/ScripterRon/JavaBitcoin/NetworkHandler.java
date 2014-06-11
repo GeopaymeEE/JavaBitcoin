@@ -17,12 +17,14 @@ package org.ScripterRon.JavaBitcoin;
 
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
-import org.ScripterRon.BitcoinCore.AddressMessage;
-import org.ScripterRon.BitcoinCore.Alert;
+import org.ScripterRon.BitcoinCore.AlertMessage;
+import org.ScripterRon.BitcoinCore.GetAddressMessage;
 import org.ScripterRon.BitcoinCore.GetBlocksMessage;
 import org.ScripterRon.BitcoinCore.GetDataMessage;
+import org.ScripterRon.BitcoinCore.InventoryItem;
 import org.ScripterRon.BitcoinCore.Message;
 import org.ScripterRon.BitcoinCore.MessageHeader;
+import org.ScripterRon.BitcoinCore.NetParams;
 import org.ScripterRon.BitcoinCore.Peer;
 import org.ScripterRon.BitcoinCore.PeerAddress;
 import org.ScripterRon.BitcoinCore.PingMessage;
@@ -41,7 +43,6 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Collections;
@@ -85,9 +86,6 @@ public class NetworkHandler implements Runnable {
     /** Connection listeners */
     private final List<ConnectionListener> connectionListeners = new ArrayList<>();
 
-    /** Alert listeners */
-    private final List<AlertListener> alertListeners = new ArrayList<>();
-
     /** Network listener thread */
     private Thread listenerThread;
 
@@ -121,9 +119,6 @@ public class NetworkHandler implements Runnable {
     /** Banned list */
     private final List<InetAddress> bannedAddresses = new ArrayList<>(25);
 
-    /** Alert list */
-    private List<Alert> alerts;
-
     /** Time of Last peer database update */
     private long lastPeerUpdateTime;
 
@@ -132,9 +127,6 @@ public class NetworkHandler implements Runnable {
 
     /** Last statistics output time */
     private long lastStatsTime;
-
-    /** Last address broadcast time */
-    private long lastAddressTime;
 
     /** Last connection check time */
     private long lastConnectionCheckTime;
@@ -193,7 +185,6 @@ public class NetworkHandler implements Runnable {
         lastPeerUpdateTime = System.currentTimeMillis()/1000;
         lastOutboundConnectTime = lastPeerUpdateTime;
         lastStatsTime = lastPeerUpdateTime;
-        lastAddressTime = lastPeerUpdateTime;
         lastConnectionCheckTime = lastPeerUpdateTime;
         listenerThread = Thread.currentThread();
         Parameters.networkChainHeight = Parameters.blockStore.getChainHeight();
@@ -220,7 +211,7 @@ public class NetworkHandler implements Runnable {
             //
             // Get the current alerts
             //
-            alerts = Parameters.blockStore.getAlerts();
+            Parameters.alerts.addAll(Parameters.blockStore.getAlerts());
             //
             // Create the listen channel
             //
@@ -390,16 +381,6 @@ public class NetworkHandler implements Runnable {
                         connectOutbound();
                 }
                 //
-                // Broadcast our address list every 8 hours.  Don't do this if we are
-                // using static connections since we don't want to broadcast our
-                // availability in that case.
-                //
-                if (!staticConnections && currentTime > lastAddressTime + (8*60*60)) {
-                    Message addrMsg = AddressMessage.buildAddressMessage(null);
-                    broadcastMessage(addrMsg);
-                    lastAddressTime = currentTime;
-                }
-                //
                 // Print statistics every 5 minutes
                 //
                 if (currentTime > lastStatsTime + (5*60)) {
@@ -437,15 +418,6 @@ public class NetworkHandler implements Runnable {
      */
     public void addListener(ConnectionListener listener) {
         connectionListeners.add(listener);
-    }
-
-    /**
-     * Registers an alert listener
-     *
-     * @param       listener        Alert listener
-     */
-    public void addListener(AlertListener listener) {
-        alertListeners.add(listener);
     }
 
     /**
@@ -521,34 +493,23 @@ public class NetworkHandler implements Runnable {
         // Send the message to each connected peer
         //
         synchronized(Parameters.lock) {
-            connections.stream().filter((relayPeer) -> !(relayPeer.getVersionCount() < 2)).forEach((relayPeer) -> {
-                boolean sendMsg = false;
-                int cmd = msg.getCommand();
-                if (cmd == MessageHeader.INVBLOCK_CMD) {
-                    if (relayPeer.shouldRelayBlocks())
-                        sendMsg = true;
-                } else if (cmd == MessageHeader.INVTX_CMD) {
-                    if (relayPeer.shouldRelayTx())
-                        sendMsg = true;
-                } else {
-                    sendMsg = true;
-                }
-                if (sendMsg) {
-                    relayPeer.getOutputList().add(msg.clone(relayPeer));
-                    SelectionKey relayKey = relayPeer.getKey();
-                    relayKey.interestOps(relayKey.interestOps() | SelectionKey.OP_WRITE);
-                }
-            });
-        }
-        //
-        // Notify alert listeners if this is an alert broadcast
-        //
-        if (msg.getCommand() == MessageHeader.ALERT_CMD) {
-            Alert alert = msg.getAlert();
-            alerts.add(alert);
-            alertListeners.stream().forEach((listener) -> {
-                listener.alertReceived(alert);
-            });
+            connections.stream()
+                .filter((relayPeer) -> relayPeer.getVersionCount() > 2)
+                .forEach((relayPeer) -> {
+                    boolean sendMsg = true;
+                    MessageHeader.MessageCommand cmd = msg.getCommand();
+                    if (cmd == MessageHeader.MessageCommand.INV) {
+                        if (msg.getInventoryType() == InventoryItem.INV_BLOCK)
+                            sendMsg = relayPeer.shouldRelayBlocks();
+                        else if (msg.getInventoryType() == InventoryItem.INV_TX)
+                            sendMsg = relayPeer.shouldRelayTx();
+                    }
+                    if (sendMsg) {
+                        relayPeer.getOutputList().add(msg.clone(relayPeer));
+                        SelectionKey relayKey = relayPeer.getKey();
+                        relayKey.interestOps(relayKey.interestOps() | SelectionKey.OP_WRITE);
+                    }
+                });
         }
         //
         // Wakeup the network listener to send the broadcast messages
@@ -588,7 +549,8 @@ public class NetworkHandler implements Runnable {
                     peer.setConnected(true);
                     address.setConnected(true);
                     log.info(String.format("Connection accepted from %s", address.toString()));
-                    Message msg = VersionMessage.buildVersionMessage(peer, Parameters.blockStore.getChainHeight());
+                    Message msg = VersionMessage.buildVersionMessage(peer, Parameters.listenAddress,
+                                                                     Parameters.blockStore.getChainHeight());
                     synchronized(Parameters.lock) {
                         connections.add(peer);
                         peer.getOutputList().add(msg);
@@ -667,7 +629,8 @@ public class NetworkHandler implements Runnable {
             channel.finishConnect();
             log.info(String.format("Connection established to %s", address.toString()));
             address.setTimeConnected(System.currentTimeMillis()/1000);
-            Message msg = VersionMessage.buildVersionMessage(peer, Parameters.blockStore.getChainHeight());
+            Message msg = VersionMessage.buildVersionMessage(peer, Parameters.listenAddress,
+                                                             Parameters.blockStore.getChainHeight());
             synchronized(Parameters.lock) {
                 peer.getOutputList().add(msg);
                 key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
@@ -732,13 +695,13 @@ public class NetworkHandler implements Runnable {
                     byte[] hdrBytes = buffer.array();
                     long magic = Utils.readUint32LE(hdrBytes, 0);
                     long length = Utils.readUint32LE(hdrBytes, 16);
-                    if (magic != Parameters.MAGIC_NUMBER) {
+                    if (magic != NetParams.MAGIC_NUMBER) {
                         log.error(String.format("Message magic number %X is incorrect", magic));
                         Main.dumpData("Failing Message Header", hdrBytes);
                         closeConnection(peer);
                         break;
                     }
-                    if (length > Parameters.MAX_MESSAGE_SIZE) {
+                    if (length > NetParams.MAX_MESSAGE_SIZE) {
                         log.error(String.format("Message length %,d is too large", length));
                         closeConnection(peer);
                         break;
@@ -762,7 +725,7 @@ public class NetworkHandler implements Runnable {
                 if (buffer.position() == buffer.limit()) {
                     peer.setInputBuffer(null);
                     buffer.position(0);
-                    Message msg = new Message(buffer, peer, 0);
+                    Message msg = new Message(buffer, peer, null);
                     Parameters.messageQueue.put(msg);
                     synchronized(Parameters.lock) {
                         count = peer.getInputCount() + 1;
@@ -966,7 +929,7 @@ public class NetworkHandler implements Runnable {
                 // to know peer addresses.
                 //
                 if (!staticConnections) {
-                    if ((peer.getServices()&Parameters.NODE_NETWORK) != 0) {
+                    if ((peer.getServices()&NetParams.NODE_NETWORK) != 0) {
                         Message addrMsg = GetAddressMessage.buildGetAddressMessage(peer);
                         synchronized(Parameters.lock) {
                             peer.getOutputList().add(addrMsg);
@@ -978,24 +941,29 @@ public class NetworkHandler implements Runnable {
                 // Send current alert messages
                 //
                 long currentTime = System.currentTimeMillis()/1000;
-                alerts.stream().filter((alert) -> (!alert.isCanceled() &&
-                                alert.getExpireTime() > currentTime)).forEach((alert) -> {
-                    Message alertMsg = AlertMessage.buildAlertMessage(peer, alert);
-                    synchronized(Parameters.lock) {
-                        peer.getOutputList().add(alertMsg);
-                        key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
-                    }
-                    log.info(String.format("Sent alert %d to %s", alert.getID(), address.toString()));
-                });
+                synchronized(Parameters.alerts) {
+                    Parameters.alerts.stream()
+                        .filter((alert) -> (!alert.isCanceled() &&
+                                            alert.getExpireTime() > currentTime))
+                        .forEach((alert) -> {
+                            Message alertMsg = AlertMessage.buildAlertMessage(peer, alert);
+                            synchronized(Parameters.lock) {
+                                peer.getOutputList().add(alertMsg);
+                                key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+                            }
+                            log.info(String.format("Sent alert %d to %s", alert.getID(), address.toString()));
+                        });
+                }
                 //
                 // Send a 'getblocks' message if we are down-level and we haven't sent
                 // one yet
                 //
-                if (getBlocksTime == 0 && (peer.getServices()&Parameters.NODE_NETWORK) != 0) {
+                if (getBlocksTime == 0 && (peer.getServices()&NetParams.NODE_NETWORK) != 0) {
                     if (peer.getHeight() > Parameters.blockStore.getChainHeight()) {
-                        Message msg1 = GetBlocksMessage.buildGetBlocksMessage(peer);
+                        List<Sha256Hash> blockList = getBlockList();
+                        Message getMsg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
                         synchronized(Parameters.lock) {
-                            peer.getOutputList().add(msg1);
+                            peer.getOutputList().add(getMsg);
                             key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                         }
                         getBlocksTime = System.currentTimeMillis()/1000;
@@ -1028,7 +996,7 @@ public class NetworkHandler implements Runnable {
                 // Move the request back to the pending queue
                 //
                 Parameters.processedRequests.remove(0);
-                if (request.getType() == Parameters.INV_BLOCK)
+                if (request.getType() == InventoryItem.INV_BLOCK)
                     Parameters.pendingRequests.add(request);
                 else
                     Parameters.pendingRequests.add(0, request);
@@ -1044,7 +1012,7 @@ public class NetworkHandler implements Runnable {
         while (!Parameters.pendingRequests.isEmpty()) {
             synchronized(Parameters.lock) {
                 request = Parameters.pendingRequests.get(0);
-                if (request.getType() == Parameters.INV_BLOCK &&
+                if (request.getType() == InventoryItem.INV_BLOCK &&
                             (Parameters.databaseQueue.size() >= 10 || Parameters.processedRequests.size() > 50)) {
                     request = null;
                 } else {
@@ -1069,8 +1037,8 @@ public class NetworkHandler implements Runnable {
                 int index = (int)(((double)connections.size())*Math.random());
                 for (int i=index; i<connections.size(); i++) {
                     Peer chkPeer = connections.get(i);
-                    if ((chkPeer.getServices()&Parameters.NODE_NETWORK)!=0 &&
-                                                !request.wasContacted(chkPeer) && chkPeer.isConnected()) {
+                    if ((chkPeer.getServices()&NetParams.NODE_NETWORK)!=0 &&
+                                            !request.wasContacted(chkPeer) && chkPeer.isConnected()) {
                         peer = chkPeer;
                         break;
                     }
@@ -1078,8 +1046,8 @@ public class NetworkHandler implements Runnable {
                 if (peer == null) {
                     for (int i=0; i<index; i++) {
                         Peer chkPeer = connections.get(i);
-                        if ((chkPeer.getServices()&Parameters.NODE_NETWORK)!=0 &&
-                                                !request.wasContacted(chkPeer) && chkPeer.isConnected()) {
+                        if ((chkPeer.getServices()&NetParams.NODE_NETWORK)!=0 &&
+                                            !request.wasContacted(chkPeer) && chkPeer.isConnected()) {
                             peer = chkPeer;
                             break;
                         }
@@ -1104,7 +1072,7 @@ public class NetworkHandler implements Runnable {
                 }
                 String originAddress = (originPeer!=null ? originPeer.getAddress().toString() : "local");
                 log.warn(String.format("Purging unavailable %s request initiated by %s\n  %s",
-                                       (request.getType()==Parameters.INV_BLOCK?"block":"transaction"),
+                                       (request.getType()==InventoryItem.INV_BLOCK?"block":"transaction"),
                                        originAddress, request.getHash().toString()));
                 continue;
             }
@@ -1113,9 +1081,9 @@ public class NetworkHandler implements Runnable {
             //
             request.addPeer(peer);
             request.setTimeStamp(currentTime);
-            List<Sha256Hash> hashList = new ArrayList<>(1);
-            hashList.add(request.getHash());
-            Message msg = GetDataMessage.buildGetDataMessage(peer, request.getType(), hashList);
+            List<InventoryItem> invList = new ArrayList<>(1);
+            invList.add(new InventoryItem(request.getType(), request.getHash()));
+            Message msg = GetDataMessage.buildGetDataMessage(peer, invList);
             synchronized(Parameters.lock) {
                 peer.getOutputList().add(msg);
                 SelectionKey key = peer.getKey();
@@ -1124,11 +1092,12 @@ public class NetworkHandler implements Runnable {
             //
             // Send a 'getblocks' message if we are down-level and the request is for a block
             //
-            if (request.getType() == Parameters.INV_BLOCK &&
+            if (request.getType() == InventoryItem.INV_BLOCK &&
                             getBlocksTime < System.currentTimeMillis()/1000-300 &&
                             Parameters.pendingRequests.size() < 10 &&
                             Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight - 100) {
-                msg = GetBlocksMessage.buildGetBlocksMessage(peer, request.getHash());
+                List<Sha256Hash> blockList = getBlockList();
+                msg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
                 synchronized(Parameters.lock) {
                     peer.getOutputList().add(msg);
                 }
@@ -1142,14 +1111,14 @@ public class NetworkHandler implements Runnable {
      * Get block list for 'getblocks' message
      */
     private List<Sha256Hash> getBlockList() {
-                List<Sha256Hash> invList = new ArrayList<>(500);
+        List<Sha256Hash> invList = new ArrayList<>(500);
         try {
             //
             // Get the chain list
             //
             int chainHeight = Parameters.blockStore.getChainHeight();
             int blockHeight = Math.max(0, chainHeight-500);
-            List<Sha256Hash> chainList = Parameters.blockStore.getChainList(blockHeight, Sha256Hash.ZERO_HASH);
+            List<InventoryItem> chainList = Parameters.blockStore.getChainList(blockHeight, Sha256Hash.ZERO_HASH);
             //
             // Build the locator list starting with the chain head and working backwards towards
             // the genesis block
@@ -1158,7 +1127,7 @@ public class NetworkHandler implements Runnable {
             int loop = 0;
             int pos = chainList.size()-1;
             while (pos >= 0) {
-                invList.add(chainList.get(pos));
+                invList.add(chainList.get(pos).getHash());
                 if (loop == 10) {
                     step = step*2;
                     pos = pos-step;
@@ -1174,7 +1143,7 @@ public class NetworkHandler implements Runnable {
             //
             invList.add(Parameters.blockStore.getChainHead());
         }
-
+        return invList;
     }
 
     /**
@@ -1184,8 +1153,8 @@ public class NetworkHandler implements Runnable {
         int inChar;
         try {
             if (hostName != null) {
-                Parameters.listenAddress = InetAddress.getByName(hostName);
-                Parameters.listenAddressValid = true;
+                Parameters.listenAddress = new PeerAddress(InetAddress.getByName(hostName),
+                                                           Parameters.listenPort);
                 log.info(String.format("External IP address is %s", Parameters.listenAddress.toString()));
             } else {
                 URL url = new URL("http://checkip.dyndns.org:80/");
@@ -1199,13 +1168,12 @@ public class NetworkHandler implements Runnable {
                     if (start < 0) {
                         log.error(String.format("Unrecognized response from checkip.dyndns.org\n  Response: %s",
                                                 ipString));
-                        Parameters.listenAddress = InetAddress.getByAddress(new byte[4]);
                     } else {
                         int stop = ipString.indexOf('<', start);
                         String ipAddress = ipString.substring(start+1, stop).trim();
-                        Parameters.listenAddress = InetAddress.getByName(ipAddress);
-                        Parameters.listenAddressValid = true;
-                        log.info(String.format("External IP address is %s", ipAddress));
+                        Parameters.listenAddress = new PeerAddress(InetAddress.getByName(ipAddress),
+                                                                   Parameters.listenPort);
+                        log.info(String.format("External IP address is %s", Parameters.listenAddress.toString()));
                     }
                 }
             }
@@ -1213,13 +1181,6 @@ public class NetworkHandler implements Runnable {
             log.error(String.format("Unknown host name %s", hostName));
         } catch (IOException exc) {
             log.error("Unable to get external IP address from checkip.dyndns.org", exc);
-        }
-        if (Parameters.listenAddress == null) {
-            try {
-                Parameters.listenAddress = InetAddress.getByAddress(new byte[4]);
-            } catch (UnknownHostException exc) {
-                // Should never happen
-            }
         }
     }
 
@@ -1235,7 +1196,8 @@ public class NetworkHandler implements Runnable {
             try {
                 InetAddress[] addresses = InetAddress.getAllByName(host);
                 for (InetAddress address : addresses) {
-                    if (address.equals(Parameters.listenAddress))
+                    if (Parameters.listenAddress != null &&
+                                address.equals(Parameters.listenAddress.getAddress()))
                         continue;
                     peerAddress = new PeerAddress(address, Parameters.DEFAULT_PORT);
                     if (Parameters.peerMap.get(peerAddress) == null) {

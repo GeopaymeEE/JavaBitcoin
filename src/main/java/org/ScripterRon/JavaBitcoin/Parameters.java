@@ -15,16 +15,16 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.Alert;
 import org.ScripterRon.BitcoinCore.Block;
 import org.ScripterRon.BitcoinCore.BloomFilter;
 import org.ScripterRon.BitcoinCore.Message;
-import org.ScripterRon.BitcoinCore.MessageListener;
 import org.ScripterRon.BitcoinCore.OutPoint;
 import org.ScripterRon.BitcoinCore.Sha256Hash;
 import org.ScripterRon.BitcoinCore.PeerAddress;
-import org.ScripterRon.BitcoinCore.Utils;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -67,10 +67,13 @@ public class Parameters {
     public static NetworkHandler networkHandler;
 
     /** Network message handler */
-    public static MessageListener networkMessageListener;
+    public static NetworkMessageListener networkMessageListener;
 
     /** Local listen address */
     public static PeerAddress listenAddress;
+
+    /** Local listen port */
+    public static int listenPort;
 
     /** Number of blocks received */
     public static long blocksReceived;
@@ -140,6 +143,9 @@ public class Parameters {
 
     /** Completed messages */
     public static final List<Message> completedMessages = new LinkedList<>();
+
+    /** Alert list */
+    public static final List<Alert> alerts = new ArrayList<>();
 
     /** Short-term lock object */
     public static final Object lock = new Object();

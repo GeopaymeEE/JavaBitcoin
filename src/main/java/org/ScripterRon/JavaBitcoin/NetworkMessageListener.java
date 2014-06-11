@@ -60,6 +60,18 @@ import java.util.List;
  */
 public class NetworkMessageListener extends AbstractMessageListener {
 
+    /** Alert listeners */
+    private final List<AlertListener> alertListeners = new ArrayList<>();
+
+    /**
+     * Registers an alert listener
+     *
+     * @param       listener        Alert listener
+     */
+    public void addListener(AlertListener listener) {
+        alertListeners.add(listener);
+    }
+
     /**
      * Handle an inventory request
      *
@@ -420,6 +432,13 @@ public class NetworkMessageListener extends AbstractMessageListener {
         } catch (BlockStoreException exc) {
             // Can't store the alert - let it go
         }
+        //
+        // Notify alert listeners
+        //
+        synchronized(Parameters.alerts) {
+            Parameters.alerts.add(alert);
+        }
+        alertListeners.stream().forEach((listener) -> listener.alertReceived(alert));
     }
 
     /**
@@ -1162,6 +1181,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         List<InventoryItem> invList = new ArrayList<>(1);
         invList.add(new InventoryItem(InventoryItem.INV_TX, txHash));
         Message invMsg = InventoryMessage.buildInventoryMessage(null, invList);
+        invMsg.setInventoryType(InventoryItem.INV_TX);
         Parameters.networkHandler.broadcastMessage(invMsg);
         //
         // Copy the current list of Bloom filters

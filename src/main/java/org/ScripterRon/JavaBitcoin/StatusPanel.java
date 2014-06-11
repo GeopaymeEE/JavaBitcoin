@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
+import static org.ScripterRon.JavaBitcoin.Main.log;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.ScripterRon.BitcoinCore.Alert;
+import org.ScripterRon.BitcoinCore.NetParams;
+import org.ScripterRon.BitcoinCore.Peer;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.Utils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -38,9 +42,6 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
 
     /** Service names */
     private static final String[] serviceNames = {"Network"};
-
-    /** Create our logger */
-    private static final Logger log = LoggerFactory.getLogger(StatusPanel.class);
 
     /** Block status table column classes */
     private static final Class<?>[] blockColumnClasses = {
@@ -244,11 +245,11 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         //
         // Register for connection notifications
         //
-        Parameters.networkListener.addListener((ConnectionListener)this);
+        Parameters.networkHandler.addListener((ConnectionListener)this);
         //
         // Register for alert notifications
         //
-        Parameters.networkListener.addListener((AlertListener)this);
+        Parameters.networkMessageListener.addListener((AlertListener)this);
         //
         // Get the initiali connections and update the status
         //
@@ -281,9 +282,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
      */
     @Override
     public void chainUpdated() {
-        javax.swing.SwingUtilities.invokeLater(() -> {
-            updateStatus();
-        });
+        javax.swing.SwingUtilities.invokeLater(() -> updateStatus());
     }
 
     /**
@@ -295,9 +294,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
     @Override
     public void connectionStarted(Peer peer, int count) {
         connectionTableModel.addConnection(peer);
-        javax.swing.SwingUtilities.invokeLater(() -> {
-            updateStatus();
-        });
+        javax.swing.SwingUtilities.invokeLater(() -> updateStatus());
     }
 
     /**
@@ -309,9 +306,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
     @Override
     public void connectionEnded(Peer peer, int count) {
         connectionTableModel.removeConnection(peer);
-        javax.swing.SwingUtilities.invokeLater(() -> {
-            updateStatus();
-        });
+        javax.swing.SwingUtilities.invokeLater(() -> updateStatus());
     }
 
     /**
@@ -335,7 +330,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         chainHeightField.setText(String.format("<html><b>Chain height: %d</b></html>",
                                                chainHeight));
         BigInteger targetDifficulty = Parameters.blockStore.getTargetDifficulty();
-        BigInteger networkDifficulty = Parameters.PROOF_OF_WORK_LIMIT.divide(targetDifficulty);
+        BigInteger networkDifficulty = NetParams.PROOF_OF_WORK_LIMIT.divide(targetDifficulty);
         String displayDifficulty = Utils.numberToShortString(networkDifficulty);
         networkDifficultyField.setText(String.format("<html><b>Network difficulty: %s</b></html>",
                                                      displayDifficulty));
@@ -801,7 +796,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
          * Update the connection list
          */
         public void updateConnections() {
-            List<Peer> connections = Parameters.networkListener.getConnections();
+            List<Peer> connections = Parameters.networkHandler.getConnections();
             connections.stream().filter((peer) -> (!connectionList.contains(peer))).forEach((peer) -> {
                 connectionList.add(peer);
             });

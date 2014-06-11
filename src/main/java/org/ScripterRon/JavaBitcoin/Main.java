@@ -15,6 +15,11 @@
  */
 package org.ScripterRon.JavaBitcoin;
 
+import org.ScripterRon.BitcoinCore.NetParams;
+import org.ScripterRon.BitcoinCore.PeerAddress;
+import org.ScripterRon.BitcoinCore.SerializedBuffer;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -223,24 +228,10 @@ public class Main {
             if (testNetwork && peerAddresses == null && maxOutbound != 0)
                 throw new IllegalArgumentException("You must specify at least one peer for the test network");
             //
-            // Initialize the network parameters
-            //
-            String genesisName;
-            if (testNetwork) {
-                Parameters.MAGIC_NUMBER = Parameters.MAGIC_NUMBER_TESTNET;
-                Parameters.MAX_TARGET_DIFFICULTY = Parameters.MAX_DIFFICULTY_TESTNET;
-                Parameters.GENESIS_BLOCK_HASH = Parameters.GENESIS_BLOCK_TESTNET;
-                genesisName = "GenesisBlock/GenesisBlockTest.dat";
-            } else {
-                Parameters.MAGIC_NUMBER = Parameters.MAGIC_NUMBER_PRODNET;
-                Parameters.MAX_TARGET_DIFFICULTY = Parameters.MAX_DIFFICULTY_PRODNET;
-                Parameters.GENESIS_BLOCK_HASH = Parameters.GENESIS_BLOCK_PRODNET;
-                genesisName = "GenesisBlock/GenesisBlockProd.dat";
-            }
-            Parameters.PROOF_OF_WORK_LIMIT = Utils.decodeCompactBits(Parameters.MAX_TARGET_DIFFICULTY);
-            //
             // Load the genesis block
             //
+            String genesisName = (testNetwork ? "GenesisBlock/GenesisBlockTest.dat" :
+                                                "GenesisBlock/GenesisBlockProd.dat");
             Class<?> mainClass = Class.forName("org.ScripterRon.JavaBitcoin.Main");
             try (InputStream classStream = mainClass.getClassLoader().getResourceAsStream(genesisName)) {
                 if (classStream == null)
@@ -260,7 +251,7 @@ public class Main {
                 applicationName = applicationProperties.getProperty("application.name");
                 applicationVersion = applicationProperties.getProperty("application.version");
             }
-            Parameters.SOFTWARE_NAME = String.format("/%s:%s/", applicationID, applicationVersion);
+            String softwareName = String.format("%s:%s", applicationID, applicationVersion);
             log.info(String.format("%s Version %s", applicationName, applicationVersion));
             log.info(String.format("Application data path: %s", dataPath));
             log.info(String.format("Block verification is %s", (verifyBlocks?"enabled":"disabled")));
@@ -274,6 +265,10 @@ public class Main {
                     properties.load(in);
                 }
             }
+            //
+            // Initialize the BitcoinCore library
+            //
+            NetParams.configure(testNetwork, 60000, softwareName, NetParams.NODE_NETWORK);
             //
             // Migrate the LevelDB database to an H2 database
             //
@@ -330,14 +325,16 @@ public class Main {
             // Get the peer addresses
             //
             peersFile = new File(String.format("%s%speers.dat", dataPath, fileSeparator));
-            if (peersFile.exists()) {
-                int peerCount = (int)peersFile.length()/PeerAddress.PEER_ADDRESS_SIZE;
+            if (peersFile.exists() && peersFile.length() > 0) {
+                byte[] fileBuffer = new byte[(int)peersFile.length()];
                 try (FileInputStream inStream = new FileInputStream(peersFile)) {
-                    for (int i=0; i<peerCount; i++) {
-                        PeerAddress peerAddress = new PeerAddress(inStream);
-                        Parameters.peerAddresses.add(peerAddress);
-                        Parameters.peerMap.put(peerAddress, peerAddress);
-                    }
+                    inStream.read(fileBuffer);
+                }
+                SerializedBuffer inBuffer = new SerializedBuffer(fileBuffer);
+                while (inBuffer.available() > 0) {
+                    PeerAddress peerAddress = new PeerAddress(inBuffer);
+                    Parameters.peerAddresses.add(peerAddress);
+                    Parameters.peerMap.put(peerAddress, peerAddress);
                 }
             }
             //
@@ -350,9 +347,10 @@ public class Main {
             thread.start();
             threads.add(thread);
 
-            Parameters.networkListener = new NetworkHandler(maxConnections, maxOutbound, hostName, listenPort,
-                                                             peerAddresses);
-            thread = new Thread(threadGroup, Parameters.networkListener);
+            Parameters.networkMessageListener = new NetworkMessageListener();
+            Parameters.networkHandler = new NetworkHandler(maxConnections, maxOutbound, hostName, listenPort,
+                                                           peerAddresses);
+            thread = new Thread(threadGroup, Parameters.networkHandler);
             thread.start();
             threads.add(thread);
 
@@ -364,9 +362,7 @@ public class Main {
             // Start the GUI
             //
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            javax.swing.SwingUtilities.invokeLater(() -> {
-                createAndShowGUI();
-            });
+            javax.swing.SwingUtilities.invokeLater(() -> createAndShowGUI());
         } catch (Throwable exc) {
             log.error(String.format("%s: %s", exc.getClass().getName(), exc.getMessage()));
         }
@@ -421,7 +417,7 @@ public class Main {
         // Stop the worker threads
         //
         try {
-            Parameters.networkListener.shutdown();
+            Parameters.networkHandler.shutdown();
             Parameters.databaseQueue.put(new ShutdownDatabase());
             Parameters.messageQueue.put(new ShutdownMessage());
             for (Thread thread : threads)
