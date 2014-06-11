@@ -767,7 +767,6 @@ public class NetworkHandler implements Runnable {
                             key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
                         } else {
                             Message msg = outputList.remove(0);
-                            msg.setPeer(null);
                             buffer = msg.getBuffer();
                             peer.setOutputBuffer(buffer);
                         }
@@ -874,6 +873,8 @@ public class NetworkHandler implements Runnable {
                 msg = Parameters.completedMessages.remove(0);
             }
             Peer peer = msg.getPeer();
+            if (peer == null)
+                continue;
             PeerAddress address = peer.getAddress();
             SelectionKey key = peer.getKey();
             //
