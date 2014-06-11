@@ -86,22 +86,11 @@ public class MessageHandler implements Runnable {
         try {
             MessageProcessor.processMessage(msg, Parameters.networkMessageListener);
             msg.setBuffer(null);
-            MessageHeader.MessageCommand cmdOp = msg.getCommand();
-            //
-            // Close the connection if the peer starts sending messages before the
-            // handshake has been completed
-            //
-            if (peer.getVersionCount() < 2 && cmdOp != MessageHeader.MessageCommand.VERSION &&
-                                              cmdOp != MessageHeader.MessageCommand.VERACK) {
-                peer.setBanScore(Parameters.MAX_BAN_SCORE);
-                throw new VerificationException("Non-version message before handshake completed",
-                                                RejectMessage.REJECT_INVALID);
-            }
         } catch (EOFException exc) {
             MessageHeader.MessageCommand cmdOp = msg.getCommand();
             String cmdName = (cmdOp!=null ? cmdOp.toString().toLowerCase() : "N/A");
             log.error(String.format("End-of-data while processing '%s' message from %s",
-                                    cmdName, address.toString()), exc);
+                                    cmdName, address), exc);
             reasonCode = RejectMessage.REJECT_MALFORMED;
             if (cmdOp == MessageHeader.MessageCommand.TX)
                 Parameters.txRejected++;
@@ -118,7 +107,7 @@ public class MessageHandler implements Runnable {
             MessageHeader.MessageCommand cmdOp = msg.getCommand();
             String cmdName = (cmdOp!=null ? cmdOp.toString().toLowerCase() : "N/A");
             log.error(String.format("Message verification failed for '%s' message from %s\n  %s\n  %s",
-                                    cmdName, address.toString(), exc.getMessage(), exc.getHash().toString()));
+                                    cmdName, address, exc.getMessage(), exc.getHash()));
             reasonCode = exc.getReason();
             if (cmdOp == MessageHeader.MessageCommand.TX)
                 Parameters.txRejected++;

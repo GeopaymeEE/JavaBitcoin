@@ -67,17 +67,6 @@ public class BlockChain {
     }
 
     /**
-     * Returns a block from the database or a block archive file
-     *
-     * @param       blockHash       Block hash
-     * @return      The requested block or null if the block is not found
-     * @throws      BlockStoreException Unable to retrieve the block from the database
-     */
-    public Block getBlock(Sha256Hash blockHash) throws BlockStoreException {
-        return Parameters.blockStore.getBlock(blockHash);
-    }
-
-    /**
      * Adds a block to the block store and updates the block chain
      *
      * @param       block                   The block to add
@@ -252,8 +241,7 @@ public class BlockChain {
         //
         if (!onHold && verifyBlocks) {
             if (!verifyBlock(storedBlock, chainList.get(0).getHeight(), txMap, outputMap)) {
-                log.info(String.format("Block verification failed\n  Block %s",
-                                       storedBlock.getHash().toString()));
+                log.info(String.format("Block verification failed\n  Block %s", storedBlock.getHash()));
                 onHold = true;
             }
         }
@@ -271,9 +259,7 @@ public class BlockChain {
         //
         storedBlock.setHold(false);
         Parameters.blockStore.releaseBlock(storedBlock.getHash());
-        listeners.stream().forEach((listener) -> {
-            listener.blockUpdated(storedBlock);
-        });
+        listeners.stream().forEach((listener) -> listener.blockUpdated(storedBlock));
         //
         // Make this block the new chain head if it is a better chain than the current chain.
         // This means the cumulative chain work is greater.
@@ -289,26 +275,22 @@ public class BlockChain {
                     // Notify listeners that we updated the block
                     //
                     updatedStoredBlock.setChain(true);
-                    listeners.stream().forEach((listener) -> {
-                        listener.blockUpdated(updatedStoredBlock);
-                    });
+                    listeners.stream().forEach((listener) -> listener.blockUpdated(updatedStoredBlock));
                     //
                     // Get any orphan transactions that are waiting for transactions in this block
                     //
                     List<StoredTransaction> retryList = new ArrayList<>(50);
                     List<Transaction> txList = updatedBlock.getTransactions();
                     synchronized(Parameters.lock) {
-                        txList.stream()
-                            .map((tx) -> Parameters.orphanTxMap.remove(tx.getHash()))
-                            .filter((orphanList) -> (orphanList != null))
-                            .forEach((orphanList) -> {
-                                orphanList.stream().map((orphan) -> {
+                        for (Transaction tx : txList) {
+                            List<StoredTransaction> orphanList = Parameters.orphanTxMap.remove(tx.getHash());
+                            if (orphanList != null) {
+                                for (StoredTransaction orphan : orphanList) {
                                     Parameters.orphanTxList.remove(orphan);
-                                    return orphan;
-                                }).forEach((orphan) -> {
                                     retryList.add(orphan);
-                                });
-                            });
+                                }
+                            }
+                        }
                     }
                     //
                     // Retry transactions that are still not in the database
@@ -320,17 +302,14 @@ public class BlockChain {
                         }
                     }
                 }
-                listeners.stream().forEach((listener) -> {
-                    listener.chainUpdated();
-                });
+                listeners.stream().forEach((listener) -> listener.chainUpdated());
                 //
                 // Delete spent transaction outputs
                 //
                 Parameters.blockStore.deleteSpentTxOutputs();
             } catch (VerificationException exc) {
                 chainList = null;
-                log.info(String.format("Block being held due to verification failure\n  Block %s",
-                                       exc.getHash().toString()));
+                log.info(String.format("Block being held due to verification failure\n  Block %s", exc.getHash()));
             }
         }
         return chainList;
@@ -347,9 +326,9 @@ public class BlockChain {
      * @throws      BlockStoreException     Unable to read from database
      */
     private boolean verifyBlock(StoredBlock storedBlock, int junctionHeight,
-                                    Map<Sha256Hash, Transaction> txMap,
-                                    Map<Sha256Hash, List<StoredOutput>> outputMap)
-                                    throws BlockStoreException {
+                                            Map<Sha256Hash, Transaction> txMap,
+                                            Map<Sha256Hash, List<StoredOutput>> outputMap)
+                                            throws BlockStoreException {
         Block block = storedBlock.getBlock();
         boolean txValid = true;
         BigInteger totalFees = BigInteger.ZERO;
@@ -367,15 +346,13 @@ public class BlockChain {
                     TransactionInput input = tx.getInputs().get(0);
                     byte[] scriptBytes = input.getScriptBytes();
                     if (scriptBytes.length < 1) {
-                        log.error(String.format("Coinbase input script is not valid\n  Tx %s",
-                                                tx.getHash().toString()));
+                        log.error(String.format("Coinbase input script is not valid\n  Tx %s", tx.getHash()));
                         txValid = false;
                         break;
                     }
                     int length = (int)scriptBytes[0]&0xff;
                     if (length+1 > scriptBytes.length) {
-                        log.error(String.format("Coinbase script is too short\n  Tx %s",
-                                                tx.getHash().toString()));
+                        log.error(String.format("Coinbase script is too short\n  Tx %s", tx.getHash()));
                         txValid = false;
                         break;
                     }
@@ -384,7 +361,7 @@ public class BlockChain {
                         chainHeight = chainHeight | (((int)scriptBytes[i+1]&0xff)<<(i*8));
                     if (chainHeight != storedBlock.getHeight()) {
                         log.error(String.format("Coinbase height %d does not match block height %d\n  Tx %s",
-                                                chainHeight, storedBlock.getHeight(), tx.getHash().toString()));
+                                                chainHeight, storedBlock.getHeight(), tx.getHash()));
                         Main.dumpData("Coinbase Script", scriptBytes);
                         txValid = false;
                         break;
@@ -412,8 +389,7 @@ public class BlockChain {
                         if (outputs == null) {
                             log.error(String.format("Transaction input specifies unavailable transaction\n"+
                                                     "  Transaction %s\n  Transaction input %d\n  Connected output %s",
-                                                    tx.getHash().toString(), input.getIndex(),
-                                                    opHash.toString()));
+                                                    tx.getHash(), input.getIndex(), opHash));
                             txValid = false;
                         } else {
                             outputMap.put(opHash, outputs);
@@ -448,10 +424,8 @@ public class BlockChain {
                         log.error(String.format("Transaction input specifies non-existent output\n"+
                                                 "  Transaction %s\n  Transaction input %d\n"+
                                                 "  Connected output %s\n  Connected output index %d",
-                                                tx.getHash().toString(), input.getIndex(),
-                                                opHash.toString(), opIndex));
-                        byte[] txData = tx.getBytes();
-                        Main.dumpData("Failing Transaction", txData, txData.length);
+                                                tx.getHash(), input.getIndex(), opHash, opIndex));
+                        Main.dumpData("Failing Transaction", tx.getBytes());
                         txValid = false;
                     } else {
                         if (output.isSpent() && output.getHeight()!=0 && output.getHeight()<=junctionHeight) {
@@ -459,8 +433,7 @@ public class BlockChain {
                             log.error(String.format("Transaction input specifies spent output\n"+
                                                     "  Transaction %s\n  Transaction intput %d\n"+
                                                     "  Connected output %s\n  Connected output index %d",
-                                                    tx.getHash().toString(), input.getIndex(),
-                                                    opHash.toString(), opIndex));
+                                                    tx.getHash(), input.getIndex(), opHash, opIndex));
                             txValid = false;
                         } else {
                             if (output.isCoinBase()) {
@@ -471,8 +444,7 @@ public class BlockChain {
                                     log.error(String.format("Transaction input specifies immature coinbase output\n"+
                                                     "  Transaction %s\n  Transaction input %d\n"+
                                                     "  Connected output %s\n  Connected output index %d",
-                                                    tx.getHash().toString(), input.getIndex(),
-                                                    opHash.toString(), opIndex));
+                                                    tx.getHash(), input.getIndex(), opHash, opIndex));
                                     txValid = false;
                                 }
                             }
@@ -490,16 +462,21 @@ public class BlockChain {
                     if (txValid) {
                         try {
                             txValid = ScriptParser.process(input, output, Parameters.blockStore.getChainHeight());
-                            if (!txValid)
+                            if (!txValid) {
                                 log.error(String.format("Transaction failed signature verification\n"+
                                                         "  Transaction %s\n  Transaction input %d\n"+
                                                         "  Outpoint %s\n  Outpoint index %d",
-                                                        tx.getHash().toString(), input.getIndex(),
-                                                        op.getHash().toString(), op.getIndex()));
+                                                        tx.getHash(), input.getIndex(),
+                                                        op.getHash(), op.getIndex()));
+                            }
                         } catch (ScriptException exc) {
                             log.warn(String.format("Unable to verify transaction input\n  Tx %s",
-                                                   tx.getHash().toString()), exc);
+                                                   tx.getHash()), exc);
                             txValid = false;
+                        }
+                        if (!txValid) {
+                            Main.dumpData("Input Script", input.getScriptBytes());
+                            Main.dumpData("output Script", output.getScriptBytes());
                         }
                     }
                 }
@@ -518,7 +495,7 @@ public class BlockChain {
                     txAmount = txAmount.subtract(output.getValue());
                 if (txAmount.compareTo(BigInteger.ZERO) < 0) {
                     log.error(String.format("Transaction inputs less than transaction outputs\n  Tx %s",
-                                            tx.getHash().toString()));
+                                            tx.getHash()));
                     txValid = false;
                 } else {
                     totalFees = totalFees.add(txAmount);
@@ -543,7 +520,7 @@ public class BlockChain {
             for (TransactionOutput output : outputs)
                 txAmount = txAmount.subtract(output.getValue());
             if (txAmount.compareTo(BigInteger.ZERO) < 0) {
-                log.error(String.format("Coinbase transaction outputs exceed block reward plus fees\n Block %s",
+                log.error(String.format("Coinbase transaction outputs exceed block reward plus fees\n  Block %s",
                                         block.getHashAsString()));
                 txValid = false;
             }

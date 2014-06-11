@@ -349,14 +349,13 @@ public class NetworkHandler implements Runnable {
                                     chkPeer.getOutputList().add(chkMsg);
                                     SelectionKey chkKey = chkPeer.getKey();
                                     chkKey.interestOps(chkKey.interestOps() | SelectionKey.OP_WRITE);
-                                    log.info(String.format("'ping' message sent to %s", chkAddress.toString()));
+                                    log.info(String.format("'ping' message sent to %s", chkAddress));
                                 }
                             }
                         }
                     });
                     inactiveList.stream().map((chkPeer) -> {
-                        log.info(String.format("Closing connection due to inactivity: %s",
-                                chkPeer.getAddress().toString()));
+                        log.info(String.format("Closing connection due to inactivity: %s", chkPeer.getAddress()));
                         return chkPeer;
                     }).map((chkPeer) -> {
                         closeConnection(chkPeer);
@@ -534,8 +533,7 @@ public class NetworkHandler implements Runnable {
                 address.setTimeConnected(System.currentTimeMillis()/1000);
                 if (connections.size() >= maxConnections) {
                     channel.close();
-                    log.info(String.format("Max connections reached: Connection rejected from %s",
-                                           address.toString()));
+                    log.info(String.format("Max connections reached: Connection rejected from %s", address));
                 } else if (bannedAddresses.contains(address.getAddress())) {
                     channel.close();
                     log.info(String.format("Connection rejected from banned address %s",
@@ -548,14 +546,14 @@ public class NetworkHandler implements Runnable {
                     key.attach(peer);
                     peer.setConnected(true);
                     address.setConnected(true);
-                    log.info(String.format("Connection accepted from %s", address.toString()));
+                    log.info(String.format("Connection accepted from %s", address));
                     Message msg = VersionMessage.buildVersionMessage(peer, Parameters.listenAddress,
                                                                      Parameters.blockStore.getChainHeight());
                     synchronized(Parameters.lock) {
                         connections.add(peer);
                         peer.getOutputList().add(msg);
                     }
-                    log.info(String.format("Sent 'version' message to %s", address.toString()));
+                    log.info(String.format("Sent 'version' message to %s", address));
                 }
             }
         } catch (IOException exc) {
@@ -608,7 +606,7 @@ public class NetworkHandler implements Runnable {
                 connections.add(peer);
             }
         } catch (IOException exc) {
-            log.error(String.format("Unable to open connection to %s", address.toString()), exc);
+            log.error(String.format("Unable to open connection to %s", address), exc);
             networkShutdown = true;
         }
         return true;
@@ -627,7 +625,7 @@ public class NetworkHandler implements Runnable {
         SocketChannel channel = peer.getChannel();
         try {
             channel.finishConnect();
-            log.info(String.format("Connection established to %s", address.toString()));
+            log.info(String.format("Connection established to %s", address));
             address.setTimeConnected(System.currentTimeMillis()/1000);
             Message msg = VersionMessage.buildVersionMessage(peer, Parameters.listenAddress,
                                                              Parameters.blockStore.getChainHeight());
@@ -635,7 +633,7 @@ public class NetworkHandler implements Runnable {
                 peer.getOutputList().add(msg);
                 key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
             }
-            log.info(String.format("Sent 'version' message to %s", address.toString()));
+            log.info(String.format("Sent 'version' message to %s", address));
         } catch (ConnectException exc) {
             log.info(exc.getLocalizedMessage());
             closeConnection(peer);
@@ -648,7 +646,7 @@ public class NetworkHandler implements Runnable {
                 }
             }
         } catch (IOException exc) {
-            log.error(String.format("Connection failed to %s", address.toString()), exc);
+            log.error(String.format("Connection failed to %s", address), exc);
             closeConnection(peer);
         }
     }
@@ -860,9 +858,9 @@ public class NetworkHandler implements Runnable {
             //
             if (channel.isOpen())
                 channel.close();
-            log.info(String.format("Connection closed with peer %s", address.toString()));
+            log.info(String.format("Connection closed with peer %s", address));
         } catch (IOException exc) {
-            log.error(String.format("Error while closing socket channel with %s", address.toString()), exc);
+            log.error(String.format("Error while closing socket channel with %s", address), exc);
         }
     }
 
@@ -922,7 +920,7 @@ public class NetworkHandler implements Runnable {
             if (peer.getVersionCount() == 2) {
                 peer.incVersionCount();
                 Parameters.networkChainHeight = Math.max(Parameters.networkChainHeight, peer.getHeight());
-                log.info(String.format("Connection handshake completed with %s", address.toString()));
+                log.info(String.format("Connection handshake completed with %s", address));
                 //
                 // Send a 'getaddr' message to exchange peer address lists.
                 // Do not do this if we are using static connections since we don't need
@@ -951,7 +949,7 @@ public class NetworkHandler implements Runnable {
                                 peer.getOutputList().add(alertMsg);
                                 key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                             }
-                            log.info(String.format("Sent alert %d to %s", alert.getID(), address.toString()));
+                            log.info(String.format("Sent alert %d to %s", alert.getID(), address));
                         });
                 }
                 //
@@ -967,7 +965,7 @@ public class NetworkHandler implements Runnable {
                             key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                         }
                         getBlocksTime = System.currentTimeMillis()/1000;
-                        log.info(String.format("Sent 'getblocks' message to %s", address.toString()));
+                        log.info(String.format("Sent 'getblocks' message to %s", address));
                     }
                 }
                 connectionListeners.stream().forEach((listener) -> {
@@ -1073,7 +1071,7 @@ public class NetworkHandler implements Runnable {
                 String originAddress = (originPeer!=null ? originPeer.getAddress().toString() : "local");
                 log.warn(String.format("Purging unavailable %s request initiated by %s\n  %s",
                                        (request.getType()==InventoryItem.INV_BLOCK?"block":"transaction"),
-                                       originAddress, request.getHash().toString()));
+                                       originAddress, request.getHash()));
                 continue;
             }
             //
@@ -1102,7 +1100,7 @@ public class NetworkHandler implements Runnable {
                     peer.getOutputList().add(msg);
                 }
                 getBlocksTime = System.currentTimeMillis()/1000;
-                log.info(String.format("Sent 'getblocks' message to %s", peer.getAddress().toString()));
+                log.info(String.format("Sent 'getblocks' message to %s", peer.getAddress()));
             }
         }
     }
@@ -1155,7 +1153,7 @@ public class NetworkHandler implements Runnable {
             if (hostName != null) {
                 Parameters.listenAddress = new PeerAddress(InetAddress.getByName(hostName),
                                                            Parameters.listenPort);
-                log.info(String.format("External IP address is %s", Parameters.listenAddress.toString()));
+                log.info(String.format("External IP address is %s", Parameters.listenAddress));
             } else {
                 URL url = new URL("http://checkip.dyndns.org:80/");
                 log.info("Getting external IP address from checkip.dyndns.org");
@@ -1173,7 +1171,7 @@ public class NetworkHandler implements Runnable {
                         String ipAddress = ipString.substring(start+1, stop).trim();
                         Parameters.listenAddress = new PeerAddress(InetAddress.getByName(ipAddress),
                                                                    Parameters.listenPort);
-                        log.info(String.format("External IP address is %s", Parameters.listenAddress.toString()));
+                        log.info(String.format("External IP address is %s", Parameters.listenAddress));
                     }
                 }
             }

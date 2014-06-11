@@ -20,11 +20,7 @@ import org.ScripterRon.BitcoinCore.Block;
 import org.ScripterRon.BitcoinCore.InventoryItem;
 import org.ScripterRon.BitcoinCore.InventoryMessage;
 import org.ScripterRon.BitcoinCore.Message;
-import org.ScripterRon.BitcoinCore.Sha256Hash;
 import org.ScripterRon.BitcoinCore.Transaction;
-import org.ScripterRon.BitcoinCore.TransactionInput;
-import org.ScripterRon.BitcoinCore.TransactionOutput;
-import org.ScripterRon.BitcoinCore.VerificationException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -102,9 +98,8 @@ public class DatabaseHandler implements Runnable {
                             updateTxPool(chainBlock);
                             int chainHeight = storedBlock.getHeight();
                             Parameters.networkChainHeight = Math.max(chainHeight, Parameters.networkChainHeight);
-                            if (chainHeight >= Parameters.networkChainHeight-3) {
+                            if (chainHeight >= Parameters.networkChainHeight-3)
                                 notifyPeers(storedBlock);
-                            }
                         }
                     });
                     StoredBlock parentBlock = chainList.get(chainList.size()-1);

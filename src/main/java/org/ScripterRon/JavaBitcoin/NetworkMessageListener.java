@@ -232,7 +232,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                     //
                     if (txRequests >= 50) {
                         log.warn(String.format("More than 50 tx entries in 'inv' message from %s - ignoring",
-                                               peer.getAddress().toString()));
+                                               peer.getAddress()));
                         continue;
                     }
                     //
@@ -368,33 +368,33 @@ public class NetworkMessageListener extends AbstractMessageListener {
         // for existing entries.
         //
         addresses.stream()
-                 .filter((addr) -> !((addr.getServices()&NetParams.NODE_NETWORK)==0) &&
-                                   !addr.equals(Parameters.listenAddress))
-                 .forEach((addr) -> {
-            long timeStamp = addr.getTimeStamp();
-            synchronized(Parameters.lock) {
-                PeerAddress mapAddress = Parameters.peerMap.get(addr);
-                if (mapAddress == null) {
-                    boolean added = false;
-                    for (int j=0; j<Parameters.peerAddresses.size(); j++) {
-                        PeerAddress chkAddress = Parameters.peerAddresses.get(j);
-                        if (chkAddress.getTimeStamp() < timeStamp) {
-                            Parameters.peerAddresses.add(j, addr);
-                            Parameters.peerMap.put(addr, addr);
-                            added = true;
-                            break;
+            .filter((addr) -> !((addr.getServices()&NetParams.NODE_NETWORK)==0) &&
+                                !addr.equals(Parameters.listenAddress))
+            .forEach((addr) -> {
+                long timeStamp = addr.getTimeStamp();
+                synchronized(Parameters.lock) {
+                    PeerAddress mapAddress = Parameters.peerMap.get(addr);
+                    if (mapAddress == null) {
+                        boolean added = false;
+                        for (int j=0; j<Parameters.peerAddresses.size(); j++) {
+                            PeerAddress chkAddress = Parameters.peerAddresses.get(j);
+                            if (chkAddress.getTimeStamp() < timeStamp) {
+                                Parameters.peerAddresses.add(j, addr);
+                                Parameters.peerMap.put(addr, addr);
+                                added = true;
+                                break;
+                            }
                         }
+                        if (!added) {
+                            Parameters.peerAddresses.add(addr);
+                            Parameters.peerMap.put(addr, addr);
+                        }
+                    } else {
+                        mapAddress.setTimeStamp(Math.max(mapAddress.getTimeStamp(), timeStamp));
+                        mapAddress.setServices(addr.getServices());
                     }
-                    if (!added) {
-                        Parameters.peerAddresses.add(addr);
-                        Parameters.peerMap.put(addr, addr);
-                    }
-                } else {
-                    mapAddress.setTimeStamp(Math.max(mapAddress.getTimeStamp(), timeStamp));
-                    mapAddress.setServices(addr.getServices());
                 }
-            }
-        });
+            });
     }
 
     /**
@@ -567,7 +567,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
     @Override
     public void processGetBlocks(Message msg, int version, List<Sha256Hash> blockList, Sha256Hash stopBlock) {
         Peer peer = msg.getPeer();
-        log.debug(String.format("Processing 'getblocks' from %s", peer.getAddress().toString()));
+        log.debug(String.format("Processing 'getblocks' from %s", peer.getAddress()));
         //
         // We will ignore a 'getblocks' message if we are still processing a prior request
         //
@@ -583,7 +583,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                 if (Parameters.blockStore.isOnChain(blockHash)) {
                     startBlock = blockHash;
                     foundJunction = true;
-                    log.debug(String.format("Found junction block %s", startBlock.toString()));
+                    log.debug(String.format("Found junction block %s", startBlock));
                     break;
                 }
             }
@@ -623,6 +623,8 @@ public class NetworkMessageListener extends AbstractMessageListener {
      */
     @Override
     public void processGetHeaders(Message msg, int version, List<Sha256Hash> blockList, Sha256Hash stopBlock) {
+        Peer peer = msg.getPeer();
+        log.debug(String.format("Processing 'getheaders' from %s", peer.getAddress()));
         //
         // Check each locator until we find one that is on the main chain
         //
@@ -633,6 +635,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                 if (Parameters.blockStore.isOnChain(blockHash)) {
                     foundJunction = true;
                     startBlock = blockHash;
+                    log.debug(String.format("Found junction block %s", startBlock));
                     break;
                 }
             }
@@ -648,7 +651,8 @@ public class NetworkMessageListener extends AbstractMessageListener {
             //
             // Build the 'headers' response
             //
-            Message hdrMsg = HeadersMessage.buildHeadersMessage(msg.getPeer(), chainList);
+            log.debug(String.format("Returning %d headers", chainList.size()));
+            Message hdrMsg = HeadersMessage.buildHeadersMessage(peer, chainList);
             Parameters.networkHandler.sendMessage(hdrMsg);
         } catch (BlockStoreException exc) {
             // Can't access the database, so just ignore the 'getheaders' request
@@ -685,7 +689,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
     @Override
     public void processPong(Message msg, long nonce) {
         msg.getPeer().setPing(false);
-        log.info(String.format("'pong' response received from %s", msg.getPeer().getAddress().toString()));
+        log.info(String.format("'pong' response received from %s", msg.getPeer().getAddress()));
     }
 
     /**
@@ -708,8 +712,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         if (reason == null)
             reason = Integer.toString(reasonCode, 16);
         log.error(String.format("Message rejected by %s\n  Command %s, Reason %s - %s\n  %s",
-                                msg.getPeer().getAddress().toString(), cmd, reason, description,
-                                hash.toString()));
+                                msg.getPeer().getAddress(), cmd, reason, description, hash));
     }
 
     /**
@@ -827,8 +830,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                 }
             }
         } catch (EOFException exc) {
-            log.error(String.format("End-of-data while processing 'tx' message from %s",
-                                    peer.getAddress().toString()));
+            log.error(String.format("End-of-data while processing 'tx' message from %s", peer.getAddress()));
             reasonCode = RejectMessage.REJECT_MALFORMED;
             Parameters.txRejected++;
             if (peer.getVersion() >= 70002) {
@@ -837,7 +839,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             }
         } catch (VerificationException exc) {
             log.error(String.format("Message verification failed for 'tx' message from %s\n  %s\n  %s",
-                                    peer.getAddress().toString(), exc.getMessage(), exc.getHash().toString()));
+                                    peer.getAddress(), exc.getMessage(), exc.getHash()));
             reasonCode = exc.getReason();
             Parameters.txRejected++;
             if (peer.getVersion() >= 70002) {
@@ -874,7 +876,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         peer.incVersionCount();
         log.info(String.format("Peer %s: Protocol level %d, Services %d, Agent %s, Height %d, "+
                                "Relay blocks %s, Relay tx %s",
-                               peer.getAddress().toString(), peer.getVersion(), peer.getServices(),
+                               peer.getAddress(), peer.getVersion(), peer.getServices(),
                                peer.getUserAgent(), peer.getHeight(),
                                peer.shouldRelayBlocks()?"Yes":"No",
                                peer.shouldRelayTx()?"Yes":"No"));
@@ -1038,9 +1040,8 @@ public class NetworkMessageListener extends AbstractMessageListener {
                     }
                     if (output == null)
                         throw new VerificationException(String.format(
-                                                        "Transaction references non-existent output\n  %s",
-                                                        txHash.toString()),
-                                                        RejectMessage.REJECT_INVALID, txHash);
+                                                        "Transaction references non-existent output\n  Tx %s",
+                                                        txHash), RejectMessage.REJECT_INVALID, txHash);
                 } else {
                     // Transaction is not in the memory pool, check the database
                     try {
@@ -1108,11 +1109,9 @@ public class NetworkMessageListener extends AbstractMessageListener {
                     }
             }
             if (canonicalType == 1)
-                throw new VerificationException(String.format("Non-canonical signature",
-                                                txHash.toString()), RejectMessage.REJECT_NONSTANDARD, txHash);
+                throw new VerificationException("Non-canonical signature", RejectMessage.REJECT_NONSTANDARD, txHash);
             if (canonicalType == 2)
-                throw new VerificationException(String.format("Non-canonical public key",
-                                                txHash.toString()), RejectMessage.REJECT_NONSTANDARD, txHash);
+                throw new VerificationException("Non-canonical public key", RejectMessage.REJECT_NONSTANDARD, txHash);
             // Add the output to the spent outputs list
             spentOutputs.add(outPoint);
         }

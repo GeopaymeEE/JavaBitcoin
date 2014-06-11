@@ -229,7 +229,7 @@ public class BlockStoreSql extends BlockStore {
             ResultSet r = s.executeQuery();
             isNewBlock = !r.next();
         } catch (SQLException exc) {
-            log.error(String.format("Unable to check block status\n  Block %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to check block status\n  Block %s", blockHash), exc);
             throw new BlockStoreException("Unable to check block status", blockHash);
         }
         return isNewBlock;
@@ -339,7 +339,7 @@ public class BlockStoreSql extends BlockStore {
             ResultSet r = s.executeQuery();
             onChain = (r.next() && r.getInt(1)>=0);
         } catch (SQLException exc) {
-            log.error(String.format("Unable to check block status\n  Block %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to check block status\n  Block %s", blockHash), exc);
             throw new BlockStoreException("Unable to check block status", blockHash);
         }
         return onChain;
@@ -368,7 +368,7 @@ public class BlockStoreSql extends BlockStore {
                 block = getBlock(fileNumber, fileOffset);
             }
         } catch (SQLException exc) {
-            log.error(String.format("Unable to get block\n  Block %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to get block\n  Block %s", blockHash), exc);
             throw new BlockStoreException("Unable to get block", blockHash);
         }
         return block;
@@ -400,7 +400,7 @@ public class BlockStoreSql extends BlockStore {
                 storedBlock = new StoredBlock(block, blockWork, blockHeight, (blockHeight>=0), onHold);
             }
         } catch (SQLException exc) {
-            log.error(String.format("Unable to get block\n  Block %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to get block\n  Block %s", blockHash), exc);
             throw new BlockStoreException("Unable to get block", blockHash);
         }
         return storedBlock;
@@ -432,7 +432,7 @@ public class BlockStoreSql extends BlockStore {
                 childStoredBlock = new StoredBlock(block, blockWork, blockHeight, (blockHeight>=0), onHold);
             }
         } catch (SQLException exc) {
-            log.error(String.format("Unable to get child block\n  Block %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to get child block\n  Block %s", blockHash), exc);
             throw new BlockStoreException("Unable to get child block", blockHash);
         }
         return childStoredBlock;
@@ -512,7 +512,7 @@ public class BlockStoreSql extends BlockStore {
                 txDepth = chainHeight - height + 1;
             }
         } catch (SQLException exc) {
-            log.error(String.format("Unable to get transaction depth\n  Tx %s", txHash.toString()), exc);
+            log.error(String.format("Unable to get transaction depth\n  Tx %s", txHash), exc);
             throw new BlockStoreException("Unable to get transaction depth");
         }
         return txDepth;
@@ -546,7 +546,7 @@ public class BlockStoreSql extends BlockStore {
             }
         } catch (SQLException exc) {
             log.error(String.format("Unable to get transaction output\n  Tx %s : Index %d",
-                                    outPoint.getHash().toString(), outPoint.getIndex()), exc);
+                                    outPoint.getHash(), outPoint.getIndex()), exc);
             throw new BlockStoreException("Unable to get transaction output");
         }
         return output;
@@ -580,7 +580,7 @@ public class BlockStoreSql extends BlockStore {
                 outputList.add(output);
             }
         } catch (SQLException exc) {
-            log.error(String.format("Unable to get transaction outputs\n  Tx %s", txHash.toString()), exc);
+            log.error(String.format("Unable to get transaction outputs\n  Tx %s", txHash), exc);
             throw new BlockStoreException("Unable to get transaction outputs", txHash);
         }
         return outputList;
@@ -610,7 +610,7 @@ public class BlockStoreSql extends BlockStore {
             if (r.next())
                 blockHeight = Math.max(r.getInt(1), 0);
         } catch (SQLException exc) {
-            log.error(String.format("Unable to get start block\n  Block %s", startBlock.toString()), exc);
+            log.error(String.format("Unable to get start block\n  Block %s", startBlock), exc);
             throw new BlockStoreException("Unable to get start block", startBlock);
         }
         //
@@ -720,7 +720,7 @@ public class BlockStoreSql extends BlockStore {
             s.setBytes(1, blockHash.getBytes());
             s.executeUpdate();
         } catch (SQLException exc) {
-            log.error(String.format("Unable to release held block\n  Block %s", blockHash.toString()), exc);
+            log.error(String.format("Unable to release held block\n  Block %s", blockHash), exc);
             throw new BlockStoreException("Unable to release held block");
         }
     }
@@ -756,8 +756,7 @@ public class BlockStoreSql extends BlockStore {
                 s1.setInt(8, fileLocation[1]);
                 s1.executeUpdate();
             } catch (SQLException exc) {
-                log.error(String.format("Unable to store block in database\n  Block %s",
-                                        storedBlock.getHash().toString()), exc);
+                log.error(String.format("Unable to store block in database\n  Block %s", storedBlock.getHash()), exc);
                 rollback();
                 truncateBlockFile(fileLocation);
                 throw new BlockStoreException("Unable to store block in database");
@@ -838,8 +837,7 @@ public class BlockStoreSql extends BlockStore {
                             r.close();
                             if (!onChain) {
                                 if (chainList.size() >= 144) {
-                                    log.warn(String.format("Chain length exceeds 144 blocks\n  Restart %s",
-                                                           blockHash.toString()));
+                                    log.warn(String.format("Chain length exceeds 144 blocks\n  Restart %s", blockHash));
                                     throw new ChainTooLongException("Chain length too long", blockHash);
                                 }
                                 block = getBlock(fileNumber, fileOffset);
@@ -850,8 +848,7 @@ public class BlockStoreSql extends BlockStore {
                             }
                             chainList.add(0, chainStoredBlock);
                         } else {
-                            log.warn(String.format("Chain block is not available\n  Block %s",
-                                     blockHash.toString()));
+                            log.warn(String.format("Chain block is not available\n  Block %s", blockHash));
                             throw new BlockNotFoundException("Unable to resolve block chain", blockHash);
                         }
                     }
@@ -939,8 +936,7 @@ public class BlockStoreSql extends BlockStore {
                         s1.setBytes(1, blockHash.getBytes());
                         r = s1.executeQuery();
                         if (!r.next()) {
-                            log.error(String.format("Chain block not found in Blocks database\n  Block %s",
-                                                    blockHash.toString()));
+                            log.error(String.format("Chain block not found in Blocks database\n  Block %s", blockHash));
                             throw new BlockStoreException("Chain block not found in Blocks database");
                         }
                         int fileNumber = r.getInt(1);
@@ -982,8 +978,7 @@ public class BlockStoreSql extends BlockStore {
                         //
                         s4.setBytes(1, blockHash.getBytes());
                         s4.executeUpdate();
-                        log.info(String.format("Block removed from block chain\n  Block %s",
-                                               blockHash.toString()));
+                        log.info(String.format("Block removed from block chain\n  Block %s", blockHash));
                         //
                         // Advance to the block before this block
                         //
@@ -1295,8 +1290,7 @@ public class BlockStoreSql extends BlockStore {
                                    "  Chain height %,d, Target difficulty %s, Block File number %d\n"+
                                    "  Chain head %s",
                                    version/100, version%100, chainHeight,
-                                   Utils.numberToShortString(networkDifficulty), blockFileNumber,
-                                   chainHead.toString()));
+                                   Utils.numberToShortString(networkDifficulty), blockFileNumber, chainHead));
             //
             // Delete spent outputs
             //
