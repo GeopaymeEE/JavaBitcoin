@@ -85,6 +85,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
     @Override
     public void sendInventory(Message msg, List<InventoryItem> invList) {
         Peer peer = msg.getPeer();
+        log.debug(String.format("Processing 'getdata' from %s", peer.getAddress()));
         //
         // If this is a request restart, we need to skip over the items that have already
         // been processed as indicated by the restart index contained in the message.  Otherwise,
@@ -119,6 +120,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                         synchronized(Parameters.lock) {
                             Parameters.txSent++;
                         }
+                        log.debug(String.format("Sent tx %s", tx.getHash()));
                     } else {
                         notFound.add(item);
                     }
@@ -136,6 +138,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                             synchronized(Parameters.lock) {
                                 Parameters.blocksSent++;
                             }
+                            log.debug(String.format("Sent block %s", block.getHash()));
                         } else {
                             notFound.add(item);
                         }
@@ -159,6 +162,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                             if (block != null) {
                                 List<Sha256Hash> matches = filter.findMatches(block);
                                 sendMatchedTransactions(peer, block, matches);
+                                log.debug(String.format("Sent filtered block %s", block.getHash()));
                             } else {
                                 notFound.add(item);
                             }
@@ -563,6 +567,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
     @Override
     public void processGetBlocks(Message msg, int version, List<Sha256Hash> blockList, Sha256Hash stopBlock) {
         Peer peer = msg.getPeer();
+        log.debug(String.format("Processing 'getblocks' from %s", peer.getAddress().toString()));
         //
         // We will ignore a 'getblocks' message if we are still processing a prior request
         //
@@ -578,6 +583,8 @@ public class NetworkMessageListener extends AbstractMessageListener {
                 if (Parameters.blockStore.isOnChain(blockHash)) {
                     startBlock = blockHash;
                     foundJunction = true;
+                    log.debug(String.format("Found junction block %s", startBlock.toString()));
+                    break;
                 }
             }
             //
@@ -594,6 +601,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             //
             // Build the 'inv' response
             //
+            log.debug(String.format("Returning %d inventory blocks", chainList.size()));
             Message invMsg = InventoryMessage.buildInventoryMessage(peer, chainList);
             Parameters.networkHandler.sendMessage(invMsg);
         } catch (BlockStoreException exc) {
