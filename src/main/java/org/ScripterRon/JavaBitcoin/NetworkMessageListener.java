@@ -15,147 +15,442 @@
  */
 
 package org.ScripterRon.JavaBitcoin;
-
-import java.util.List;
-import org.ScripterRon.BitcoinCore.AddressMessage;
-import org.ScripterRon.BitcoinCore.BloomFilter;
-import org.ScripterRon.BitcoinCore.Message;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
+import org.ScripterRon.BitcoinCore.AbstractMessageListener;
+import org.ScripterRon.BitcoinCore.AddressMessage;
+import org.ScripterRon.BitcoinCore.Alert;
+import org.ScripterRon.BitcoinCore.AlertMessage;
+import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.BlockHeader;
+import org.ScripterRon.BitcoinCore.BlockMessage;
+import org.ScripterRon.BitcoinCore.BloomFilter;
+import org.ScripterRon.BitcoinCore.ECKey;
+import org.ScripterRon.BitcoinCore.HeadersMessage;
+import org.ScripterRon.BitcoinCore.InventoryItem;
+import org.ScripterRon.BitcoinCore.InventoryMessage;
+import org.ScripterRon.BitcoinCore.MerkleBlockMessage;
+import org.ScripterRon.BitcoinCore.Message;
+import org.ScripterRon.BitcoinCore.NetParams;
+import org.ScripterRon.BitcoinCore.NotFoundMessage;
+import org.ScripterRon.BitcoinCore.OutPoint;
+import org.ScripterRon.BitcoinCore.Peer;
+import org.ScripterRon.BitcoinCore.PeerAddress;
+import org.ScripterRon.BitcoinCore.PongMessage;
+import org.ScripterRon.BitcoinCore.RejectMessage;
+import org.ScripterRon.BitcoinCore.Script;
+import org.ScripterRon.BitcoinCore.ScriptOpCodes;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.Transaction;
+import org.ScripterRon.BitcoinCore.TransactionInput;
+import org.ScripterRon.BitcoinCore.TransactionMessage;
+import org.ScripterRon.BitcoinCore.TransactionOutput;
+import org.ScripterRon.BitcoinCore.VerificationException;
+import org.ScripterRon.BitcoinCore.VersionAckMessage;
+
+import java.io.EOFException;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
 /**
- *
- * @author Ronald Hoffman
+ * Process network messages
  */
-public class NetworkMessageListener {
+public class NetworkMessageListener extends AbstractMessageListener {
 
-    //**********************************************************************************
-    // Receive version message
-    //                    VersionAckMessage.buildVersionResponse(msg);
-                    peer.incVersionCount();
-                    address.setServices(peer.getServices());
-                    log.info(String.format("Peer %s: Protocol level %d, Services %d, Agent %s, Height %d, "+
-                                           "Relay blocks %s, Relay tx %s",
-                             address.toString(), peer.getVersion(), peer.getServices(),
-                             peer.getUserAgent(), peer.getHeight(),
-                             peer.shouldRelayBlocks()?"Yes":"No",
-                             peer.shouldRelayTx()?"Yes":"No"));
-
-    //*********************************************************************************
-    // Process verack
-    //
-                    peer.incVersionCount();
-
-     //*********************************************************************************
-     // Process getaddr
-     //
-     Message addrMsg = AddressMessage.buildAddressMessage(peer, Parameters.peerAddresses,
-                                                                         Parameters.listenAddress,
-                                                                         Parameters.networkMessageListener);
-                    msg.setBuffer(addrMsg.getBuffer());
-                    msg.setCommand(addrMsg.getCommand());
-
-    //****************************************************************
-    // Process pong message
-    //
-                    peer.setPing(false);
-                    log.info(String.format("'pong' response received from %s", address.toString()));
-
-    //******************************************************************
-    // Process the 'filterclear' command
-    //
-                    BloomFilter filter = peer.getBloomFilter();
-                    peer.setBloomFilter(null);
-                    if (filter != null) {
+    /**
+     * Handle an inventory request
+     *
+     * <p>This method is called when a 'getdata' message is received.  The application
+     * should send the inventory items to the requesting peer.  A 'notfound' message
+     * should be returned to the requesting peer if one or more items cannot be sent.</p>
+     *
+     * @param       msg             Message
+     * @param       invList         Inventory item list
+     */
+    @Override
+    public void sendInventory(Message msg, List<InventoryItem> invList) {
+        Peer peer = msg.getPeer();
+        //
+        // If this is a request restart, we need to skip over the items that have already
+        // been processed as indicated by the restart index contained in the message.  Otherwise,
+        // start with the first inventory item.
+        //
+        List<InventoryItem> notFound = new ArrayList<>(invList.size());
+        int restart = msg.getRestartIndex();
+        msg.setRestartIndex(0);
+        int blocksSent = 0;
+        for (int i=restart; i<invList.size(); i++) {
+            //
+            // Defer the request if we have sent 25 blocks in the current batch.  We will
+            // restart at this point after the current batch has been sent to the peer.
+            //
+            if (blocksSent == 25) {
+                msg.setRestartIndex(i);
+                break;
+            }
+            InventoryItem item = invList.get(i);
+            switch (item.getType()) {
+                case InventoryItem.INV_TX:
+                    //
+                    // Send a transaction from the memory pool
+                    //
+                    StoredTransaction tx;
+                    synchronized(Parameters.lock) {
+                        tx = Parameters.txMap.get(item.getHash());
+                    }
+                    if (tx != null) {
+                        Message txMsg = TransactionMessage.buildTransactionMessage(peer, tx.getBytes());
+                        Parameters.networkHandler.sendMessage(txMsg);
                         synchronized(Parameters.lock) {
-                            Parameters.bloomFilters.remove(filter);
+                            Parameters.txSent++;
+                        }
+                    } else {
+                        notFound.add(item);
+                    }
+                    break;
+                case InventoryItem.INV_BLOCK:
+                    //
+                    // Send a block from the database
+                    //
+                    try {
+                        Block block = Parameters.blockStore.getBlock(item.getHash());
+                        if (block != null) {
+                            blocksSent++;
+                            Message blockMsg = BlockMessage.buildBlockMessage(peer, block.getBytes());
+                            Parameters.networkHandler.sendMessage(blockMsg);
+                            synchronized(Parameters.lock) {
+                                Parameters.blocksSent++;
+                            }
+                        } else {
+                            notFound.add(item);
+                        }
+                    } catch (BlockStoreException exc) {
+                        notFound.add(item);
+                    }
+                    break;
+                case InventoryItem.INV_FILTERED_BLOCK:
+                    //
+                    // Send a filtered block if the peer has loaded a Bloom filter.  The request
+                    // will be ignored if there is no Bloom filter.
+                    //
+                    BloomFilter filter = peer.getBloomFilter();
+                    if (filter != null) {
+                        //
+                        // Get the block from the database and locate any matching transactions.
+                        // Send the Merkle block followed by the matching transactions (if any)
+                        //
+                        try {
+                            Block block = Parameters.blockStore.getBlock(item.getHash());
+                            if (block != null) {
+                                List<Sha256Hash> matches = filter.findMatches(block);
+                                sendMatchedTransactions(peer, block, matches);
+                            } else {
+                                notFound.add(item);
+                            }
+                        } catch (BlockStoreException exc) {
+                            notFound.add(item);
                         }
                     }
-                    log.info(String.format("Bloom filter cleared for peer %s", address.toString()));
-
-    //**********************************************************************************
-    // Process AddressMessage
-    //
-    // Process the addresses and keep any node addresses that are not too old
-    //
-    long oldestTime = System.currentTimeMillis()/1000 - (30*60);
-        for (int i=0; i<addrCount; i++) {
-            PeerAddress peerAddress = new PeerAddress(inBuffer);
-            if (peerAddress.getTimeStamp() < oldestTime ||
-                                    (peerAddress.getServices()&Parameters.NODE_NETWORK) == 0 ||
-                                     peerAddress.getAddress().equals(Parameters.listenAddress))
-                continue;
+                    break;
+                default:
+                    notFound.add(item);
+            }
+        }
+        //
+        // Create a 'notfound' response if we didn't find all of the requested items
+        //
+        if (!notFound.isEmpty()) {
+            Message invMsg = NotFoundMessage.buildNotFoundMessage(peer, notFound);
+            Parameters.networkHandler.sendMessage(invMsg);
+        }
+        //
+        // Set up the restart if we didn't process all of the items
+        //
+        if (peer.getDeferredMessage() == null && msg.getRestartIndex() != 0) {
+            ByteBuffer msgBuffer = msg.getBuffer();
+            msgBuffer.rewind();
+            msg.setRestartBuffer(msgBuffer);
             synchronized(Parameters.lock) {
-                PeerAddress mapAddress = Parameters.peerMap.get(peerAddress);
+                peer.setDeferredMessage(msg);
+            }
+        }
+        //
+        // Send an 'inv' message for the current chain head to restart
+        // the peer download if the previous 'getblocks' was not able
+        // to return all of the blocks leading to the chain head
+        //
+        if (peer.isIncomplete() && peer.getDeferredMessage()==null) {
+            peer.setIncomplete(false);
+            List<InventoryItem> blockList = new ArrayList<>(1);
+            blockList.add(new InventoryItem(InventoryItem.INV_BLOCK, Parameters.blockStore.getChainHead()));
+            Message invMessage = InventoryMessage.buildInventoryMessage(peer, blockList);
+            Parameters.networkHandler.sendMessage(invMessage);
+        }
+    }
+
+    /**
+     * Handle an inventory item available notification
+     *
+     * <p>This method is called when an 'inv' message is received.  The application
+     * should request any needed inventory items from the peer.</p>
+     *
+     * @param       msg             Message
+     * @param       invList         Inventory item list
+     */
+    @Override
+    public void requestInventory(Message msg, List<InventoryItem> invList) {
+        Peer peer = msg.getPeer();
+        int txRequests = 0;
+        //
+        // Process the inventory items
+        //
+        for (InventoryItem item : invList) {
+            PeerRequest request = new PeerRequest(item.getHash(), item.getType(), peer);
+            switch (item.getType()) {
+                case InventoryItem.INV_TX:
+                    //
+                    // Ignore large transaction broadcasts to avoid running out of storage
+                    //
+                    if (txRequests >= 50) {
+                        log.warn(String.format("More than 50 tx entries in 'inv' message from %s - ignoring",
+                                               peer.getAddress().toString()));
+                        continue;
+                    }
+                    //
+                    // Skip the transaction if we have already seen it
+                    //
+                    boolean newTx;
+                    synchronized(Parameters.lock) {
+                        newTx = (Parameters.recentTxMap.get(item.getHash()) == null);
+                    }
+                    if (!newTx)
+                        continue;
+                    //
+                    // Ignore transactions if we are down-level since they will be orphaned
+                    // until we catch up to the rest of the network
+                    //
+                    if (Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight-5)
+                        continue;
+                    //
+                    // Request the transaction if it is not in the memory pool and has not
+                    // been requested.  We add the request at the front of the queue so it
+                    // does not get stuck behind pending block requests.
+                    //
+                    try {
+                        if (Parameters.blockStore.isNewTransaction(item.getHash())) {
+                            synchronized(Parameters.lock) {
+                                if (Parameters.recentTxMap.get(item.getHash()) == null &&
+                                                    !Parameters.pendingRequests.contains(request) &&
+                                                    !Parameters.processedRequests.contains(request)) {
+                                    Parameters.pendingRequests.add(0, request);
+                                    txRequests++;
+                                }
+                            }
+                        }
+                    } catch (BlockStoreException exc) {
+                        // Unable to check database - wait for another inventory broadcast
+                    }
+                    break;
+                case InventoryItem.INV_BLOCK:
+                    //
+                    // Request the block if it is not in the database and has not been requested.
+                    // Block requests are added to the end of the queue so that we don't hold
+                    // up transaction requests while we update the block chain.
+                    //
+                    try {
+                        if (Parameters.blockStore.isNewBlock(item.getHash())) {
+                            synchronized(Parameters.lock) {
+                                if (!Parameters.pendingRequests.contains(request) &&
+                                                !Parameters.processedRequests.contains(request))
+                                    Parameters.pendingRequests.add(request);
+                            }
+                        }
+                    } catch (BlockStoreException exc) {
+                        // Unable to check database - wait for another inventory broadcast
+                    }
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Handle a request not found
+     *
+     * <p>This method is called when a 'notfound' message is received.  It notifies the
+     * application that an inventory request cannot be completed because the item was
+     * not found.  The request can be discarded or retried by sending it to a different
+     * peer.</p>
+     *
+     * @param       msg             Message
+     * @param       invList         Inventory item list
+     */
+    @Override
+    public void requestNotFound(Message msg, List<InventoryItem> invList) {
+        for (InventoryItem item : invList) {
+            synchronized(Parameters.lock) {
+                //
+                // Remove the request from the processedRequests list and put it
+                // back on the pendingRequests list.  The network handler will
+                // then send the request to a different peer or discard it if
+                // all of the available peers have been contacted.
+                //
+                Iterator<PeerRequest> it = Parameters.processedRequests.iterator();
+                while (it.hasNext()) {
+                    PeerRequest request = it.next();
+                    if (request.getType()==item.getType() && request.getHash().equals(item.getHash())) {
+                        it.remove();
+                        Parameters.pendingRequests.add(request);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Handle a request for the transaction memory pool
+     *
+     * <p>This method is called when a 'mempool' message is received.  The application
+     * should return an 'inv' message listing the transactions in the memory pool.</p>
+     *
+     * @param       msg             Message
+     */
+    @Override
+    public void requestMemoryPool(Message msg) {
+        //
+        // Get the list of transaction identifiers in the memory pool
+        //
+        List<InventoryItem> invList;
+        synchronized(Parameters.lock) {
+            invList = new ArrayList<>(Parameters.txPool.size());
+            Parameters.txPool.stream().forEach((tx) ->
+                invList.add(new InventoryItem(InventoryItem.INV_TX, tx.getHash())));
+        }
+        //
+        // Send the 'inv' message
+        //
+        Message invMsg = InventoryMessage.buildInventoryMessage(msg.getPeer(), invList);
+        Parameters.networkHandler.sendMessage(invMsg);
+    }
+
+    /**
+     * Process a peer address list
+     *
+     * <p>This method is called when an 'addr' message is received.  The address list
+     * contains peers that have been active recently.</p>
+     *
+     * @param       msg             Message
+     * @param       addresses       Peer address list
+     */
+    @Override
+    public void processAddresses(Message msg, List<PeerAddress> addresses) {
+        //
+        // Add new addresses to the peer address list and update the timestamp and services
+        // for existing entries.
+        //
+        addresses.stream()
+                 .filter((addr) -> !((addr.getServices()&NetParams.NODE_NETWORK)==0) &&
+                                   !addr.equals(Parameters.listenAddress))
+                 .forEach((addr) -> {
+            long timeStamp = addr.getTimeStamp();
+            synchronized(Parameters.lock) {
+                PeerAddress mapAddress = Parameters.peerMap.get(addr);
                 if (mapAddress == null) {
                     boolean added = false;
-                    long timeStamp = peerAddress.getTimeStamp();
                     for (int j=0; j<Parameters.peerAddresses.size(); j++) {
                         PeerAddress chkAddress = Parameters.peerAddresses.get(j);
                         if (chkAddress.getTimeStamp() < timeStamp) {
-                            Parameters.peerAddresses.add(j, peerAddress);
-                            Parameters.peerMap.put(peerAddress, peerAddress);
+                            Parameters.peerAddresses.add(j, addr);
+                            Parameters.peerMap.put(addr, addr);
                             added = true;
                             break;
                         }
                     }
                     if (!added) {
-                        Parameters.peerAddresses.add(peerAddress);
-                        Parameters.peerMap.put(peerAddress, peerAddress);
+                        Parameters.peerAddresses.add(addr);
+                        Parameters.peerMap.put(addr, addr);
                     }
                 } else {
-                    mapAddress.setTimeStamp(Math.max(mapAddress.getTimeStamp(), peerAddress.getTimeStamp()));
-                    mapAddress.setServices(peerAddress.getServices());
+                    mapAddress.setTimeStamp(Math.max(mapAddress.getTimeStamp(), timeStamp));
+                    mapAddress.setServices(addr.getServices());
                 }
             }
-        }
+        });
+    }
 
-    //********************************************************************************************
-    // Process AlertMessage
-    //
-                if (Parameters.blockStore.isNewAlert(alert.getID())) {
-            //
-            // Store the alert in our database
-            //
-            Parameters.blockStore.storeAlert(alert);
-            //
-            // Process alert cancels
-            //
-            int cancelID = alert.getCancelID();
-            if (cancelID != 0)
-                Parameters.blockStore.cancelAlert(cancelID);
-            List<Integer> cancelSet = alert.getCancelSet();
-            for (Integer id : cancelSet)
-                Parameters.blockStore.cancelAlert(id.intValue());
-            //
-            // Broadcast the alert to our peers
-            //
-            if (alert.getRelayTime() > System.currentTimeMillis()/1000) {
-                Message alertMsg = buildAlertMessage(null, alert);
-                Parameters.networkListener.broadcastMessage(alertMsg);
+    /**
+     * Process an alert
+     *
+     * <p>This method is called when an 'alert' message is received</p>
+     *
+     * @param       msg             Message
+     * @param       alert           Alert
+     */
+    @Override
+    public void processAlert(Message msg, Alert alert) {
+        //
+        // Store a new alert in our database
+        //
+        try {
+            if (Parameters.blockStore.isNewAlert(alert.getID())) {
+                //
+                // Store the alert in our database
+                //
+                Parameters.blockStore.storeAlert(alert);
+                //
+                // Process alert cancels
+                //
+                int cancelID = alert.getCancelID();
+                if (cancelID != 0)
+                    Parameters.blockStore.cancelAlert(cancelID);
+                List<Integer> cancelSet = alert.getCancelSet();
+                for (Integer id : cancelSet)
+                    Parameters.blockStore.cancelAlert(id);
+                //
+                // Broadcast the alert to our peers
+                //
+                if (alert.getRelayTime() > System.currentTimeMillis()/1000) {
+                    Message alertMsg = AlertMessage.buildAlertMessage(null, alert);
+                    Parameters.networkHandler.broadcastMessage(alertMsg);
+                }
             }
+        } catch (BlockStoreException exc) {
+            // Can't store the alert - let it go
         }
+    }
 
-    //****************************************************************************************************
-    // Process BlockMessage
-    //
-    // Indicate the request is being processed so it won't timeout while
-    // the database handler is busy
-    //
+    /**
+     * Process a block
+     *
+     * <p>This method is called when a 'block' message is received</p>
+     *
+     * @param       msg             Message
+     * @param       block           Block
+     */
+    @Override
+    public void processBlock(Message msg, Block block) {
+        //
+        // Indicate the block is being processed so the block request won't be rebroadcast
+        //
         synchronized(Parameters.lock) {
             for (PeerRequest chkRequest : Parameters.processedRequests) {
-                if (chkRequest.getType()==Parameters.INV_BLOCK &&
-                                    chkRequest.getHash().equals(block.getHash())) {
+                if (chkRequest.getType()==InventoryItem.INV_BLOCK && chkRequest.getHash().equals(block.getHash())) {
                     chkRequest.setProcessing(true);
                     break;
                 }
             }
         }
         //
-        // Remove the block transactions from the transaction pool
+        // Remove the block transactions from the transaction pool and add them to the recent list.
+        // This will stop us from adding them back to the pool while the block is being processed.
         //
         List<Transaction> txList = block.getTransactions();
         synchronized(Parameters.lock) {
-            txList.stream().map((tx) -> tx.getHash())
+            txList.stream()
+                .map((tx) -> tx.getHash())
                 .map((txHash) -> {
                     StoredTransaction storedTx = Parameters.txMap.get(txHash);
                     if (storedTx != null) {
@@ -174,221 +469,143 @@ public class NetworkMessageListener {
         //
         // Add the block to the database handler queue
         //
-        Parameters.databaseQueue.put(block);
+        try {
+            Parameters.databaseQueue.put(block);
+        } catch (InterruptedException exc) {
+            // We should never block since the queue is backed by a linked list
+        }
+    }
 
-    //*************************************************************************
-    // Filter load message
-    //
-    // Add the filter to the list of Bloom filters
-    //
+    /**
+     * Process a Bloom filter clear request
+     *
+     * <p>This method is called when a 'filterclear' message is received.  The peer
+     * Bloom filter has been cleared before this method is called.</p>
+     *
+     * @param       msg             Message
+     * @param       oldFilter       Previous bloom filter
+     */
+    @Override
+    public void processFilterClear(Message msg, BloomFilter oldFilter) {
+        synchronized(Parameters.lock) {
+            Parameters.bloomFilters.remove(oldFilter);
+        }
+    }
+
+    /**
+     * Process a Bloom filter load request
+     *
+     * <p>This method is called when a 'filterload' message is received.  The peer bloom
+     * filter has been updated before this method is called.</p>
+     *
+     * @param       msg             Message
+     * @param       oldFilter       Previous bloom filter
+     * @param       newFilter       New bloom filter
+     */
+    @Override
+    public void processFilterLoad(Message msg, BloomFilter oldFilter, BloomFilter newFilter) {
         synchronized(Parameters.lock) {
             if (oldFilter != null)
-                Parameters.bloomFilters.remove(filter);
-            Parameters.bloomFilters.add(filter);
+                Parameters.bloomFilters.remove(oldFilter);
+            Parameters.bloomFilters.add(newFilter);
         }
+    }
 
-    //****************************************************************************
-    // Get blocks message
-    //
-    // Check each locator until we find one that is on the main chain
-    //
-        if (varCount < 0 || varCount > 500)
-            throw new VerificationException(String.format("'getblocks' message contains more than 500 locators"));
+    /**
+     * Process a get address request
+     *
+     * <p>This method is called when a 'getaddr' message is received.  The application should
+     * call AddressMessage.buildAddressMessage() to build the response message.</p>
+     *
+     * @param       msg             Message
+     */
+    @Override
+    public void processGetAddress(Message msg) {
+        List<PeerAddress> addressList;
+        synchronized(Parameters.lock) {
+            addressList = new ArrayList<>(Parameters.peerAddresses);
+        }
+        Message addrMsg = AddressMessage.buildAddressMessage(msg.getPeer(), addressList, Parameters.listenAddress);
+        Parameters.networkHandler.sendMessage(addrMsg);
+    }
+
+    /**
+     * Process a request for the latest blocks
+     *
+     * <p>This method is called when a 'getblocks' message is received.  The application should
+     * use the locator block list to find the latest common block and then send an 'inv'
+     * message to the peer for the blocks following the common block.</p>
+     *
+     * @param       msg             Message
+     * @param       version         Negotiated version
+     * @param       blockList       Locator block list
+     * @param       stopBlock       Stop block (Sha256Hash.ZERO_HASH if all blocks should be sent)
+     */
+    @Override
+    public void processGetBlocks(Message msg, int version, List<Sha256Hash> blockList, Sha256Hash stopBlock) {
+        Peer peer = msg.getPeer();
+        //
+        // We will ignore a 'getblocks' message if we are still processing a prior request
+        //
+        if (peer.getDeferredMessage() != null)
+            return;
         try {
+            //
+            // Check each locator until we find one that is on the main chain
+            //
             boolean foundJunction = false;
-            Sha256Hash blockHash = null;
-            inStream.mark(0);
-            for (int i=0; i<varCount; i++) {
-                count = inStream.read(bytes, 0, 32);
-                if (count < 32)
-                    throw new EOFException("End-of-data processing 'getblocks' message");
-                blockHash = new Sha256Hash(Utils.reverseBytes(bytes));
+            Sha256Hash startBlock = null;
+            for (Sha256Hash blockHash : blockList) {
                 if (Parameters.blockStore.isOnChain(blockHash)) {
+                    startBlock = blockHash;
                     foundJunction = true;
-                    break;
                 }
             }
             //
             // We go back to the genesis block if none of the supplied locators are on the main chain
             //
             if (!foundJunction)
-                blockHash = new Sha256Hash(Parameters.GENESIS_BLOCK_HASH);
-            //
-            // Get the stop block
-            //
-            inStream.reset();
-            inStream.skip(varCount*32);
-            count = inStream.read(bytes, 0, 32);
-            if (count < 32)
-                throw new EOFException("End-of-data processing 'getblocks' message");
-            Sha256Hash stopHash = new Sha256Hash(bytes);
+                startBlock = new Sha256Hash(Parameters.GENESIS_BLOCK_HASH);
             //
             // Get the chain list
             //
-            List<Sha256Hash> chainList = Parameters.blockStore.getChainList(blockHash, stopHash);
-            if (chainList.size() >= InventoryMessage.MAX_INV_ENTRIES)
+            List<InventoryItem> chainList = Parameters.blockStore.getChainList(startBlock, stopBlock);
+            if (chainList.size() >= 500)
                 peer.setIncomplete(true);
             //
             // Build the 'inv' response
             //
-            Message invMsg = InventoryMessage.buildInventoryMessage(peer, Parameters.INV_BLOCK, chainList);
-            msg.setBuffer(invMsg.getBuffer());
-            msg.setCommand(MessageHeader.INVBLOCK_CMD);
+            Message invMsg = InventoryMessage.buildInventoryMessage(peer, chainList);
+            Parameters.networkHandler.sendMessage(invMsg);
         } catch (BlockStoreException exc) {
-            //
             // Can't access the database, so just ignore the 'getblocks' request
-            //
-        }
-
-    //***************************************************************************
-    // Process getdata
-    //
-    // Process each request
-    //
-    // If this is a restarted request, we need to skip over the requests that have already
-    // been processed as indicated by the restart index contained in the message.
-    //
-        List<byte[]> notFound = new ArrayList<>(25);
-        byte[] invBytes = new byte[36];
-        int restart = msg.getRestartIndex();
-        msg.setRestartIndex(0);
-        if (restart != 0)
-            inStream.skip(restart*36);
-        for (int i=restart; i<varCount; i++) {
-            //
-            // Defer the request if we have sent 25 blocks in the current batch
-            //
-            if (blocksSent == 25) {
-                msg.setRestartIndex(i);
-                break;
-            }
-            int count = inStream.read(invBytes);
-            if (count < 36)
-                throw new EOFException("End-of-data while processing 'getdata' message");
-            int invType = (int)Utils.readUint32LE(invBytes, 0);
-            Sha256Hash hash = new Sha256Hash(Utils.reverseBytes(invBytes, 4, 32));
-            if (invType == Parameters.INV_TX) {
-                //
-                // Send a transaction from the transaction memory pool.  We won't send more
-                // than 500 transactions for a single 'getdata' request
-                //
-                if (txSent < 500) {
-                    StoredTransaction tx;
-                    synchronized(Parameters.lock) {
-                        tx = Parameters.txMap.get(hash);
-                    }
-                    if (tx != null) {
-                        txSent++;
-                        ByteBuffer buffer = MessageHeader.buildMessage("tx", tx.getBytes());
-                        Message txMsg = new Message(buffer, peer, MessageHeader.TX_CMD);
-                        Parameters.networkListener.sendMessage(txMsg);
-                        synchronized(Parameters.lock) {
-                            Parameters.txSent++;
-                        }
-                    } else {
-                        notFound.add(Arrays.copyOf(invBytes, 36));
-                    }
-                } else {
-                    notFound.add(Arrays.copyOf(invBytes, 36));
-                }
-            } else if (invType == Parameters.INV_BLOCK) {
-                //
-                // Send a block from the database or an archive file.  We will send the
-                // blocks in increments of 10 to avoid running out of storage.  If more
-                // then 10 blocks are requested, the request will be deferred until 10
-                // have been sent, then the request will resume with the next 10 blocks.
-                //
-                try {
-                    Block block = Parameters.blockStore.getBlock(hash);
-                    if (block != null) {
-                        blocksSent++;
-                        ByteBuffer buffer = MessageHeader.buildMessage("block", block.bitcoinSerialize());
-                        Message blockMsg = new Message(buffer, peer, MessageHeader.BLOCK_CMD);
-                        Parameters.networkListener.sendMessage(blockMsg);
-                        synchronized(Parameters.lock) {
-                            Parameters.blocksSent++;
-                        }
-                    } else {
-                        notFound.add(Arrays.copyOf(invBytes, 36));
-                    }
-                } catch (BlockStoreException exc) {
-                    notFound.add(Arrays.copyOf(invBytes, 36));
-                }
-            } else if (invType == Parameters.INV_FILTERED_BLOCK) {
-                //
-                // Send a filtered block if the peer has loaded a Bloom filter
-                //
-                BloomFilter filter = peer.getBloomFilter();
-                if (filter == null)
-                    continue;
-                //
-                // Get the block from the database and return not found if we don't have it
-                //
-                Block block;
-                try {
-                    block = Parameters.blockStore.getBlock(hash);
-                } catch (BlockStoreException exc) {
-                    block = null;
-                }
-                if (block == null) {
-                    //
-                    // Change the inventory type to INV_BLOCK so the client doesn't choke
-                    // on the 'notfound' message
-                    //
-                    Utils.uint32ToByteArrayLE(Parameters.INV_BLOCK, invBytes, 0);
-                    notFound.add(Arrays.copyOf(invBytes, 36));
-                    continue;
-                }
-                //
-                // Find any matching transactions in the block
-                //
-                List<Sha256Hash> matches = filter.findMatches(block);
-                //
-                // Send a 'merkleblock' message followed by 'tx' messages for the matches
-                //
-                sendMatchedTransactions(peer, block, matches);
-            } else {
-                //
-                // Unrecognized message type
-                //
-                notFound.add(Arrays.copyOf(invBytes, 36));
-            }
-        }
-        //
-        // Create a 'notfound' response if we didn't find all of the requested items
-        //
-        if (!notFound.isEmpty()) {
-            varCount = notFound.size();
-            byte[] varBytes = VarInt.encode(varCount);
-            byte[] msgData = new byte[varCount*36+varBytes.length];
-            System.arraycopy(varBytes, 0, msgData, 0, varBytes.length);
-            int offset = varBytes.length;
-            for (byte[] invItem : notFound) {
-                System.arraycopy(invItem, 0, msgData, offset, 36);
-                offset += 36;
-            }
-            ByteBuffer buffer = MessageHeader.buildMessage("notfound", msgData);
-            msg.setBuffer(buffer);
-            msg.setCommand(MessageHeader.NOTFOUND_CMD);
         }
     }
 
-//**********************************************
-// GetHeaders message
+    /**
+     * Process a request for the latest headers
+     *
+     * <p>This method is called when a 'getheaders' message is received.  The application should
+     * use the locator block list to find the latest common block and then send a 'headers'
+     * message to the peer for the blocks following the common block.</p>
+     *
+     * @param       msg             Message
+     * @param       version         Negotiated version
+     * @param       blockList       Locator block list
+     * @param       stopBlock       Stop block (Sha256Hash.ZERO_HASH if all blocks should be sent)
+     */
+    @Override
+    public void processGetHeaders(Message msg, int version, List<Sha256Hash> blockList, Sha256Hash stopBlock) {
         //
         // Check each locator until we find one that is on the main chain
         //
         try {
             boolean foundJunction = false;
-            Sha256Hash blockHash = null;
-            inStream.mark(0);
-            for (int i=0; i<varCount; i++) {
-                count = inStream.read(bytes, 0, 32);
-                if (count < 32)
-                    throw new EOFException("End-of-data processing 'getheaders' message");
-                blockHash = new Sha256Hash(Utils.reverseBytes(bytes));
+            Sha256Hash startBlock = null;
+            for (Sha256Hash blockHash : blockList) {
                 if (Parameters.blockStore.isOnChain(blockHash)) {
                     foundJunction = true;
+                    startBlock = blockHash;
                     break;
                 }
             }
@@ -396,112 +613,91 @@ public class NetworkMessageListener {
             // We go back to the genesis block if none of the supplied locators are on the main chain
             //
             if (!foundJunction)
-                blockHash = new Sha256Hash(Parameters.GENESIS_BLOCK_HASH);
-            //
-            // Get the stop block
-            //
-            inStream.reset();
-            inStream.skip(varCount*32);
-            count = inStream.read(bytes, 0, 32);
-            if (count < 32)
-                throw new EOFException("End-of-data processing 'getheaders' message");
-            Sha256Hash stopHash = new Sha256Hash(bytes);
+                startBlock = new Sha256Hash(Parameters.GENESIS_BLOCK_HASH);
             //
             // Get the chain list
             //
-            List<byte[]> chainList = Parameters.blockStore.getHeaderList(blockHash, stopHash);
+            List<BlockHeader> chainList = Parameters.blockStore.getHeaderList(startBlock, stopBlock);
             //
             // Build the 'headers' response
             //
-            Message hdrMsg = HeadersMessage.buildHeadersMessage(peer, chainList);
-            msg.setBuffer(hdrMsg.getBuffer());
-            msg.setCommand(MessageHeader.HEADERS_CMD);
+            Message hdrMsg = HeadersMessage.buildHeadersMessage(msg.getPeer(), chainList);
+            Parameters.networkHandler.sendMessage(hdrMsg);
         } catch (BlockStoreException exc) {
-            //
             // Can't access the database, so just ignore the 'getheaders' request
-            //
         }
-        //********************************************************************************
-        // Process INV message
+    }
+
+    /**
+     * Process a ping
+     *
+     * <p>This method is called when a 'ping' message is received.  The application should
+     * return a 'pong' message to the sender.  This method will not be called if the sender
+     * has not implemented BIP0031.</p>
+     *
+     * @param       msg             Message
+     * @param       nonce           Nonce
+     */
+    @Override
+    public void processPing(Message msg, long nonce) {
         //
-        // Process the inventory vectors
+        // Send the 'pong' response
         //
-        for (int i=0; i<invCount; i++) {
-            int count = inStream.read(bytes);
-            if (count < 36)
-                throw new EOFException("End-of-data processing 'inv' message");
-            int type = (int)Utils.readUint32LE(bytes, 0);
-            Sha256Hash hash = new Sha256Hash(Utils.reverseBytes(bytes, 4, 32));
-            PeerRequest request = new PeerRequest(hash, type, peer);
-            if (type == Parameters.INV_TX) {
-                //
-                // Ignore large transaction broadcasts (bad clients are sending large
-                // inventory lists with unknown transactions over and over again)
-                //
-                if (invCount > 100)
-                    throw new VerificationException("More than 100 tx entries in 'inv' message",
-                                                    Parameters.REJECT_INVALID);
-                //
-                // Ignore known bad transactions
-                //
-                if (badTransactions.contains(hash))
-                    continue;
-                //
-                // Skip the transaction if we have already seen it
-                //
-                boolean newTx = false;
-                synchronized(Parameters.lock) {
-                    if (Parameters.recentTxMap.get(hash) == null)
-                        newTx = true;
-                }
-                if (!newTx)
-                    continue;
-                //
-                // Ignore transactions if we are down-level since they will be orphaned
-                // until we catch up to the rest of the network
-                //
-                if (Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight-100)
-                    continue;
-                //
-                // Request the transaction if it is not in the transaction memory pool
-                // and has not been requested.  We add the request at the front of the
-                // queue so it does not get stuck behind pending block requests.
-                //
-                try {
-                    if (Parameters.blockStore.isNewTransaction(hash)) {
-                        synchronized(Parameters.lock) {
-                            if (Parameters.recentTxMap.get(hash) == null &&
-                                                !Parameters.pendingRequests.contains(request) &&
-                                                !Parameters.processedRequests.contains(request)) {
-                                Parameters.pendingRequests.add(0, request);
-                            }
-                        }
-                    }
-                } catch (BlockStoreException exc) {
-                    // Unable to check database - wait for another inventory broadcast
-                }
-            } else if (type == Parameters.INV_BLOCK) {
-                //
-                // Request the block if it is not in the database and has not been requested.
-                // Block requests are added to the end of the queue so that we don't hold
-                // up transaction requests while we update the block chain.
-                //
-                try {
-                    if (Parameters.blockStore.isNewBlock(hash)) {
-                        synchronized(Parameters.lock) {
-                            if (!Parameters.pendingRequests.contains(request) &&
-                                            !Parameters.processedRequests.contains(request)) {
-                                Parameters.pendingRequests.add(request);
-                            }
-                        }
-                    }
-                } catch (BlockStoreException exc) {
-                    // Unable to check database - wait for another inventory broadcast
-                }
-            }
-        }
-//******************************************************************************
-// Process a transaction
+        Message pongMsg = PongMessage.buildPongMessage(msg.getPeer(), nonce);
+        Parameters.networkHandler.sendMessage(pongMsg);
+    }
+
+    /**
+     * Process a pong
+     *
+     * <p>This method is called when a 'pong' message is received.</p>
+     *
+     * @param       msg             Message
+     * @param       nonce           Nonce
+     */
+    @Override
+    public void processPong(Message msg, long nonce) {
+        msg.getPeer().setPing(false);
+        log.info(String.format("'pong' response received from %s", msg.getPeer().getAddress().toString()));
+    }
+
+    /**
+     * Process a message rejection
+     *
+     * <p>This method is called when a 'reject' message is received.</p>
+     *
+     * @param       msg             Message
+     * @param       cmd             Failing message command
+     * @param       reasonCode      Failure reason code
+     * @param       description     Description of the failure
+     * @param       hash            Item hash or Sha256Hash.ZERO_HASH
+     */
+    @Override
+    public void processReject(Message msg, String cmd, int reasonCode, String description, Sha256Hash hash) {
+        //
+        // Log the message
+        //
+        String reason = RejectMessage.reasonCodes.get(reasonCode);
+        if (reason == null)
+            reason = Integer.toString(reasonCode, 16);
+        log.error(String.format("Message rejected by %s\n  Command %s, Reason %s - %s\n  %s",
+                                msg.getPeer().getAddress().toString(), cmd, reason, description,
+                                hash.toString()));
+    }
+
+    /**
+     * Process a transaction
+     *
+     * <p>This method is called when a 'tx' message is received.</p>
+     *
+     * @param       msg             Message
+     * @param       tx              Transaction
+     */
+    @Override
+    public void processTransaction(Message msg, Transaction tx) {
+        Peer peer = msg.getPeer();
+        Sha256Hash txHash = tx.getHash();
+        int reasonCode = 0;
         //
         // Remove the request from the processedRequests list
         //
@@ -509,7 +705,7 @@ public class NetworkMessageListener {
             Iterator<PeerRequest> it = Parameters.processedRequests.iterator();
             while (it.hasNext()) {
                 PeerRequest request = it.next();
-                if (request.getType()==Parameters.INV_TX && request.getHash().equals(txHash)) {
+                if (request.getType()==InventoryItem.INV_TX && request.getHash().equals(txHash)) {
                     it.remove();
                     break;
                 }
@@ -530,155 +726,169 @@ public class NetworkMessageListener {
         }
         if (duplicateTx)
             return;
-        //
-        // Don't relay the transaction if the version is not 1 (BIP0034)
-        //
-        if (tx.getVersion() != 1)
-            throw new VerificationException(String.format("Transaction version %d is not valid", tx.getVersion()),
-                                            Parameters.REJECT_NONSTANDARD, txHash);
-        //
-        // Verify the transaction
-        //
-        tx.verify(true);
-        //
-        // Coinbase transaction cannot be relayed
-        //
-        if (tx.isCoinBase())
-            throw new VerificationException("Coinbase transaction cannot be relayed",
-                                            Parameters.REJECT_INVALID, txHash);
-        //
-        // Validate the transaction
-        //
-        if (!validateTx(tx))
-            return;
-        //
-        // Broadcast the transaction to our peers
-        //
-        broadcastTx(tx);
-        //
-        // Process orphan transactions that were waiting on this transaction
-        //
-        List<StoredTransaction> orphanTxList;
-        synchronized(Parameters.lock) {
-            orphanTxList = Parameters.orphanTxMap.remove(txHash);
+        try {
+            //
+            // Don't relay the transaction if the version is not 1 (BIP0034)
+            //
+            if (tx.getVersion() != 1)
+                throw new VerificationException(String.format("Transaction version %d is not valid",
+                                                tx.getVersion()),
+                                                RejectMessage.REJECT_NONSTANDARD, txHash);
+            //
+            // Verify the transaction
+            //
+            tx.verify(true);
+            //
+            // Coinbase transactions cannot be relayed
+            //
+            if (tx.isCoinBase())
+                throw new VerificationException("Coinbase transaction cannot be relayed",
+                                                RejectMessage.REJECT_INVALID, txHash);
+            //
+            // Validate the transaction
+            //
+            if (!validateTx(tx))
+                return;
+            //
+            // Broadcast the transaction to our peers
+            //
+            broadcastTx(tx);
+            //
+            // Process orphan transactions that were waiting on this transaction
+            //
+            List<StoredTransaction> orphanTxList;
+            synchronized(Parameters.lock) {
+                orphanTxList = Parameters.orphanTxMap.remove(txHash);
+                if (orphanTxList != null)
+                    orphanTxList.stream().forEach((orphanTx) -> Parameters.orphanTxList.remove(orphanTx));
+            }
             if (orphanTxList != null) {
-                orphanTxList.stream().forEach((orphanStoredTx) -> {
-                    Parameters.orphanTxList.remove(orphanStoredTx);
-                });
+                for (StoredTransaction orphanStoredTx : orphanTxList) {
+                    Transaction orphanTx = orphanStoredTx.getTransaction();
+                    if (validateTx(orphanTx))
+                        broadcastTx(orphanTx);
+                }
             }
-        }
-        if (orphanTxList != null) {
-            for (StoredTransaction orphanStoredTx : orphanTxList) {
-                Transaction orphanTx = orphanStoredTx.getTransaction();
-                if (validateTx(orphanTx))
-                    broadcastTx(orphanTx);
+            //
+            // Purge transactions from the memory pool after 15 minutes.  We will limit the
+            // transaction lists to 5000 entries each.
+            //
+            synchronized(Parameters.lock) {
+                long oldestTime = System.currentTimeMillis()/1000 - (15*60);
+                // Clean up the transaction pool
+                while (!Parameters.txPool.isEmpty()) {
+                    StoredTransaction poolTx = Parameters.txPool.get(0);
+                    if (poolTx.getTimeStamp()>=oldestTime && Parameters.txPool.size()<=5000)
+                        break;
+                    Parameters.txPool.remove(0);
+                    Parameters.txMap.remove(poolTx.getHash());
+                }
+                // Clean up the recent transaction list
+                while (Parameters.recentTxList.size() > 5000) {
+                    Sha256Hash poolHash = Parameters.recentTxList.remove(0);
+                    Parameters.recentTxMap.remove(poolHash);
+                }
+                // Clean up the spent outputs list
+                while (Parameters.spentOutputsList.size() > 5000) {
+                    OutPoint outPoint = Parameters.spentOutputsList.remove(0);
+                    Parameters.spentOutputsMap.remove(outPoint);
+                }
+                // Clean up the orphan transactions list
+                while (Parameters.orphanTxList.size() > 1000) {
+                    StoredTransaction poolTx = Parameters.orphanTxList.remove(0);
+                    Parameters.orphanTxMap.remove(poolTx.getParent());
+                }
+            }
+        } catch (EOFException exc) {
+            log.error(String.format("End-of-data while processing 'tx' message from %s",
+                                    peer.getAddress().toString()));
+            reasonCode = RejectMessage.REJECT_MALFORMED;
+            Parameters.txRejected++;
+            if (peer.getVersion() >= 70002) {
+                Message rejectMsg = RejectMessage.buildRejectMessage(peer, "tx", reasonCode, exc.getMessage());
+                Parameters.networkHandler.sendMessage(rejectMsg);
+            }
+        } catch (VerificationException exc) {
+            log.error(String.format("Message verification failed for 'tx' message from %s\n  %s\n  %s",
+                                    peer.getAddress().toString(), exc.getMessage(), exc.getHash().toString()));
+            reasonCode = exc.getReason();
+            Parameters.txRejected++;
+            if (peer.getVersion() >= 70002) {
+                Message rejectMsg = RejectMessage.buildRejectMessage(peer, "tx", reasonCode,
+                                                                     exc.getMessage(), exc.getHash());
+                Parameters.networkHandler.sendMessage(rejectMsg);
             }
         }
         //
-        // Purge transactions from the memory pool after 15 minutes.  We will limit the
-        // transaction lists to 5000 entries each.
+        // Increment the banscore for the peer if this is an invalid and malformed transaction
         //
         synchronized(Parameters.lock) {
-            long oldestTime = System.currentTimeMillis()/1000 - (15*60);
-            // Clean up the transaction pool
-            while (!Parameters.txPool.isEmpty()) {
-                StoredTransaction poolTx = Parameters.txPool.get(0);
-                if (poolTx.getTimeStamp()>=oldestTime && Parameters.txPool.size()<=5000)
-                    break;
-                Parameters.txPool.remove(0);
-                Parameters.txMap.remove(poolTx.getHash());
-            }
-            // Clean up the recent transaction list
-            while (Parameters.recentTxList.size() > 5000) {
-                Sha256Hash poolHash = Parameters.recentTxList.remove(0);
-                Parameters.recentTxMap.remove(poolHash);
-            }
-            // Clean up the spent outputs list
-            while (Parameters.spentOutputsList.size() > 5000) {
-                OutPoint outPoint = Parameters.spentOutputsList.remove(0);
-                Parameters.spentOutputsMap.remove(outPoint);
-            }
-            // Clean up the orphan transactions list
-            while (Parameters.orphanTxList.size() > 1000) {
-                StoredTransaction poolTx = Parameters.orphanTxList.remove(0);
-                Parameters.orphanTxMap.remove(poolTx.getParent());
+            if (reasonCode == RejectMessage.REJECT_MALFORMED || reasonCode == RejectMessage.REJECT_INVALID) {
+                int banScore = peer.getBanScore() + 5;
+                peer.setBanScore(banScore);
+                if (banScore >= Parameters.MAX_BAN_SCORE)
+                    peer.setDisconnect(true);
             }
         }
     }
-/****************************************
- * mempool message
- *         //
-        // Get the list of transaction identifiers in the memory pool (return a maximum
-        // of MAX_INV_ENTRIES)
-        //
-        List<Sha256Hash> txList;
-        synchronized(Parameters.lock) {
-            txList = new ArrayList<>(Parameters.txPool.size());
-            for (StoredTransaction tx : Parameters.txPool) {
-                txList.add(tx.getHash());
-                if (txList.size() == InventoryMessage.MAX_INV_ENTRIES)
-                    break;
-            }
-        }
-        //
-        // Build the 'inv' message
-        //
-        Message invMsg = InventoryMessage.buildInventoryMessage(msg.getPeer(), Parameters.INV_TX, txList);
-        msg.setBuffer(invMsg.getBuffer());
-        msg.setCommand(invMsg.getCommand());
-    }
- */
-/***********************
- * ping message received
- *                                         throws EOFException, IOException {
-        //
-        // BIP0031 adds the 'pong' message and requires an 8-byte nonce in the 'ping'
-        // message.  If we receive a 'ping' without a payload, we do not return a
-        // 'pong' since the client has not implemented BIP0031.
-        //
-        if (inStream.available() < 8)
-            return;
-        byte[] bytes = new byte[8];
-        inStream.read(bytes);
-        //
-        // Build the 'pong' response
-        //
-        ByteBuffer buffer = MessageHeader.buildMessage("pong", bytes);
-        msg.setBuffer(buffer);
-        msg.setCommand(MessageHeader.PONG_CMD);
- */
-/***************************************
- * reject message received
- *
- *         //
-        // Log the message
-        //
-        log.error(String.format("Message rejected by %s\n  Command %s, Reason %s - %s\n  %s",
-                                msg.getPeer().getAddress().toString(), cmd, reason, desc,
-                                hash!=null ? Utils.bytesToHexString(hash) : "N/A"));
- */
-}
 
     /**
-     * Sends a 'merkleblock' message followed by 'tx' messages for the matched transaction
+     * Process a version message
+     *
+     * <p>This method is called when a 'version' message is received.  The application
+     * should return a 'verack' message to the sender if the connection is accepted.</p>
+     *
+     * @param       msg             Message
+     * @param       localAddress    Local address as seen by the peer
+     */
+    @Override
+    public void processVersion(Message msg, PeerAddress localAddress) {
+        Peer peer = msg.getPeer();
+        peer.incVersionCount();
+        log.info(String.format("Peer %s: Protocol level %d, Services %d, Agent %s, Height %d, "+
+                               "Relay blocks %s, Relay tx %s",
+                               peer.getAddress().toString(), peer.getVersion(), peer.getServices(),
+                               peer.getUserAgent(), peer.getHeight(),
+                               peer.shouldRelayBlocks()?"Yes":"No",
+                               peer.shouldRelayTx()?"Yes":"No"));
+        Message ackMsg = VersionAckMessage.buildVersionAckMessage(peer);
+        Parameters.networkHandler.sendMessage(ackMsg);
+        //
+        // Set our local address from the Version message if it hasn't been set yet
+        //
+        if (Parameters.listenAddress == null)
+            Parameters.listenAddress = localAddress;
+    }
+
+    /**
+     * Process a version acknowledgment
+     *
+     * <p>This method is called when a 'verack' message is received.</p>
+     *
+     * @param       msg             Message
+     */
+    @Override
+    public void processVersionAck(Message msg) {
+        msg.getPeer().incVersionCount();
+    }
+
+    /**
+     * Sends a 'merkleblock' message followed by 'tx' messages for the matched transactions
      *
      * @param       peer            Destination peer
      * @param       block           Block containing the transactions
      * @param       matches         List of matching transactions
-     * @throws      IOException     Error creating serialized data stream
      */
-    public static void sendMatchedTransactions(Peer peer, Block block, List<Sha256Hash> matches)
-                                    throws IOException {
+    public void sendMatchedTransactions(Peer peer, Block block, List<Sha256Hash> matches) {
         //
         // Build the index list for the matching transactions
         //
         List<Integer> txIndexes;
-        List<Transaction> txList = null;
+        List<Transaction> txList = block.getTransactions();
         if (matches.isEmpty()) {
             txIndexes = new ArrayList<>();
         } else {
             txIndexes = new ArrayList<>(matches.size());
-            txList = block.getTransactions();
             int index = 0;
             for (Transaction tx : txList) {
                 if (matches.contains(tx.getHash()))
@@ -690,23 +900,21 @@ public class NetworkMessageListener {
         // Build and send the 'merkleblock' message
         //
         Message blockMsg = MerkleBlockMessage.buildMerkleBlockMessage(peer, block, txIndexes);
-        Parameters.networkListener.sendMessage(blockMsg);
+        Parameters.networkHandler.sendMessage(blockMsg);
         synchronized(Parameters.lock) {
             Parameters.filteredBlocksSent++;
         }
         //
-        // Send 'tx' messages for each matching transaction
+        // Send a 'tx' message for each matching transaction
         //
-        for (Integer txIndex : txIndexes) {
-            Transaction tx = txList.get(txIndex.intValue());
-            byte[] txData = tx.getBytes();
-            ByteBuffer buffer = MessageHeader.buildMessage("tx", txData);
-            Message txMsg = new Message(buffer, peer, MessageHeader.TX_CMD);
-            Parameters.networkListener.sendMessage(txMsg);
+        txIndexes.stream().forEach((txIndex) -> {
+            Transaction tx = txList.get(txIndex);
+            Message txMsg = TransactionMessage.buildTransactionMessage(peer, tx);
+            Parameters.networkHandler.sendMessage(txMsg);
             synchronized(Parameters.lock) {
                 Parameters.txSent++;
             }
-        }
+        });
     }
 
     /**
@@ -714,7 +922,7 @@ public class NetworkMessageListener {
      *
      * @param       tx                      Transaction
      */
-    public static void retryOrphanTransaction(Transaction tx) {
+    public void retryOrphanTransaction(Transaction tx) {
         try {
             if (validateTx(tx))
                 broadcastTx(tx);
@@ -731,7 +939,7 @@ public class NetworkMessageListener {
      * @throws      EOFException            End-of-data processing script
      * @throws      VerificationException   Transaction validation failed
      */
-    private static boolean validateTx(Transaction tx) throws EOFException, VerificationException {
+    private boolean validateTx(Transaction tx) throws EOFException, VerificationException {
         Sha256Hash txHash = tx.getHash();
         BigInteger totalInput = BigInteger.ZERO;
         BigInteger totalOutput = BigInteger.ZERO;
@@ -747,7 +955,7 @@ public class NetworkMessageListener {
                                         BigInteger.valueOf(3*(output.getScriptBytes().length+9+148)));
             if (chkValue.compareTo(Parameters.MIN_TX_RELAY_FEE) < 0)
                 throw new VerificationException("Dust transactions are not relayed",
-                                                Parameters.REJECT_DUST, tx.getHash());
+                                                RejectMessage.REJECT_DUST, tx.getHash());
             // Non-standard payment types are not relayed
             int paymentType = Script.getPaymentType(output.getScriptBytes());
             if (paymentType != ScriptOpCodes.PAY_TO_PUBKEY_HASH &&
@@ -757,7 +965,7 @@ public class NetworkMessageListener {
                                     paymentType != ScriptOpCodes.PAY_TO_NOBODY) {
                 Main.dumpData("Failing Script", output.getScriptBytes());
                 throw new VerificationException("Non-standard payment types are not relayed",
-                                                Parameters.REJECT_NONSTANDARD, txHash);
+                                                RejectMessage.REJECT_NONSTANDARD, txHash);
             }
             // Add the output value to the total output value for the transaction
             totalOutput = totalOutput.add(output.getValue());
@@ -774,7 +982,7 @@ public class NetworkMessageListener {
             // Script size must not exceed 500 bytes
             if (input.getScriptBytes().length > 500)
                 throw new VerificationException("Input script size greater than 500 bytes",
-                                                Parameters.REJECT_NONSTANDARD, txHash);
+                                                RejectMessage.REJECT_NONSTANDARD, txHash);
             // Connected output must not be spent
             OutPoint outPoint = input.getOutPoint();
             StoredOutput output = null;
@@ -803,8 +1011,9 @@ public class NetworkMessageListener {
                     }
                     if (output == null)
                         throw new VerificationException(String.format(
-                                "Transaction references non-existent output\n  %s", txHash.toString()),
-                                Parameters.REJECT_INVALID, txHash);
+                                                        "Transaction references non-existent output\n  %s",
+                                                        txHash.toString()),
+                                                        RejectMessage.REJECT_INVALID, txHash);
                 } else {
                     // Transaction is not in the memory pool, check the database
                     try {
@@ -832,7 +1041,7 @@ public class NetworkMessageListener {
                 break;
             // Error if the output has been spent
             if (outputSpent)
-                throw new VerificationException("Input already spent", Parameters.REJECT_DUPLICATE, txHash);
+                throw new VerificationException("Input already spent", RejectMessage.REJECT_DUPLICATE, txHash);
             // Check for immature coinbase transaction
             if (output.isCoinBase()) {
                 try {
@@ -840,7 +1049,7 @@ public class NetworkMessageListener {
                     txDepth += Parameters.networkChainHeight - Parameters.blockStore.getChainHeight();
                     if (txDepth < Parameters.COINBASE_MATURITY)
                         throw new VerificationException("Spending immature coinbase output",
-                                                        Parameters.REJECT_INVALID, txHash);
+                                                        RejectMessage.REJECT_INVALID, txHash);
                 } catch (BlockStoreException exc) {
                     // Can't check transaction depth - let it go
                 }
@@ -873,10 +1082,10 @@ public class NetworkMessageListener {
             }
             if (canonicalType == 1)
                 throw new VerificationException(String.format("Non-canonical signature",
-                                                txHash.toString()), Parameters.REJECT_NONSTANDARD, txHash);
+                                                txHash.toString()), RejectMessage.REJECT_NONSTANDARD, txHash);
             if (canonicalType == 2)
                 throw new VerificationException(String.format("Non-canonical public key",
-                                                txHash.toString()), Parameters.REJECT_NONSTANDARD, txHash);
+                                                txHash.toString()), RejectMessage.REJECT_NONSTANDARD, txHash);
             // Add the output to the spent outputs list
             spentOutputs.add(outPoint);
         }
@@ -910,14 +1119,14 @@ public class NetworkMessageListener {
         BigInteger totalFee = totalInput.subtract(totalOutput);
         if (totalFee.signum() < 0)
             throw new VerificationException("Transaction output value exceeds transaction input value",
-                                            Parameters.REJECT_INVALID, txHash);
+                                            RejectMessage.REJECT_INVALID, txHash);
         int txLength = tx.getBytes().length;
         int feeMultiplier = txLength/1000;
         if (txLength > Parameters.MAX_FREE_TX_SIZE) {
             BigInteger minFee = Parameters.MIN_TX_RELAY_FEE.multiply(BigInteger.valueOf(feeMultiplier+1));
             if (totalFee.compareTo(minFee) < 0)
                 throw new VerificationException("Insufficient transaction fee",
-                                                Parameters.REJECT_INSUFFICIENT_FEE, txHash);
+                                                RejectMessage.REJECT_INSUFFICIENT_FEE, txHash);
         }
         //
         // Store the transaction in the memory pool (maximum size we will store is 50KB)
@@ -929,10 +1138,10 @@ public class NetworkMessageListener {
                     Parameters.txPool.add(storedTx);
                     Parameters.txMap.put(txHash, storedTx);
                     Parameters.txReceived++;
-                    for (OutPoint outPoint : spentOutputs) {
+                    spentOutputs.stream().forEach((outPoint) -> {
                         Parameters.spentOutputsList.add(outPoint);
                         Parameters.spentOutputsMap.put(outPoint, txHash);
-                    }
+                    });
                 }
             }
         }
@@ -940,30 +1149,29 @@ public class NetworkMessageListener {
     }
 
     /**
-     * Broadcasts the transaction
+     * Broadcast the transaction
      *
      * @param       tx                  Transaction
      * @throws      EOFException        End-of-data processing script
      */
-    private static void broadcastTx(Transaction tx) throws EOFException {
+    private void broadcastTx(Transaction tx) throws EOFException {
         Sha256Hash txHash = tx.getHash();
         //
-        // Send an 'inv' message to the broadcast peers
+        // Send an 'inv' message to the broadcast peers (full nodes)
         //
-        List<Sha256Hash> txList = new ArrayList<>(1);
-        txList.add(txHash);
-        Message invMsg = InventoryMessage.buildInventoryMessage(null, Parameters.INV_TX, txList);
-        Parameters.networkListener.broadcastMessage(invMsg);
+        List<InventoryItem> invList = new ArrayList<>(1);
+        invList.add(new InventoryItem(InventoryItem.INV_TX, txHash));
+        Message invMsg = InventoryMessage.buildInventoryMessage(null, invList);
+        Parameters.networkHandler.broadcastMessage(invMsg);
         //
         // Copy the current list of Bloom filters
         //
         List<BloomFilter> filters;
         synchronized(Parameters.lock) {
-            filters = new ArrayList<>(Parameters.bloomFilters.size());
-            filters.addAll(Parameters.bloomFilters);
+            filters = new ArrayList<>(Parameters.bloomFilters);
         }
         //
-        // Check each filter for a match
+        // Check each filter for a match and notify the SPV peer
         //
         for (BloomFilter filter : filters) {
             Peer peer = filter.getPeer();
@@ -980,8 +1188,8 @@ public class NetworkMessageListener {
             // Check the transaction against the filter and send an 'inv' message if it is a match
             //
             if (filter.checkTransaction(tx)) {
-                invMsg = InventoryMessage.buildInventoryMessage(peer, Parameters.INV_TX, txList);
-                Parameters.networkListener.sendMessage(invMsg);
+                invMsg = InventoryMessage.buildInventoryMessage(peer, invList);
+                Parameters.networkHandler.sendMessage(invMsg);
             }
         }
     }

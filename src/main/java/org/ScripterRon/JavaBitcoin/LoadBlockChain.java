@@ -17,6 +17,7 @@ package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import org.ScripterRon.BitcoinCore.Block;
+import org.ScripterRon.BitcoinCore.NetParams;
 import org.ScripterRon.BitcoinCore.Utils;
 import org.ScripterRon.BitcoinCore.VerificationException;
 
@@ -66,7 +67,7 @@ public class LoadBlockChain {
             // value.  The next 4 bytes contain the block length in little-endian format.
             //
             byte[] numBuffer = new byte[8];
-            byte[] blockBuffer = new byte[Parameters.MAX_BLOCK_SIZE];
+            byte[] blockBuffer = new byte[NetParams.MAX_BLOCK_SIZE];
             for (File inFile : fileList) {
                 fileName = inFile.getName();
                 log.info(String.format("Processing block data file %s", fileName));
@@ -83,7 +84,7 @@ public class LoadBlockChain {
                         long length = Utils.readUint32LE(numBuffer, 4);
                         if (magic == 0)
                             break;
-                        if (magic != Parameters.MAGIC_NUMBER) {
+                        if (magic != NetParams.MAGIC_NUMBER) {
                             log.error(String.format("Block magic number %X is incorrect", magic));
                             throw new IOException("Incorrect file format");
                         }

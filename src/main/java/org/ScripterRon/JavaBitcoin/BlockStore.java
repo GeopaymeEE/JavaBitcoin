@@ -19,6 +19,8 @@ import static org.ScripterRon.JavaBitcoin.Main.log;
 import org.ScripterRon.BitcoinCore.Alert;
 import org.ScripterRon.BitcoinCore.Block;
 import org.ScripterRon.BitcoinCore.BlockHeader;
+import org.ScripterRon.BitcoinCore.InventoryItem;
+import org.ScripterRon.BitcoinCore.NetParams;
 import org.ScripterRon.BitcoinCore.OutPoint;
 import org.ScripterRon.BitcoinCore.Sha256Hash;
 import org.ScripterRon.BitcoinCore.Utils;
@@ -308,11 +310,11 @@ public abstract class BlockStore {
      *
      * @param       startBlock              The start block
      * @param       stopBlock               The stop block
-     * @return                              Block hash list
+     * @return                              Block inventory list
      * @throws      BlockStoreException     Unable to get blocks from database
      */
-    public abstract List<Sha256Hash> getChainList(Sha256Hash startBlock, Sha256Hash stopBlock)
-                                        throws BlockStoreException;
+    public abstract List<InventoryItem> getChainList(Sha256Hash startBlock, Sha256Hash stopBlock)
+                                            throws BlockStoreException;
 
     /**
      * Returns the chain list from the block following the start block up to the stop
@@ -320,25 +322,24 @@ public abstract class BlockStore {
      *
      * @param       startHeight             Start block height
      * @param       stopBlock               Stop block
-     * @return                              Block hash list
+     * @return                              Block inventory list
      * @throws      BlockStoreException     Unable to get blocks from database
      */
-    public abstract List<Sha256Hash> getChainList(int startHeight, Sha256Hash stopBlock)
-                                        throws BlockStoreException;
+    public abstract List<InventoryItem> getChainList(int startHeight, Sha256Hash stopBlock)
+                                            throws BlockStoreException;
 
     /**
      * Returns the header list from the block following the start block up to the stop
      * block.  A maximum of 2000 blocks will be returned.  The list will start with the
-     * genesis block if the start block is not found.  The returned header will include
-     * the block header plus the encoded transaction count.
+     * genesis block if the start block is not found.
      *
      * @param       startBlock              The start block
      * @param       stopBlock               The stop block
-     * @return                              Block header list (includes the transaction count)
+     * @return                              Block header list
      * @throws      BlockStoreException     Unable to get data from the database
      */
-    public abstract List<byte[]> getHeaderList(Sha256Hash startBlock, Sha256Hash stopBlock)
-                                        throws BlockStoreException;
+    public abstract List<BlockHeader> getHeaderList(Sha256Hash startBlock, Sha256Hash stopBlock)
+                                            throws BlockStoreException;
 
     /**
      * Releases a held block for processing
@@ -428,7 +429,7 @@ public abstract class BlockStore {
                 }
                 long magic = Utils.readUint32LE(bytes, 0);
                 int length = (int)Utils.readUint32LE(bytes, 4);
-                if (magic != Parameters.MAGIC_NUMBER) {
+                if (magic != NetParams.MAGIC_NUMBER) {
                     log.error(String.format("Magic number %X is incorrect in block file %d, offset %d",
                                             magic, fileNumber, fileOffset));
                     throw new BlockStoreException("Incorrect block file format");
@@ -480,7 +481,7 @@ public abstract class BlockStore {
             try (RandomAccessFile outFile = new RandomAccessFile(blockFile, "rws")) {
                 outFile.seek(filePosition);
                 byte[] bytes = new byte[8];
-                Utils.uint32ToByteArrayLE(Parameters.MAGIC_NUMBER, bytes, 0);
+                Utils.uint32ToByteArrayLE(NetParams.MAGIC_NUMBER, bytes, 0);
                 Utils.uint32ToByteArrayLE(blockData.length, bytes, 4);
                 outFile.write(bytes);
                 outFile.write(blockData);

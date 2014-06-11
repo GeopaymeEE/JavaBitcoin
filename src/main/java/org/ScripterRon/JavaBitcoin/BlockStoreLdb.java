@@ -19,7 +19,10 @@ import static org.ScripterRon.JavaBitcoin.Main.log;
 import org.ScripterRon.BitcoinCore.Alert;
 import org.ScripterRon.BitcoinCore.Block;
 import org.ScripterRon.BitcoinCore.BlockHeader;
+import org.ScripterRon.BitcoinCore.InventoryItem;
+import org.ScripterRon.BitcoinCore.NetParams;
 import org.ScripterRon.BitcoinCore.OutPoint;
+import org.ScripterRon.BitcoinCore.RejectMessage;
 import org.ScripterRon.BitcoinCore.SerializedBuffer;
 import org.ScripterRon.BitcoinCore.Sha256Hash;
 import org.ScripterRon.BitcoinCore.Transaction;
@@ -212,7 +215,7 @@ public class BlockStoreLdb extends BlockStore {
                     // Initialization complete
                     //
                     BigInteger networkDifficulty =
-                            Parameters.PROOF_OF_WORK_LIMIT.divide(Utils.decodeCompactBits(targetDifficulty));
+                            NetParams.PROOF_OF_WORK_LIMIT.divide(Utils.decodeCompactBits(targetDifficulty));
                     String displayDifficulty = Utils.numberToShortString(networkDifficulty);
                     log.info(String.format("Database initialized\n"+
                                            "  Chain height %d, Target difficulty %s, Block file number %d\n"+
@@ -240,7 +243,7 @@ public class BlockStoreLdb extends BlockStore {
                     prevChainHead = Sha256Hash.ZERO_HASH;
                     chainHeight = 0;
                     chainWork = BigInteger.ONE;
-                    targetDifficulty = Parameters.MAX_TARGET_DIFFICULTY;
+                    targetDifficulty = NetParams.MAX_TARGET_DIFFICULTY;
                     chainTime = genesisBlock.getTimeStamp();
                     blockFileNumber = 0;
                     //
@@ -690,15 +693,15 @@ public class BlockStoreLdb extends BlockStore {
      * block.  A maximum of 500 blocks will be returned.  The list will start with the
      * genesis block if the start block is not found.
      *
-     * @param       startBlock          The start block
-     * @param       stopBlock           The stop block
-     * @return                          Block hash list
-     * @throws      BlockStoreException Unable to get blocks from database
+     * @param       startBlock              The start block
+     * @param       stopBlock               The stop block
+     * @return                              Block inventory list
+     * @throws      BlockStoreException     Unable to get blocks from database
      */
     @Override
-    public List<Sha256Hash> getChainList(Sha256Hash startBlock, Sha256Hash stopBlock)
+    public List<InventoryItem> getChainList(Sha256Hash startBlock, Sha256Hash stopBlock)
                                         throws BlockStoreException {
-        List<Sha256Hash> chainList;
+        List<InventoryItem> chainList;
         try {
             int blockHeight = 0;
             byte[] blockData = dbBlocks.get(startBlock.getBytes());
@@ -719,15 +722,15 @@ public class BlockStoreLdb extends BlockStore {
      * Returns the chain list from the block following the start block up to the stop
      * block.  A maximum of 500 blocks will be returned.
      *
-     * @param       startHeight         Start block height
-     * @param       stopBlock           Stop block
-     * @return                          Block hash list
-     * @throws      BlockStoreException Unable to get blocks from database
+     * @param       startHeight             Start block height
+     * @param       stopBlock               Stop block
+     * @return                              Block inventory list
+     * @throws      BlockStoreException     Unable to get blocks from database
      */
     @Override
-    public List<Sha256Hash> getChainList(int startHeight, Sha256Hash stopBlock)
+    public List<InventoryItem> getChainList(int startHeight, Sha256Hash stopBlock)
                                         throws BlockStoreException {
-        List<Sha256Hash> chainList = new ArrayList<>(500);
+        List<InventoryItem> chainList = new ArrayList<>(500);
         synchronized(lock) {
             try {
                 try (DBIterator it = dbBlockChain.iterator()) {
@@ -735,7 +738,7 @@ public class BlockStoreLdb extends BlockStore {
                     while (it.hasNext()) {
                         Entry<byte[], byte[]> dbEntry = it.next();
                         Sha256Hash blockHash = new Sha256Hash(dbEntry.getValue());
-                        chainList.add(blockHash);
+                        chainList.add(new InventoryItem(InventoryItem.INV_BLOCK, blockHash));
                         if (blockHash.equals(stopBlock) || chainList.size() >= 500)
                             break;
                     }
@@ -755,13 +758,13 @@ public class BlockStoreLdb extends BlockStore {
      *
      * @param       startBlock          The start block
      * @param       stopBlock           The stop block
-     * @return                          Block header list (includes the transaction count)
+     * @return                          Block header list
      * @throws      BlockStoreException Unable to get data from the database
      */
     @Override
-    public List<byte[]> getHeaderList(Sha256Hash startBlock, Sha256Hash stopBlock)
+    public List<BlockHeader> getHeaderList(Sha256Hash startBlock, Sha256Hash stopBlock)
                                         throws BlockStoreException {
-        List<byte[]> headerList = new ArrayList<>(2000);
+        List<BlockHeader> headerList = new ArrayList<>(2000);
         synchronized(lock) {
             try {
                 //
@@ -798,19 +801,14 @@ public class BlockStoreLdb extends BlockStore {
                         int fileOffset = blockEntry.getFileOffset();
                         Block block = getBlock(fileNumber, fileOffset);
                         //
-                        // Build the header up to and including the transaction count
+                        // Add the block header to the list
                         //
-                        byte[] blockData = block.getBytes();
-                        int length = BlockHeader.HEADER_SIZE;
-                        length += VarInt.sizeOf(blockData, length);
-                        byte[] headerData = new byte[length];
-                        System.arraycopy(blockData, 0, headerData, 0, length);
-                        headerList.add(headerData);
+                        headerList.add(new BlockHeader(block.getBytes(), false));
                         if (blockHash.equals(stopBlock) || headerList.size() >= 2000)
                             break;
                     }
                 }
-            } catch (DBException | IOException exc) {
+            } catch (DBException | IOException | VerificationException exc) {
                 log.error("Unable to get data from the block chain", exc);
                 throw new BlockStoreException("Unable to get data from the block chain");
             }
@@ -1067,7 +1065,7 @@ public class BlockStoreLdb extends BlockStore {
                     log.error(String.format("New chain head at height %d does not match checkpoint",
                                             storedBlock.getHeight()));
                     throw new VerificationException("Checkpoint verification failed",
-                                                    Parameters.REJECT_CHECKPOINT, storedBlock.getHash());
+                                                    RejectMessage.REJECT_CHECKPOINT, storedBlock.getHash());
                 }
             }
         }
@@ -1209,7 +1207,7 @@ public class BlockStoreLdb extends BlockStore {
                                             storedBlock.getHeight(), block.getHashAsString(), txHash));
                                     throw new VerificationException(
                                             "Transaction outputs already in TxOutputs database",
-                                            Parameters.REJECT_DUPLICATE, txHash);
+                                            RejectMessage.REJECT_DUPLICATE, txHash);
                                 }
                             } else if (txOutput.isSpendable()) {
                                 txEntry = new TransactionEntry(blockHash, txOutput.getValue(),

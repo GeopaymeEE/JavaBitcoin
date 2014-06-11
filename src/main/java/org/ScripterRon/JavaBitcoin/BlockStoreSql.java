@@ -19,15 +19,18 @@ import static org.ScripterRon.JavaBitcoin.Main.log;
 import org.ScripterRon.BitcoinCore.Alert;
 import org.ScripterRon.BitcoinCore.Block;
 import org.ScripterRon.BitcoinCore.BlockHeader;
+import org.ScripterRon.BitcoinCore.InventoryItem;
+import org.ScripterRon.BitcoinCore.NetParams;
 import org.ScripterRon.BitcoinCore.OutPoint;
+import org.ScripterRon.BitcoinCore.RejectMessage;
 import org.ScripterRon.BitcoinCore.Sha256Hash;
 import org.ScripterRon.BitcoinCore.Transaction;
 import org.ScripterRon.BitcoinCore.TransactionInput;
 import org.ScripterRon.BitcoinCore.TransactionOutput;
 import org.ScripterRon.BitcoinCore.Utils;
-import org.ScripterRon.BitcoinCore.VarInt;
 import org.ScripterRon.BitcoinCore.VerificationException;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -39,7 +42,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -591,12 +593,12 @@ public class BlockStoreSql extends BlockStore {
      *
      * @param       startBlock              The start block
      * @param       stopBlock               The stop block
-     * @return                              Block hash list
+     * @return                              Block inventory list
      * @throws      BlockStoreException     Unable to get blocks from database
      */
     @Override
-    public List<Sha256Hash> getChainList(Sha256Hash startBlock, Sha256Hash stopBlock)
-                                        throws BlockStoreException {
+    public List<InventoryItem> getChainList(Sha256Hash startBlock, Sha256Hash stopBlock)
+                                            throws BlockStoreException {
         //
         // Get the block height for the start block
         //
@@ -624,13 +626,13 @@ public class BlockStoreSql extends BlockStore {
      *
      * @param       startHeight             Start block height
      * @param       stopBlock               Stop block
-     * @return                              Block hash list
+     * @return                              Block inventory list
      * @throws      BlockStoreException     Unable to get blocks from database
      */
     @Override
-    public List<Sha256Hash> getChainList(int startHeight, Sha256Hash stopBlock)
-                                        throws BlockStoreException {
-        List<Sha256Hash> chainList = new LinkedList<>();
+    public List<InventoryItem> getChainList(int startHeight, Sha256Hash stopBlock)
+                                            throws BlockStoreException {
+        List<InventoryItem> chainList = new LinkedList<>();
         //
         // Get the chain list starting at the block following the start block and continuing
         // for a maximum of 500 blocks.
@@ -643,7 +645,7 @@ public class BlockStoreSql extends BlockStore {
             ResultSet r = s.executeQuery();
             while (r.next()) {
                 Sha256Hash blockHash = new Sha256Hash(r.getBytes(1));
-                chainList.add(blockHash);
+                chainList.add(new InventoryItem(InventoryItem.INV_BLOCK, blockHash));
                 if (blockHash.equals(stopBlock))
                     break;
             }
@@ -657,18 +659,17 @@ public class BlockStoreSql extends BlockStore {
     /**
      * Returns the header list from the block following the start block up to the stop
      * block.  A maximum of 2000 blocks will be returned.  The list will start with the
-     * genesis block if the start block is not found.  The returned header will include
-     * the block header plus the encoded transaction count.
+     * genesis block if the start block is not found.
      *
      * @param       startBlock              The start block
      * @param       stopBlock               The stop block
-     * @return                              Block header list (includes the transaction count)
+     * @return                              Block header list
      * @throws      BlockStoreException     Unable to get data from the database
      */
     @Override
-    public List<byte[]> getHeaderList(Sha256Hash startBlock, Sha256Hash stopBlock)
+    public List<BlockHeader> getHeaderList(Sha256Hash startBlock, Sha256Hash stopBlock)
                                             throws BlockStoreException {
-        List<byte[]> headerList = new LinkedList<>();
+        List<BlockHeader> headerList = new LinkedList<>();
         //
         // Get the start block
         //
@@ -696,14 +697,10 @@ public class BlockStoreSql extends BlockStore {
                     int fileNumber = r.getInt(1);
                     int fileOffset = r.getInt(2);
                     Block block = getBlock(fileNumber, fileOffset);
-                    byte[] blockData = block.getBytes();
-                    int length = BlockHeader.HEADER_SIZE;
-                    length += VarInt.sizeOf(blockData, length);
-                    byte[] headerData = Arrays.copyOf(blockData, length);
-                    headerList.add(headerData);
+                    headerList.add(new BlockHeader(block.getBytes(), false));
                 }
             }
-        } catch (SQLException exc) {
+        } catch (EOFException | SQLException | VerificationException exc) {
             log.error("Unable to get header list", exc);
             throw new BlockStoreException("Unable to get header list");
         }
@@ -897,7 +894,7 @@ public class BlockStoreSql extends BlockStore {
                     log.error(String.format("New chain head at height %d does not match checkpoint",
                                             storedBlock.getHeight()));
                     throw new VerificationException("Checkpoint verification failed",
-                                                    Parameters.REJECT_CHECKPOINT, storedBlock.getHash());
+                                                    RejectMessage.REJECT_CHECKPOINT, storedBlock.getHash());
                 }
             }
         }
@@ -1039,7 +1036,7 @@ public class BlockStoreSql extends BlockStore {
                                                          storedBlock.getHeight(), block.getHashAsString(),
                                                          txHash));
                                 throw new VerificationException("Transaction outputs already in TxOutputs",
-                                                                Parameters.REJECT_DUPLICATE, txHash);
+                                                                RejectMessage.REJECT_DUPLICATE, txHash);
                             }
                             processOutputs = false;
                         } else {
@@ -1190,7 +1187,7 @@ public class BlockStoreSql extends BlockStore {
             prevChainHead = Sha256Hash.ZERO_HASH;
             chainHeight = 0;
             chainWork = BigInteger.ONE;
-            targetDifficulty = Parameters.MAX_TARGET_DIFFICULTY;
+            targetDifficulty = NetParams.MAX_TARGET_DIFFICULTY;
             blockFileNumber = 0;
             chainTime = genesisBlock.getTimeStamp();
             //
@@ -1220,7 +1217,7 @@ public class BlockStoreSql extends BlockStore {
             File blockFile = new File(String.format("%s\\Blocks\\blk00000.dat", dataPath));
             try (FileOutputStream outFile = new FileOutputStream(blockFile)) {
                 byte[] prefixBytes = new byte[8];
-                Utils.uint32ToByteArrayLE(Parameters.MAGIC_NUMBER, prefixBytes, 0);
+                Utils.uint32ToByteArrayLE(NetParams.MAGIC_NUMBER, prefixBytes, 0);
                 Utils.uint32ToByteArrayLE(Parameters.GENESIS_BLOCK_BYTES.length, prefixBytes, 4);
                 outFile.write(prefixBytes);
                 outFile.write(Parameters.GENESIS_BLOCK_BYTES);
@@ -1293,7 +1290,7 @@ public class BlockStoreSql extends BlockStore {
                     blockFileNumber = Math.max(blockFileNumber, Integer.parseInt(fileName.substring(3, sep)));
             }
             BigInteger networkDifficulty =
-                            Parameters.PROOF_OF_WORK_LIMIT.divide(Utils.decodeCompactBits(targetDifficulty));
+                            NetParams.PROOF_OF_WORK_LIMIT.divide(Utils.decodeCompactBits(targetDifficulty));
             log.info(String.format("Database opened with schema version %d.%d\n"+
                                    "  Chain height %,d, Target difficulty %s, Block File number %d\n"+
                                    "  Chain head %s",
