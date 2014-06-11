@@ -312,7 +312,7 @@ public class Main {
             //
             // Compact the database
             //
-            blockStore.compactDatabase();
+            //blockStore.compactDatabase();
             //
             // Load the block chain from disk and then exit
             //
