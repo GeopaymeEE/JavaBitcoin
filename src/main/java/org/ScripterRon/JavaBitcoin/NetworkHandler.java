@@ -384,19 +384,20 @@ public class NetworkHandler implements Runnable {
                 //
                 if (currentTime > lastStatsTime + (5*60)) {
                     lastStatsTime = currentTime;
-                    log.info(String.format("=======================================================\n"+
-                                           "** Chain height: Network %,d, Local %,d\n"+
-                                           "** Connections: %,d outbound, %,d inbound\n"+
-                                           "** Addresses: %,d peers, %,d banned\n"+
-                                           "** Blocks: %,d received, %,d sent, %,d filtered sent\n"+
-                                           "** Transactions: %,d received, %,d sent, %,d rejected, %,d orphaned\n"+
-                                           "=======================================================",
+                    log.info(String.format("\n"+
+                            "=======================================================\n"+
+                            "** Chain height: Network %,d, Local %,d\n"+
+                            "** Connections: %,d outbound, %,d inbound\n"+
+                            "** Addresses: %,d peers, %,d banned\n"+
+                            "** Blocks: %,d received, %,d sent, %,d filtered sent\n"+
+                            "** Transactions: %,d received, %,d sent, %,d pool, %,d rejected, %,d orphaned\n"+
+                            "=======================================================",
                                 Parameters.networkChainHeight, Parameters.blockStore.getChainHeight(),
                                 outboundCount, connections.size()-outboundCount,
                                 Parameters.peerAddresses.size(), bannedAddresses.size(),
                                 Parameters.blocksReceived, Parameters.blocksSent, Parameters.filteredBlocksSent,
-                                Parameters.txReceived, Parameters.txSent, Parameters.txRejected,
-                                Parameters.orphanTxList.size()));
+                                Parameters.txReceived, Parameters.txSent, Parameters.txPool.size(),
+                                Parameters.txRejected, Parameters.orphanTxList.size()));
                     System.gc();
                 }
             }
