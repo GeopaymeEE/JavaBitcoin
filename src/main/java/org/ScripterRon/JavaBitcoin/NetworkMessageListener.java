@@ -31,7 +31,6 @@ import org.ScripterRon.BitcoinCore.InventoryItem;
 import org.ScripterRon.BitcoinCore.InventoryMessage;
 import org.ScripterRon.BitcoinCore.MerkleBlockMessage;
 import org.ScripterRon.BitcoinCore.Message;
-import org.ScripterRon.BitcoinCore.NetParams;
 import org.ScripterRon.BitcoinCore.NotFoundMessage;
 import org.ScripterRon.BitcoinCore.OutPoint;
 import org.ScripterRon.BitcoinCore.Peer;
@@ -355,21 +354,23 @@ public class NetworkMessageListener extends AbstractMessageListener {
     /**
      * Process a peer address list
      *
-     * <p>This method is called when an 'addr' message is received.  The address list
-     * contains peers that have been active recently.</p>
+     * <p>This method is called when an 'addr' message is received.</p>
      *
      * @param       msg             Message
      * @param       addresses       Peer address list
      */
     @Override
     public void processAddresses(Message msg, List<PeerAddress> addresses) {
+        List<PeerAddress> newAddresses = new ArrayList<>(addresses.size());
+        long oldestTime = System.currentTimeMillis()/1000 - (30*60);
         //
         // Add new addresses to the peer address list and update the timestamp and services
-        // for existing entries.
+        // for existing entries.  We will not include peers that provide no services or peers
+        // that haven't been seen within the last 30 minutes.
         //
         addresses.stream()
-            .filter((addr) -> !((addr.getServices()&NetParams.NODE_NETWORK)==0) &&
-                                !addr.equals(Parameters.listenAddress))
+            .filter((addr) -> addr.getServices()!=0 && addr.getTimeStamp()>oldestTime &&
+                                                    !addr.equals(Parameters.listenAddress))
             .forEach((addr) -> {
                 long timeStamp = addr.getTimeStamp();
                 synchronized(Parameters.lock) {
@@ -389,12 +390,21 @@ public class NetworkMessageListener extends AbstractMessageListener {
                             Parameters.peerAddresses.add(addr);
                             Parameters.peerMap.put(addr, addr);
                         }
+                        newAddresses.add(addr);
                     } else {
                         mapAddress.setTimeStamp(Math.max(mapAddress.getTimeStamp(), timeStamp));
                         mapAddress.setServices(addr.getServices());
                     }
                 }
             });
+        //
+        // Broadcast new addresses to our peers
+        //
+        if (!newAddresses.isEmpty()) {
+            Message addrMsg = AddressMessage.buildAddressMessage(null, newAddresses, Parameters.listenAddress);
+            Parameters.networkHandler.broadcastMessage(addrMsg);
+            log.debug(String.format("Broadcast updated 'addr' message with %d entries", newAddresses.size()));
+        }
     }
 
     /**

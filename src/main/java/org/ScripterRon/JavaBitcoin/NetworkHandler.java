@@ -487,7 +487,7 @@ public class NetworkHandler implements Runnable {
      *
      * Block notifications will be sent to peers that are providing network services.
      * Transaction notifications will be sent to peers that have requested transaction relays.
-     * Alert notifications will be sent to all peers and all alert listeners will be notified.
+     * All other notifications will be sent to all connected peers.
      *
      * @param       msg             Message to broadcast
      */
