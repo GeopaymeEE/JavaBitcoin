@@ -78,9 +78,11 @@ public class NetworkHandler implements Runnable {
 
     /** Network seed nodes */
     private static final String[] dnsSeeds = new String[] {
+            "seed.bitnodes.io",             // bitnodes.io
             "seed.bitcoin.sipa.be",         // Pieter Wuille
             "dnsseed.bluematt.me",          // Matt Corallo
-            "seed.bitcoinstats.com"         // bitcoinstats.com
+            "seed.bitcoinstats.com",        // bitcoinstats.com
+            "bitseed.xf2.org"               // xf2.org
     };
 
     /** Connection listeners */
@@ -1190,8 +1192,11 @@ public class NetworkHandler implements Runnable {
      */
     private void dnsDiscovery() {
         //
-        // Process each seed node and add the node addresses to our peer list
+        // Process each seed node and add the node addresses to our peer list.  We will set random
+        // timestamps within the previous week so that we don't always try to connect to the same
+        // nodes.
         //
+        long currentTime = System.currentTimeMillis()/1000;
         for (String host : dnsSeeds) {
             PeerAddress peerAddress;
             try {
@@ -1200,7 +1205,8 @@ public class NetworkHandler implements Runnable {
                     if (Parameters.listenAddress != null &&
                                 address.equals(Parameters.listenAddress.getAddress()))
                         continue;
-                    peerAddress = new PeerAddress(address, Parameters.DEFAULT_PORT);
+                    long timeSeen = currentTime-(long)((double)(7*24*3600)*Math.random());
+                    peerAddress = new PeerAddress(address, Parameters.DEFAULT_PORT, timeSeen);
                     if (Parameters.peerMap.get(peerAddress) == null) {
                         Parameters.peerAddresses.add(peerAddress);
                         Parameters.peerMap.put(peerAddress, peerAddress);
