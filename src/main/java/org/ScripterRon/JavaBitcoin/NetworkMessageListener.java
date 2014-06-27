@@ -376,20 +376,25 @@ public class NetworkMessageListener extends AbstractMessageListener {
                 synchronized(Parameters.lock) {
                     PeerAddress mapAddress = Parameters.peerMap.get(addr);
                     if (mapAddress == null) {
-                        boolean added = false;
-                        for (int j=0; j<Parameters.peerAddresses.size(); j++) {
-                            PeerAddress chkAddress = Parameters.peerAddresses.get(j);
-                            if (chkAddress.getTimeStamp() < timeStamp) {
-                                Parameters.peerAddresses.add(j, addr);
-                                Parameters.peerMap.put(addr, addr);
-                                added = true;
-                                break;
-                            }
-                        }
-                        if (!added) {
+                        int index, lowIndex, highIndex;
+                        int lastElem = Parameters.peerAddresses.size()-1;
+                        if (lastElem < 0) {
                             Parameters.peerAddresses.add(addr);
-                            Parameters.peerMap.put(addr, addr);
+                        } else if (Parameters.peerAddresses.get(lastElem).getTimeStamp() >= timeStamp) {
+                            Parameters.peerAddresses.add(addr);
+                        } else {
+                            lowIndex = -1;
+                            highIndex = lastElem;
+                            while (highIndex-lowIndex > 1) {
+                                index = (highIndex-lowIndex)/2+lowIndex;
+                                if (Parameters.peerAddresses.get(index).getTimeStamp() < timeStamp)
+                                    highIndex = index;
+                                else
+                                    lowIndex = index;
+                            }
+                            Parameters.peerAddresses.add(highIndex, addr);
                         }
+                        Parameters.peerMap.put(addr, addr);
                         newAddresses.add(addr);
                     } else {
                         mapAddress.setTimeStamp(Math.max(mapAddress.getTimeStamp(), timeStamp));
@@ -403,7 +408,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         if (!newAddresses.isEmpty()) {
             Message addrMsg = AddressMessage.buildAddressMessage(null, newAddresses, Parameters.listenAddress);
             Parameters.networkHandler.broadcastMessage(addrMsg);
-            log.debug(String.format("Broadcast updated 'addr' message with %d entries", newAddresses.size()));
+            log.info(String.format("Broadcast 'addr' message with %d entries", newAddresses.size()));
         }
     }
 
