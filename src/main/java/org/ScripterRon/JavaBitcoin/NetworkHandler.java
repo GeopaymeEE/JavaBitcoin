@@ -374,10 +374,11 @@ public class NetworkHandler implements Runnable {
                 //
                 if (currentTime > lastOutboundConnectTime+30) {
                     lastOutboundConnectTime = currentTime;
-                    if (outboundCount < maxOutbound &&
-                                        connections.size() < maxConnections &&
-                                        connections.size() < Parameters.peerAddresses.size())
-                        connectOutbound();
+                    while (outboundCount < maxOutbound && connections.size() < maxConnections &&
+                                                          connections.size() < Parameters.peerAddresses.size()) {
+                        if (!connectOutbound() || outboundCount >= Math.min(maxOutbound, 4))
+                            break;
+                    }
                 }
                 //
                 // Print statistics every 5 minutes
