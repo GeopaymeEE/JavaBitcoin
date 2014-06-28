@@ -44,9 +44,11 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -119,8 +121,11 @@ public class NetworkHandler implements Runnable {
     /** Connections list */
     private final List<Peer> connections = new ArrayList<>(128);
 
+    /** Connection map */
+    private final Map<InetAddress, Peer> connectionMap = new HashMap<>();
+
     /** Banned list */
-    private final List<InetAddress> bannedAddresses = new ArrayList<>(25);
+    private final List<InetAddress> bannedAddresses = new ArrayList<>();
 
     /** Time of Last peer database update */
     private long lastPeerUpdateTime;
@@ -550,8 +555,10 @@ public class NetworkHandler implements Runnable {
                     log.info(String.format("Max connections reached: Connection rejected from %s", address));
                 } else if (bannedAddresses.contains(address.getAddress())) {
                     channel.close();
-                    log.info(String.format("Connection rejected from banned address %s",
-                                           address.getAddress().getHostAddress()));
+                    log.info(String.format("Connection rejected from banned address %s", address));
+                } else if (connectionMap.get(address.getAddress()) != null) {
+                    channel.close();
+                    log.info(String.format("Duplicate connection rejected from %s", address));
                 } else {
                     channel.configureBlocking(false);
                     channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
@@ -565,6 +572,7 @@ public class NetworkHandler implements Runnable {
                                                                      Parameters.blockStore.getChainHeight());
                     synchronized(Parameters.lock) {
                         connections.add(peer);
+                        connectionMap.put(address.getAddress(), peer);
                         peer.getOutputList().add(msg);
                     }
                     log.info(String.format("Sent 'version' message to %s", address));
@@ -592,7 +600,8 @@ public class NetworkHandler implements Runnable {
         PeerAddress address = null;
         synchronized(Parameters.lock) {
             for (PeerAddress chkAddress : Parameters.peerAddresses) {
-                if (!chkAddress.isConnected() && (!staticConnections || chkAddress.isStatic())) {
+                if (!chkAddress.isConnected() && connectionMap.get(chkAddress.getAddress())==null &&
+                                (!staticConnections || chkAddress.isStatic())) {
                     address = chkAddress;
                     break;
                 }
@@ -618,6 +627,7 @@ public class NetworkHandler implements Runnable {
             outboundCount++;
             synchronized(Parameters.lock) {
                 connections.add(peer);
+                connectionMap.put(address.getAddress(), peer);
             }
         } catch (IOException exc) {
             log.error(String.format("Unable to open connection to %s", address), exc);
@@ -853,6 +863,7 @@ public class NetworkHandler implements Runnable {
             peer.setConnected(false);
             synchronized(Parameters.lock) {
                 connections.remove(peer);
+                connectionMap.remove(address.getAddress());
                 if (!address.isStatic()) {
                     Parameters.peerAddresses.remove(address);
                     Parameters.peerMap.remove(address);
