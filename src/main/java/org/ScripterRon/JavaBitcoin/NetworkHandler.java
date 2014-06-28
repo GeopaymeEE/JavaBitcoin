@@ -17,6 +17,7 @@ package org.ScripterRon.JavaBitcoin;
 
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
+import org.ScripterRon.BitcoinCore.AddressMessage;
 import org.ScripterRon.BitcoinCore.AlertMessage;
 import org.ScripterRon.BitcoinCore.GetAddressMessage;
 import org.ScripterRon.BitcoinCore.GetBlocksMessage;
@@ -308,22 +309,31 @@ public class NetworkHandler implements Runnable {
                 if (!Parameters.pendingRequests.isEmpty() || !Parameters.processedRequests.isEmpty())
                     processRequests();
                 //
-                // Remove peer addresses that we haven't seen in the last 30 minutes
+                // Remove peer addresses that we haven't seen in the last 30 minutes and broadcast
+                // new addresses.
                 //
                 long currentTime = System.currentTimeMillis()/1000;
                 if (currentTime > lastPeerUpdateTime + (30*60)) {
+                    List<PeerAddress> newAddresses = new ArrayList<>(Parameters.peerAddresses.size());
                     synchronized(Parameters.lock) {
                         Iterator<PeerAddress> iterator = Parameters.peerAddresses.iterator();
                         while (iterator.hasNext()) {
                             PeerAddress address = iterator.next();
                             if (address.isStatic())
                                 continue;
-                            long timestamp = address.getTimeStamp();
-                            if (timestamp < lastPeerUpdateTime) {
+                            if (address.getTimeStamp() < lastPeerUpdateTime) {
                                 Parameters.peerMap.remove(address);
                                 iterator.remove();
+                            } else if (!address.wasBroadcast()) {
+                                address.setBroadcast(true);
+                                newAddresses.add(address);
                             }
                         }
+                    }
+                    if (!newAddresses.isEmpty()) {
+                        Message addrMsg = AddressMessage.buildAddressMessage(null, newAddresses, Parameters.listenAddress);
+                        broadcastMessage(addrMsg);
+                        log.info(String.format("%d addresses broadcast to peers", newAddresses.size()));
                     }
                     lastPeerUpdateTime = currentTime;
                 }
@@ -1207,6 +1217,7 @@ public class NetworkHandler implements Runnable {
                         continue;
                     long timeSeen = currentTime-(long)((double)(7*24*3600)*Math.random());
                     peerAddress = new PeerAddress(address, Parameters.DEFAULT_PORT, timeSeen);
+                    peerAddress.setBroadcast(true);
                     if (Parameters.peerMap.get(peerAddress) == null) {
                         Parameters.peerAddresses.add(peerAddress);
                         Parameters.peerMap.put(peerAddress, peerAddress);

@@ -361,7 +361,6 @@ public class NetworkMessageListener extends AbstractMessageListener {
      */
     @Override
     public void processAddresses(Message msg, List<PeerAddress> addresses) {
-        List<PeerAddress> newAddresses = new ArrayList<>(addresses.size());
         long oldestTime = System.currentTimeMillis()/1000 - (30*60);
         //
         // Add new addresses to the peer address list and update the timestamp and services
@@ -395,21 +394,12 @@ public class NetworkMessageListener extends AbstractMessageListener {
                             Parameters.peerAddresses.add(highIndex, addr);
                         }
                         Parameters.peerMap.put(addr, addr);
-                        newAddresses.add(addr);
                     } else {
                         mapAddress.setTimeStamp(Math.max(mapAddress.getTimeStamp(), timeStamp));
                         mapAddress.setServices(addr.getServices());
                     }
                 }
             });
-        //
-        // Broadcast new addresses to our peers
-        //
-        if (!newAddresses.isEmpty()) {
-            Message addrMsg = AddressMessage.buildAddressMessage(null, newAddresses, Parameters.listenAddress);
-            Parameters.networkHandler.broadcastMessage(addrMsg);
-            log.info(String.format("Broadcast 'addr' message with %d entries", newAddresses.size()));
-        }
     }
 
     /**
