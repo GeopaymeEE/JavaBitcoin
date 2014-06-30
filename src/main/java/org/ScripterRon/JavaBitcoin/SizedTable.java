@@ -132,7 +132,7 @@ public final class SizedTable extends JTable {
                 renderer = getDefaultRenderer(tableModel.getColumnClass(i));
             component = renderer.getTableCellRendererComponent(this, value, false, false, 0, i);
             int cellWidth = component.getPreferredSize().width;
-            column.setPreferredWidth(Math.max(headWidth+5, cellWidth+5));
+            column.setPreferredWidth(Math.max(headWidth+10, cellWidth+20));
         }
 
         //

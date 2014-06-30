@@ -87,15 +87,15 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
 
     /** Connection table column classes */
     private static final Class<?>[] connectionColumnClasses = {
-        String.class, Integer.class, String.class, String.class};
+        Date.class, String.class, Integer.class, String.class, String.class};
 
     /** Connection table column names */
     private static final String[] connectionColumnNames = {
-        "Address", "Version", "Subversion", "Services"};
+        "Connected", "Address", "Version", "Subversion", "Services"};
 
     /** Connection table column types */
     private static final int[] connectionColumnTypes = {
-        SizedTable.ADDRESS, SizedTable.INTEGER, SizedTable.SUBVERSION, SizedTable.SERVICES};
+        SizedTable.DATE, SizedTable.ADDRESS, SizedTable.INTEGER, SizedTable.SUBVERSION, SizedTable.SERVICES};
 
     /** Connection table model */
     private final ConnectionTableModel connectionTableModel;
@@ -646,11 +646,9 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
                 case 0:                     // Alert ID
                     value = alert.getID();
                     break;
-
                 case 1:                     // Expiration date
                     value = new Date(alert.getExpireTime()*1000);
                     break;
-
                 case 2:                     // Status
                     if (alert.isCanceled())
                         value = "Canceled";
@@ -659,7 +657,6 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
                     else
                         value = "";
                     break;
-
                 case 3:                     // Alert message
                     value = alert.getMessage();
                     break;
@@ -693,13 +690,13 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
     private class ConnectionTableModel extends AbstractTableModel {
 
         /** Column names */
-        private String[] columnNames;
+        private final String[] columnNames;
 
         /** Column classes */
-        private Class<?>[] columnClasses;
+        private final Class<?>[] columnClasses;
 
         /** Connection list */
-        private List<Peer> connectionList = new ArrayList<>(128);
+        private final List<Peer> connectionList = new ArrayList<>(128);
 
         /**
          * Create the table model
@@ -767,19 +764,19 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
             Object value = null;
             Peer peer = connectionList.get(row);
             switch (column) {
-                case 0:                         // IP address
+                case 0:                         // Time connected
+                    value = new Date(peer.getAddress().getTimeConnected()*1000);
+                    break;
+                case 1:                         // IP address
                     value = peer.getAddress().toString();
                     break;
-
-                case 1:                         // Protocol version
+                case 2:                         // Protocol version
                     value = peer.getVersion();
                     break;
-
-                case 2:                         // Subversion
+                case 3:                         // Subversion
                     value = peer.getUserAgent();
                     break;
-
-                case 3:                         // Services
+                case 4:                         // Services
                     long services = peer.getServices();
                     StringBuilder serviceString = new StringBuilder(32);
                     for (int i=0; i<serviceNames.length; i++) {
@@ -797,9 +794,9 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
          */
         public void updateConnections() {
             List<Peer> connections = Parameters.networkHandler.getConnections();
-            connections.stream().filter((peer) -> (!connectionList.contains(peer))).forEach((peer) -> {
-                connectionList.add(peer);
-            });
+            connections.stream()
+                    .filter((peer) -> (!connectionList.contains(peer)))
+                    .forEach((peer) -> connectionList.add(peer));
         }
 
         /**

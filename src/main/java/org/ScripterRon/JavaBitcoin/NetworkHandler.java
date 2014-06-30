@@ -447,8 +447,10 @@ public class NetworkHandler implements Runnable {
         //
         // Get the current connection list
         //
-        List<Peer> connectionList = new ArrayList<>(connections.size());
-        connectionList.addAll(connections);
+        List<Peer> connectionList;
+        synchronized(Parameters.lock) {
+            connectionList = new ArrayList<>(connections);
+        }
         //
         // Remove pending connections from the list
         //
