@@ -407,7 +407,8 @@ public class BlockStoreSql extends BlockStore {
     }
 
     /**
-     * Return the child block for the specified block
+     * Return the child block for the specified block.  If the block has multiple children, the child
+     * block that is on the chain will be returned.
      *
      * @param       blockHash               The block hash
      * @return                              The stored block or null if the block is not found
@@ -422,14 +423,18 @@ public class BlockStoreSql extends BlockStore {
                             "FROM Blocks WHERE prev_hash=?")) {
             s.setBytes(1, blockHash.getBytes());
             ResultSet r = s.executeQuery();
-            if (r.next()) {
+            while (r.next()) {
                 int blockHeight = r.getInt(1);
+                if (blockHeight < 0 && childStoredBlock != null)
+                    continue;
                 BigInteger blockWork = new BigInteger(r.getBytes(2));
                 boolean onHold = r.getBoolean(3);
                 int fileNumber = r.getInt(4);
                 int fileOffset = r.getInt(5);
                 Block block = getBlock(fileNumber, fileOffset);
                 childStoredBlock = new StoredBlock(block, blockWork, blockHeight, (blockHeight>=0), onHold);
+                if (blockHeight >= 0)
+                    break;
             }
         } catch (SQLException exc) {
             log.error(String.format("Unable to get child block\n  Block %s", blockHash), exc);

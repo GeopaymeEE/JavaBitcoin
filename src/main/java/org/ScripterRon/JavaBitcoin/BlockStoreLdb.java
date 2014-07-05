@@ -872,9 +872,13 @@ public class BlockStoreLdb extends BlockStore {
                                                        fileNumber, fileOffset);
                 dbBlocks.put(blockHash.getBytes(), blockEntry.getBytes());
                 //
-                // Add an entry to the Child database
+                // Add an entry to the Child database if this is the first child block.  There can be
+                // multiple child blocks for a chain fork, in which case the child database will be
+                // updated when a block is added to the chain.  But we want to make an entry at this
+                // point so that we can find children while building the block chain.
                 //
-                dbChild.put(block.getPrevBlockHash().getBytes(), blockHash.getBytes());
+                if (dbChild.get(block.getPrevBlockHash().getBytes()) == null)
+                    dbChild.put(block.getPrevBlockHash().getBytes(), blockHash.getBytes());
             } catch (DBException exc) {
                 log.error(String.format("Unable to store block\n  Block %s", storedBlock.getHash()), exc);
                 throw new BlockStoreException("Unable to store block", storedBlock.getHash());
@@ -1278,9 +1282,13 @@ public class BlockStoreLdb extends BlockStore {
                     // Add the block to the chain
                     //
                     int blockHeight = storedBlock.getHeight();
-                    dbBlockChain.put(getIntegerBytes(blockHeight), block.getHash().getBytes());
+                    dbBlockChain.put(getIntegerBytes(blockHeight), blockHash.getBytes());
                     log.info(String.format("Block added to block chain at height %d\n  Block %s",
-                                           storedBlock.getHeight(), block.getHashAsString()));
+                                           storedBlock.getHeight(), blockHash));
+                    //
+                    // Update the child database in case there are multiple children
+                    //
+                    dbChild.put(block.getPrevBlockHash().getBytes(), block.getHash().getBytes());
                     //
                     // Update chain head values for the block we just added
                     //
