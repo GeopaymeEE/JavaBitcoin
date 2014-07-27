@@ -304,9 +304,10 @@ public class BlockChain {
                 }
                 listeners.stream().forEach((listener) -> listener.chainUpdated());
                 //
-                // Delete spent transaction outputs
+                // Delete spent transaction outputs if we are caught up with the network
                 //
-                Parameters.blockStore.deleteSpentTxOutputs();
+                if (Parameters.blockStore.getChainHeight() == Parameters.networkChainHeight)
+                    Parameters.blockStore.deleteSpentTxOutputs();
             } catch (VerificationException exc) {
                 chainList = null;
                 log.info(String.format("Block being held due to verification failure\n  Block %s", exc.getHash()));

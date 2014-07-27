@@ -592,6 +592,42 @@ public class BlockStoreSql extends BlockStore {
     }
 
     /**
+     * Deletes spent transaction outputs that are older than the maximum transaction age
+     *
+     * @throws      BlockStoreException     Unable to delete spent transaction outputs
+     */
+    @Override
+    public void deleteSpentTxOutputs() throws BlockStoreException {
+        Connection conn = getConnection();
+        long ageLimit = Math.max(chainTime-MAX_TX_AGE, 0);
+        int deletedCount = 0;
+        //
+        // Delete spent outputs
+        //
+        log.info("Deleting spent transaction outputs");
+        PreparedStatement s = null;
+        try {
+            conn.setAutoCommit(false);
+            s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
+                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 1000)");
+            int count;
+            do {
+                s.setLong(1, ageLimit);
+                count = s.executeUpdate();
+                deletedCount += count;
+            } while (count != 0);
+            s.close();
+            conn.commit();
+            conn.setAutoCommit(true);
+        } catch (SQLException exc) {
+            rollback(s);
+            log.error(String.format("Unable to delete spent transaction outputs", exc));
+            throw new BlockStoreException("Unable to delete spent transaction outputs");
+        }
+        log.info(String.format("Deleted %d spent transaction outputs", deletedCount));
+    }
+
+    /**
      * Returns the chain list from the block following the start block up to the stop
      * block.  A maximum of 500 blocks will be returned.  The list will start with the
      * genesis block if the start block is not found.
@@ -1296,22 +1332,6 @@ public class BlockStoreSql extends BlockStore {
                                    "  Chain head %s",
                                    version/100, version%100, chainHeight,
                                    Utils.numberToShortString(networkDifficulty), blockFileNumber, chainHead));
-            //
-            // Delete spent outputs
-            //
-            log.info("Deleting spent transaction outputs");
-            long ageLimit = Math.max(chainTime-MAX_TX_AGE, 0);
-            int deletedCount = 0;
-            try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
-                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 100)")) {
-                int count;
-                do {
-                    s.setLong(1, ageLimit);
-                    count = s.executeUpdate();
-                    deletedCount += count;
-                } while (count != 0);
-            }
-            log.info(String.format("Deleted %d spent transaction outputs", deletedCount));
         } catch (SQLException exc) {
             log.error("Unable to get initial table settings", exc);
             throw new BlockStoreException("Unable to get initial table settings");
