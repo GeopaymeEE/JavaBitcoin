@@ -602,25 +602,16 @@ public class BlockStoreSql extends BlockStore {
         long ageLimit = Math.max(chainTime-MAX_TX_AGE, 0);
         int deletedCount = 0;
         //
-        // Delete spent outputs
+        // Delete spent outputs in increments of 250 to reduce the time that other
+        // transactions are locked out of the database
         //
         log.info("Deleting spent transaction outputs");
-        PreparedStatement s = null;
-        try {
-            conn.setAutoCommit(false);
-            s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
-                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 1000)");
-            int count;
-            do {
-                s.setLong(1, ageLimit);
-                count = s.executeUpdate();
-                deletedCount += count;
-            } while (count != 0);
+        try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
+                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 250)")) {
+            s.setLong(1, ageLimit);
+            deletedCount = s.executeUpdate();
             s.close();
-            conn.commit();
-            conn.setAutoCommit(true);
         } catch (SQLException exc) {
-            rollback(s);
             log.error(String.format("Unable to delete spent transaction outputs", exc));
             throw new BlockStoreException("Unable to delete spent transaction outputs");
         }

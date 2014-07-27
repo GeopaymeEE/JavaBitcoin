@@ -306,7 +306,7 @@ public class BlockChain {
                 //
                 // Delete spent transaction outputs if we are caught up with the network
                 //
-                if (Parameters.blockStore.getChainHeight() == Parameters.networkChainHeight)
+                if (Parameters.blockStore.getChainHeight() >= Parameters.networkChainHeight)
                     Parameters.blockStore.deleteSpentTxOutputs();
             } catch (VerificationException exc) {
                 chainList = null;

@@ -421,7 +421,7 @@ public class Main {
             Parameters.databaseQueue.put(new ShutdownDatabase());
             Parameters.messageQueue.put(new ShutdownMessage());
             for (Thread thread : threads)
-                thread.join(15000);
+                thread.join(60000);
         } catch (InterruptedException exc) {
             // Nothing to be done at this point
         }
