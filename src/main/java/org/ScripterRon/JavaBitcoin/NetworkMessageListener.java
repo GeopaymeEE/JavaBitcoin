@@ -369,7 +369,9 @@ public class NetworkMessageListener extends AbstractMessageListener {
         //
         addresses.stream()
             .filter((addr) -> addr.getServices()!=0 && addr.getTimeStamp()>oldestTime &&
-                                                    !addr.equals(Parameters.listenAddress))
+                        !addr.getAddress().isAnyLocalAddress() &&
+                        !addr.getAddress().isLoopbackAddress() &&
+                        !addr.equals(Parameters.listenAddress))
             .forEach((addr) -> {
                 long timeStamp = addr.getTimeStamp();
                 synchronized(Parameters.lock) {

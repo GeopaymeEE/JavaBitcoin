@@ -128,8 +128,7 @@ public class BlockStoreSql extends BlockStore {
     public BlockStoreSql(String dataPath) throws BlockStoreException {
         super(dataPath);
         String databasePath = dataPath.replace('\\', '/');
-        connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;"
-                    + "MAX_COMPACT_TIME=15000;MVCC=TRUE", databasePath);
+        connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;MVCC=TRUE", databasePath);
         //
         // Load the JDBC driver
         //
@@ -602,12 +601,12 @@ public class BlockStoreSql extends BlockStore {
         long ageLimit = Math.max(chainTime-MAX_TX_AGE, 0);
         int deletedCount = 0;
         //
-        // Delete spent outputs in increments of 250 to reduce the time that other
+        // Delete spent outputs in increments of 500 to reduce the time that other
         // transactions are locked out of the database
         //
         log.info("Deleting spent transaction outputs");
         try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
-                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 250)")) {
+                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 500)")) {
             s.setLong(1, ageLimit);
             deletedCount = s.executeUpdate();
             s.close();
