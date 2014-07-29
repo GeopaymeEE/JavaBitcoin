@@ -601,12 +601,12 @@ public class BlockStoreSql extends BlockStore {
         long ageLimit = Math.max(chainTime-MAX_TX_AGE, 0);
         int deletedCount = 0;
         //
-        // Delete spent outputs in increments of 500 to reduce the time that other
+        // Delete spent outputs in increments of 1000 to reduce the time that other
         // transactions are locked out of the database
         //
         log.info("Deleting spent transaction outputs");
         try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
-                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 500)")) {
+                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 1000)")) {
             s.setLong(1, ageLimit);
             deletedCount = s.executeUpdate();
             s.close();

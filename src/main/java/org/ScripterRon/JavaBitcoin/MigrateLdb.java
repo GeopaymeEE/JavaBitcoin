@@ -177,6 +177,7 @@ public class MigrateLdb {
      */
     public void migrateDb() throws BlockStoreException {
         Entry<byte[], byte[]> dbEntry;
+        long chainTime = 0;
         //
         // Migrate the Blocks database
         //
@@ -199,6 +200,8 @@ public class MigrateLdb {
                 s.setInt(7, blockEntry.getFileNumber());
                 s.setInt(8, blockEntry.getFileOffset());
                 s.executeUpdate();
+                if (blockEntry.getHeight() >= 0)
+                    chainTime = Math.max(chainTime, blockEntry.getTimeStamp());
             }
         } catch (DBException | IOException | SQLException exc) {
             log.error("Unable to create the Blocks database", exc);
@@ -208,6 +211,7 @@ public class MigrateLdb {
         // Migrate the TxOutputs database
         //
         log.info("Migrating the TxOutputs database");
+        long pruneTime = chainTime-(60*60*24);
         try (PreparedStatement s1 = conn.prepareStatement("INSERT INTO TxOutputs "
                     + "(tx_hash,tx_index,block_hash,block_height,time_spent,is_coinbase,value,script_bytes) "
                     + "VALUES(?,?,?,?,?,?,?,?)");
@@ -219,6 +223,8 @@ public class MigrateLdb {
                 dbEntry = it.next();
                 TransactionID txId = new TransactionID(dbEntry.getKey());
                 TransactionEntry txEntry = new TransactionEntry(dbEntry.getValue());
+                if (txEntry.getTimeSpent() > 0 && txEntry.getTimeSpent() < pruneTime)
+                    continue;
                 s1.setBytes(1, txId.getTxHash().getBytes());
                 s1.setShort(2, (short)txId.getTxIndex());
                 s1.setBytes(3, txEntry.getBlockHash().getBytes());
@@ -234,6 +240,7 @@ public class MigrateLdb {
                         throw new BlockStoreException("No auto-generated key returned for INSERT");
                     s2.setLong(1, txEntry.getTimeSpent());
                     s2.setInt(2, r.getInt(1));
+                    r.close();
                     s2.executeUpdate();
                 }
             }
