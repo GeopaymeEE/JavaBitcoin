@@ -145,8 +145,8 @@ public class MigrateLdb {
         //
         try {
             String databasePath = dataPath.replace('\\', '/');
-            String connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;MAX_COMPACT_TIME=15000;"
-                            + "MV_STORE=TRUE;MVCC=FALSE", databasePath);
+            String connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;MAX_COMPACT_TIME=15000",
+                                                 databasePath);
             conn = DriverManager.getConnection(connectionURL, "ScripterRon", "");
             try (Statement s = conn.createStatement()) {
                 s.executeUpdate(Settings_Table);

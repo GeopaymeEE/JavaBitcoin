@@ -128,7 +128,9 @@ public class BlockStoreSql extends BlockStore {
     public BlockStoreSql(String dataPath) throws BlockStoreException {
         super(dataPath);
         String databasePath = dataPath.replace('\\', '/');
-        connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;MVCC=TRUE", databasePath);
+        connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;"
+                            + "LOCK_TIMEOUT=5000;MAX_COMPACT_TIME=15000;MVCC=TRUE",
+                            databasePath);
         //
         // Load the JDBC driver
         //
