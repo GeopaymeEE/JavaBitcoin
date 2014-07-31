@@ -25,6 +25,8 @@ import org.ScripterRon.BitcoinCore.Transaction;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * The database handler processes blocks placed on the database queue.  When a
@@ -35,6 +37,9 @@ import java.util.List;
  * The database handler terminates when its shutdown() method is called.
  */
 public class DatabaseHandler implements Runnable {
+
+    /** Database timer */
+    private Timer timer;
 
     /**
      * Creates the database listener
@@ -48,6 +53,20 @@ public class DatabaseHandler implements Runnable {
     @Override
     public void run() {
         log.info("Database handler started");
+        //
+        // Create a timer to delete spent transaction outputs every 5 minutes
+        //
+        timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    Parameters.blockStore.deleteSpentTxOutputs();
+                } catch (BlockStoreException exc) {
+                    log.error("Unable to delete spent transaction outputs", exc);
+                }
+            }
+        }, 5*60*1000, 5*60*1000);
         //
         // Process blocks until the shutdown() method is called
         //
@@ -67,6 +86,7 @@ public class DatabaseHandler implements Runnable {
         //
         // Stopping
         //
+        timer.cancel();
         log.info("Database handler stopped");
     }
 

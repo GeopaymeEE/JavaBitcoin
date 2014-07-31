@@ -129,7 +129,7 @@ public class BlockStoreSql extends BlockStore {
         super(dataPath);
         String databasePath = dataPath.replace('\\', '/');
         connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;"
-                            + "LOCK_TIMEOUT=5000;MAX_COMPACT_TIME=15000;MVCC=TRUE",
+                            + "LOCK_TIMEOUT=5000;MAX_COMPACT_TIME=15000;MVCC=TRUE;CACHE_SIZE=65536",
                             databasePath);
         //
         // Load the JDBC driver
@@ -607,14 +607,16 @@ public class BlockStoreSql extends BlockStore {
         // transactions are locked out of the database
         //
         log.info("Deleting spent transaction outputs");
-        try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
-                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 1000)")) {
-            s.setLong(1, ageLimit);
-            deletedCount = s.executeUpdate();
-            s.close();
-        } catch (SQLException exc) {
-            log.error(String.format("Unable to delete spent transaction outputs", exc));
-            throw new BlockStoreException("Unable to delete spent transaction outputs");
+        synchronized(lock) {
+            try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
+                                + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 1000)")) {
+                s.setLong(1, ageLimit);
+                deletedCount = s.executeUpdate();
+                s.close();
+            } catch (SQLException exc) {
+                log.error(String.format("Unable to delete spent transaction outputs", exc));
+                throw new BlockStoreException("Unable to delete spent transaction outputs");
+            }
         }
         log.info(String.format("Deleted %d spent transaction outputs", deletedCount));
     }
