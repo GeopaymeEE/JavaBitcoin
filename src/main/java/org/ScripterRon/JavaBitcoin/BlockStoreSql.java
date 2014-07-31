@@ -64,7 +64,8 @@ public class BlockStoreSql extends BlockStore {
 
     /** Blocks table definition */
     private static final String Blocks_Table = "CREATE TABLE Blocks ("+
-            "block_hash     BINARY          NOT NULL,"+     // Block hash
+            "block_hash     BINARY          NOT NULL "+     // Block hash
+                           "PRIMARY KEY,"+
             "prev_hash      BINARY          NOT NULL,"+     // Previous hash
             "timestamp      BIGINT          NOT NULL,"+     // Block timestamp
             "block_height   INTEGER         NOT NULL,"+     // Block height or -1
@@ -72,9 +73,8 @@ public class BlockStoreSql extends BlockStore {
             "on_hold        BOOLEAN         NOT NULL,"+     // Block is held
             "file_number    INTEGER         NOT NULL,"+     // Block file number
             "file_offset    INTEGER         NOT NULL)";     // Block offset within file
-    private static final String Blocks_IX1 = "CREATE UNIQUE INDEX Blocks_IX1 on Blocks(block_hash)";
-    private static final String Blocks_IX2 = "CREATE INDEX Blocks_IX2 ON Blocks(prev_hash)";
-    private static final String Blocks_IX3 = "CREATE INDEX Blocks_IX3 ON Blocks(block_height)";
+    private static final String Blocks_IX1 = "CREATE INDEX Blocks_IX2 ON Blocks(prev_hash)";
+    private static final String Blocks_IX2 = "CREATE INDEX Blocks_IX3 ON Blocks(block_height)";
 
     /** TxOutputs table definition */
     private static final String TxOutputs_Table = "CREATE TABLE TxOutputs ("+
@@ -93,16 +93,16 @@ public class BlockStoreSql extends BlockStore {
     private static final String TxSpentOutputs_Table = "CREATE TABLE TxSpentOutputs ("+
             "time_spent     BIGINT          NOT NULL,"+     // Time when output spent
             "db_id          INTEGER         NOT NULL "+     // Referenced spent output
-            "               REFERENCES TxOutputs(db_id) ON DELETE CASCADE)";
+                           "REFERENCES TxOutputs(db_id) ON DELETE CASCADE)";
     private static final String TxSpentOutputs_IX1 = "CREATE INDEX TxSpentOutputs_IX1 ON TxSpentOutputs(time_spent)";
 
     /** Alerts table definition */
     private static final String Alerts_Table = "CREATE TABLE Alerts ("+
-            "alert_id       INTEGER         NOT NULL,"+     // Alert identifier
+            "alert_id       INTEGER         NOT NULL "+     // Alert identifier
+                           "PRIMARY KEY,"+
             "is_cancelled   BOOLEAN         NOT NULL,"+     // Alert cancelled
             "payload        BINARY          NOT NULL,"+     // Payload
             "signature      BINARY          NOT NULL)";     // Signature
-    private static final String Alerts_IX1 = "CREATE UNIQUE INDEX Alerts_IX1 on Alerts(alert_id)";
 
     /** Database schema name */
     private static final String schemaName = "JavaBitcoin Block Store";
@@ -1186,9 +1186,7 @@ public class BlockStoreSql extends BlockStore {
             s.executeUpdate(Blocks_Table);
             s.executeUpdate(Blocks_IX1);
             s.executeUpdate(Blocks_IX2);
-            s.executeUpdate(Blocks_IX3);
             s.executeUpdate(Alerts_Table);
-            s.executeUpdate(Alerts_IX1);
             conn.commit();
             conn.setAutoCommit(true);
             log.info("SQL database tables created");
