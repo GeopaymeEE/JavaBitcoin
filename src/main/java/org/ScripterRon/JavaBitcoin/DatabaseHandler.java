@@ -190,11 +190,8 @@ public class DatabaseHandler implements Runnable {
         List<Transaction> txList = block.getTransactions();
         synchronized(Parameters.lock) {
             txList.stream().map((tx) -> tx.getHash()).forEach((txHash) -> {
-                StoredTransaction storedTx = Parameters.txMap.get(txHash);
-                if (storedTx != null) {
-                    Parameters.txPool.remove(storedTx);
-                    Parameters.txMap.remove(txHash);
-                }
+                Parameters.txMap.remove(txHash);
+                Parameters.recentTxMap.remove(txHash);
             });
         }
     }

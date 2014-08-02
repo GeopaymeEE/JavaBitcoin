@@ -102,26 +102,14 @@ public class Parameters {
     /** List of peer requests that are waiting for a response */
     public static final List<PeerRequest> processedRequests = new LinkedList<>();
 
-    /** List of transactions in the memory pool */
-    public static final List<StoredTransaction> txPool = new LinkedList<>();
-
     /** Map of transactions in the memory pool (txHash, tx) */
     public static final Map<Sha256Hash, StoredTransaction> txMap = new HashMap<>(250);
-
-    /** List of recent transactions */
-    public static final List<Sha256Hash> recentTxList = new LinkedList<>();
 
     /** Map of recent transactions (txHash, txHash) */
     public static final Map<Sha256Hash, Sha256Hash> recentTxMap = new HashMap<>(250);
 
-    /** List of orphan transactions */
-    public static final List<StoredTransaction> orphanTxList = new LinkedList<>();
-
     /** Map of orphan transactions (parentTxHash, orphanTxList) */
     public static final Map<Sha256Hash, List<StoredTransaction>> orphanTxMap = new HashMap<>(250);
-
-    /** List of recent spent outputs */
-    public static final List<OutPoint> spentOutputsList = new LinkedList<>();
 
     /** Map of recent spent outputs (Outpoint. spendingTxHash) */
     public static final Map<OutPoint, Sha256Hash> spentOutputsMap = new HashMap<>(250);

@@ -285,10 +285,8 @@ public class BlockChain {
                         for (Transaction tx : txList) {
                             List<StoredTransaction> orphanList = Parameters.orphanTxMap.remove(tx.getHash());
                             if (orphanList != null) {
-                                for (StoredTransaction orphan : orphanList) {
-                                    Parameters.orphanTxList.remove(orphan);
+                                for (StoredTransaction orphan : orphanList)
                                     retryList.add(orphan);
-                                }
                             }
                         }
                     }

@@ -414,8 +414,8 @@ public class NetworkHandler implements Runnable {
                                 outboundCount, connections.size()-outboundCount,
                                 Parameters.peerAddresses.size(), bannedAddresses.size(),
                                 Parameters.blocksReceived, Parameters.blocksSent, Parameters.filteredBlocksSent,
-                                Parameters.txReceived, Parameters.txSent, Parameters.txPool.size(),
-                                Parameters.txRejected, Parameters.orphanTxList.size()));
+                                Parameters.txReceived, Parameters.txSent, Parameters.txMap.size(),
+                                Parameters.txRejected, Parameters.orphanTxMap.size()));
                     System.gc();
                 }
             }

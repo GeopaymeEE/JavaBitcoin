@@ -53,6 +53,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Process network messages
@@ -340,9 +341,10 @@ public class NetworkMessageListener extends AbstractMessageListener {
         //
         List<InventoryItem> invList;
         synchronized(Parameters.lock) {
-            invList = new ArrayList<>(Parameters.txPool.size());
-            Parameters.txPool.stream().forEach((tx) ->
-                invList.add(new InventoryItem(InventoryItem.INV_TX, tx.getHash())));
+            Set<Sha256Hash> txSet = Parameters.txMap.keySet();
+            invList = new ArrayList<>(txSet.size());
+            txSet.stream().forEach((txHash) ->
+                invList.add(new InventoryItem(InventoryItem.INV_TX, txHash)));
         }
         //
         // Send the 'inv' message
@@ -472,28 +474,6 @@ public class NetworkMessageListener extends AbstractMessageListener {
                     break;
                 }
             }
-        }
-        //
-        // Remove the block transactions from the transaction pool and add them to the recent list.
-        // This will stop us from adding them back to the pool while the block is being processed.
-        //
-        List<Transaction> txList = block.getTransactions();
-        synchronized(Parameters.lock) {
-            txList.stream()
-                .map((tx) -> tx.getHash())
-                .map((txHash) -> {
-                    StoredTransaction storedTx = Parameters.txMap.get(txHash);
-                    if (storedTx != null) {
-                        Parameters.txPool.remove(storedTx);
-                        Parameters.txMap.remove(txHash);
-                    }
-                    return txHash;
-                })
-                .filter((txHash) -> (Parameters.recentTxMap.get(txHash) == null))
-                .forEach((txHash) -> {
-                    Parameters.recentTxList.add(txHash);
-                    Parameters.recentTxMap.put(txHash, txHash);
-                });
             Parameters.blocksReceived++;
         }
         //
@@ -757,7 +737,6 @@ public class NetworkMessageListener extends AbstractMessageListener {
             if (Parameters.recentTxMap.get(txHash) != null) {
                 duplicateTx = true;
             } else {
-                Parameters.recentTxList.add(txHash);
                 Parameters.recentTxMap.put(txHash, txHash);
             }
         }
@@ -796,8 +775,6 @@ public class NetworkMessageListener extends AbstractMessageListener {
             List<StoredTransaction> orphanTxList;
             synchronized(Parameters.lock) {
                 orphanTxList = Parameters.orphanTxMap.remove(txHash);
-                if (orphanTxList != null)
-                    orphanTxList.stream().forEach((orphanTx) -> Parameters.orphanTxList.remove(orphanTx));
             }
             if (orphanTxList != null) {
                 for (StoredTransaction orphanStoredTx : orphanTxList) {
@@ -807,33 +784,44 @@ public class NetworkMessageListener extends AbstractMessageListener {
                 }
             }
             //
-            // Purge transactions from the memory pool after 15 minutes.  We will limit the
-            // transaction lists to 5000 entries each.
+            // Clean up the transaction pools
             //
             synchronized(Parameters.lock) {
-                long oldestTime = System.currentTimeMillis()/1000 - (15*60);
-                // Clean up the transaction pool
-                while (!Parameters.txPool.isEmpty()) {
-                    StoredTransaction poolTx = Parameters.txPool.get(0);
-                    if (poolTx.getTimeStamp()>=oldestTime && Parameters.txPool.size()<=5000)
-                        break;
-                    Parameters.txPool.remove(0);
-                    Parameters.txMap.remove(poolTx.getHash());
+                // Clean up the transaction memory pool
+                if (Parameters.txMap.size() > 5000) {
+                    Set<Sha256Hash> txSet = Parameters.txMap.keySet();
+                    Iterator<Sha256Hash> it = txSet.iterator();
+                    do {
+                        it.next();
+                        it.remove();
+                    } while (txSet.size() > 4000);
                 }
                 // Clean up the recent transaction list
-                while (Parameters.recentTxList.size() > 5000) {
-                    Sha256Hash poolHash = Parameters.recentTxList.remove(0);
-                    Parameters.recentTxMap.remove(poolHash);
+                if (Parameters.recentTxMap.size() > 5000) {
+                    Set<Sha256Hash> txSet = Parameters.recentTxMap.keySet();
+                    Iterator<Sha256Hash> it = txSet.iterator();
+                    do {
+                        it.next();
+                        it.remove();
+                    } while (txSet.size() > 4000);
                 }
                 // Clean up the spent outputs list
-                while (Parameters.spentOutputsList.size() > 5000) {
-                    OutPoint outPoint = Parameters.spentOutputsList.remove(0);
-                    Parameters.spentOutputsMap.remove(outPoint);
+                if (Parameters.spentOutputsMap.size() > 5000) {
+                    Set<OutPoint> txSet = Parameters.spentOutputsMap.keySet();
+                    Iterator<OutPoint> it = txSet.iterator();
+                    do {
+                        it.next();
+                        it.remove();
+                    } while (txSet.size() > 4000);
                 }
                 // Clean up the orphan transactions list
-                while (Parameters.orphanTxList.size() > 1000) {
-                    StoredTransaction poolTx = Parameters.orphanTxList.remove(0);
-                    Parameters.orphanTxMap.remove(poolTx.getParent());
+                if (Parameters.orphanTxMap.size() > 5000) {
+                    Set<Sha256Hash> txSet = Parameters.orphanTxMap.keySet();
+                    Iterator<Sha256Hash> it = txSet.iterator();
+                    do {
+                        it.next();
+                        it.remove();
+                    } while (txSet.size() > 4000);
                 }
             }
         } catch (EOFException exc) {
@@ -1134,7 +1122,6 @@ public class NetworkMessageListener extends AbstractMessageListener {
             StoredTransaction storedTx = new StoredTransaction(tx);
             storedTx.setParent(orphanHash);
             synchronized(Parameters.lock) {
-                Parameters.orphanTxList.add(storedTx);
                 List<StoredTransaction> orphanList = Parameters.orphanTxMap.get(orphanHash);
                 if (orphanList == null) {
                     orphanList = new ArrayList<>();
@@ -1168,11 +1155,9 @@ public class NetworkMessageListener extends AbstractMessageListener {
             StoredTransaction storedTx = new StoredTransaction(tx);
             synchronized(Parameters.lock) {
                 if (Parameters.txMap.get(txHash) == null) {
-                    Parameters.txPool.add(storedTx);
                     Parameters.txMap.put(txHash, storedTx);
                     Parameters.txReceived++;
                     spentOutputs.stream().forEach((outPoint) -> {
-                        Parameters.spentOutputsList.add(outPoint);
                         Parameters.spentOutputsMap.put(outPoint, txHash);
                     });
                 }

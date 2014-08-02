@@ -606,8 +606,8 @@ public class BlockStoreSql extends BlockStore {
         // Delete spent outputs in increments of 1000 to reduce the time that other
         // transactions are locked out of the database
         //
-        log.info("Deleting spent transaction outputs");
         synchronized(lock) {
+            log.info("Deleting spent transaction outputs");
             try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
                                 + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 1000)")) {
                 s.setLong(1, ageLimit);
@@ -617,8 +617,8 @@ public class BlockStoreSql extends BlockStore {
                 log.error(String.format("Unable to delete spent transaction outputs", exc));
                 throw new BlockStoreException("Unable to delete spent transaction outputs");
             }
+            log.info(String.format("Deleted %d spent transaction outputs", deletedCount));
         }
-        log.info(String.format("Deleted %d spent transaction outputs", deletedCount));
     }
 
     /**
