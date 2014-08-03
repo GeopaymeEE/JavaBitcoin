@@ -806,13 +806,13 @@ public class NetworkMessageListener extends AbstractMessageListener {
                     } while (txSet.size() > 4000);
                 }
                 // Clean up the spent outputs list
-                if (Parameters.spentOutputsMap.size() > 5000) {
+                if (Parameters.spentOutputsMap.size() > 25000) {
                     Set<OutPoint> txSet = Parameters.spentOutputsMap.keySet();
                     Iterator<OutPoint> it = txSet.iterator();
                     do {
                         it.next();
                         it.remove();
-                    } while (txSet.size() > 4000);
+                    } while (txSet.size() > 20000);
                 }
                 // Clean up the orphan transactions list
                 if (Parameters.orphanTxMap.size() > 5000) {

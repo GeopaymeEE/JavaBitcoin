@@ -20,7 +20,10 @@ import org.ScripterRon.BitcoinCore.Block;
 import org.ScripterRon.BitcoinCore.InventoryItem;
 import org.ScripterRon.BitcoinCore.InventoryMessage;
 import org.ScripterRon.BitcoinCore.Message;
+import org.ScripterRon.BitcoinCore.Sha256Hash;
+import org.ScripterRon.BitcoinCore.OutPoint;
 import org.ScripterRon.BitcoinCore.Transaction;
+import org.ScripterRon.BitcoinCore.TransactionInput;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -182,16 +185,19 @@ public class DatabaseHandler implements Runnable {
     }
 
     /**
-     * Remove the transactions in the current block from the memory pool
+     * Remove the transactions in the current block from the memory pool and update the spent outputs
      *
      * @param       block           The current block
      */
     private void updateTxPool(Block block) {
         List<Transaction> txList = block.getTransactions();
         synchronized(Parameters.lock) {
-            txList.stream().map((tx) -> tx.getHash()).forEach((txHash) -> {
+            txList.stream().forEach((tx) -> {
+                Sha256Hash txHash = tx.getHash();
                 Parameters.txMap.remove(txHash);
                 Parameters.recentTxMap.remove(txHash);
+                List<TransactionInput> txInputs = tx.getInputs();
+                txInputs.stream().forEach((txInput) -> Parameters.spentOutputsMap.remove(txInput.getOutPoint()));
             });
         }
     }
