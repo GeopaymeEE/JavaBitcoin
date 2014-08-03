@@ -337,14 +337,16 @@ public class NetworkMessageListener extends AbstractMessageListener {
     @Override
     public void requestMemoryPool(Message msg) {
         //
-        // Get the list of transaction identifiers in the memory pool
+        // Get the list of transaction identifiers in the memory pool.  We will send a maximum
+        // of 1000 transaction identifiers.
         //
         List<InventoryItem> invList;
         synchronized(Parameters.lock) {
             Set<Sha256Hash> txSet = Parameters.txMap.keySet();
             invList = new ArrayList<>(txSet.size());
-            txSet.stream().forEach((txHash) ->
-                invList.add(new InventoryItem(InventoryItem.INV_TX, txHash)));
+            Iterator<Sha256Hash> it = txSet.iterator();
+            while (it.hasNext() && invList.size() < 1000)
+                invList.add(new InventoryItem(InventoryItem.INV_TX, it.next()));
         }
         //
         // Send the 'inv' message
