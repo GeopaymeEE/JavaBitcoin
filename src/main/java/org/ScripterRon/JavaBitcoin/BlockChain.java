@@ -276,29 +276,6 @@ public class BlockChain {
                     //
                     updatedStoredBlock.setChain(true);
                     listeners.stream().forEach((listener) -> listener.blockUpdated(updatedStoredBlock));
-                    //
-                    // Get any orphan transactions that are waiting for transactions in this block
-                    //
-                    List<StoredTransaction> retryList = new ArrayList<>(50);
-                    List<Transaction> txList = updatedBlock.getTransactions();
-                    synchronized(Parameters.lock) {
-                        for (Transaction tx : txList) {
-                            List<StoredTransaction> orphanList = Parameters.orphanTxMap.remove(tx.getHash());
-                            if (orphanList != null) {
-                                for (StoredTransaction orphan : orphanList)
-                                    retryList.add(orphan);
-                            }
-                        }
-                    }
-                    //
-                    // Retry transactions that are still not in the database
-                    //
-                    for (StoredTransaction orphan : retryList) {
-                        if (Parameters.blockStore.isNewTransaction(orphan.getHash())) {
-                            Transaction tx = orphan.getTransaction();
-                            Parameters.networkMessageListener.retryOrphanTransaction(tx);
-                        }
-                    }
                 }
                 listeners.stream().forEach((listener) -> listener.chainUpdated());
                 //

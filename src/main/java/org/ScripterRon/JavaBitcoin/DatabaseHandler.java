@@ -21,7 +21,6 @@ import org.ScripterRon.BitcoinCore.InventoryItem;
 import org.ScripterRon.BitcoinCore.InventoryMessage;
 import org.ScripterRon.BitcoinCore.Message;
 import org.ScripterRon.BitcoinCore.Sha256Hash;
-import org.ScripterRon.BitcoinCore.OutPoint;
 import org.ScripterRon.BitcoinCore.Transaction;
 import org.ScripterRon.BitcoinCore.TransactionInput;
 
@@ -115,7 +114,7 @@ public class DatabaseHandler implements Runnable {
                 // 'inv' message if we are more than 3 blocks behind the best network chain.
                 //
                 if (chainList != null) {
-                    chainList.stream().forEach((storedBlock) -> {
+                    for (StoredBlock storedBlock : chainList) {
                         Block chainBlock = storedBlock.getBlock();
                         if (chainBlock != null) {
                             updateTxPool(chainBlock);
@@ -124,7 +123,7 @@ public class DatabaseHandler implements Runnable {
                             if (chainHeight >= Parameters.networkChainHeight-3)
                                 notifyPeers(storedBlock);
                         }
-                    });
+                    }
                     StoredBlock parentBlock = chainList.get(chainList.size()-1);
                     while (parentBlock != null)
                         parentBlock = processChildBlock(parentBlock);
@@ -152,9 +151,9 @@ public class DatabaseHandler implements Runnable {
     /**
      * Process a child block and see if it can now be added to the chain
      *
-     * @param       storedBlock         The updated block
-     * @return                          Next parent block or null
-     * @throws      BlockStoreException
+     * @param       storedBlock             The updated block
+     * @return                              Next parent block or null
+     * @throws      BlockStoreException     Database error occurred
      */
     private StoredBlock processChildBlock(StoredBlock storedBlock) throws BlockStoreException {
         StoredBlock parentBlock = null;
@@ -185,20 +184,42 @@ public class DatabaseHandler implements Runnable {
     }
 
     /**
-     * Remove the transactions in the current block from the memory pool and update the spent outputs
+     * Remove the transactions in the current block from the memory pool, update the spent outputs map,
+     * and retry orphan transactions
      *
-     * @param       block           The current block
+     * @param       block                   The current block
+     * @throws      BlockStoreException     Database error occurred
      */
-    private void updateTxPool(Block block) {
+    private void updateTxPool(Block block) throws BlockStoreException {
         List<Transaction> txList = block.getTransactions();
+        List<StoredTransaction> retryList = new ArrayList<>();
         synchronized(Parameters.lock) {
             txList.stream().forEach((tx) -> {
                 Sha256Hash txHash = tx.getHash();
+                //
+                // Remove the transaction from the transaction maps
+                //
                 Parameters.txMap.remove(txHash);
                 Parameters.recentTxMap.remove(txHash);
+                //
+                // Remove spent outputs from the map since they are now updated in the database
+                //
                 List<TransactionInput> txInputs = tx.getInputs();
                 txInputs.stream().forEach((txInput) -> Parameters.spentOutputsMap.remove(txInput.getOutPoint()));
+                //
+                // Get orphan transactions dependent on this transaction
+                //
+                List<StoredTransaction> orphanList = Parameters.orphanTxMap.remove(txHash);
+                if (orphanList != null)
+                    retryList.addAll(orphanList);
             });
+        }
+        //
+        // Retry orphan transactions that are not in the database
+        //
+        for (StoredTransaction orphan : retryList) {
+            if (Parameters.blockStore.isNewTransaction(orphan.getHash()))
+                Parameters.networkMessageListener.retryOrphanTransaction(orphan.getTransaction());
         }
     }
 
