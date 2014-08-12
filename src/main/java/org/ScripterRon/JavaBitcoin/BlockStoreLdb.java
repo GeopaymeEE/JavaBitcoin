@@ -895,7 +895,7 @@ public class BlockStoreLdb extends BlockStore {
     public void deleteSpentTxOutputs() throws BlockStoreException {
         long ageLimit = chainTime - MAX_TX_AGE;
         int txPurged = 0;
-        List<byte[]> purgeList = new ArrayList<>(5000);
+        List<byte[]> purgeList = new ArrayList<>(1000);
         synchronized(lock) {
             try {
                 //
@@ -904,7 +904,7 @@ public class BlockStoreLdb extends BlockStore {
                 log.info("Deleting spent transaction outputs");
                 try (DBIterator it = dbTxSpent.iterator()) {
                     it.seekToFirst();
-                    while (it.hasNext()) {
+                    while (it.hasNext() && purgeList.size()<1000) {
                         Entry<byte[], byte[]> dbEntry = it.next();
                         long timeSpent = getLong(dbEntry.getValue());
                         if (timeSpent < ageLimit) {
