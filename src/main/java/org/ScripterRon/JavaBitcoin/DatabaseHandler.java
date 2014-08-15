@@ -177,7 +177,7 @@ public class DatabaseHandler implements Runnable {
                 //
                 // Continue working our way up the chain
                 //
-                parentBlock = storedBlock;
+                parentBlock = childStoredBlock;
             }
         }
         return parentBlock;
