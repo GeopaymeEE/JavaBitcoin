@@ -268,7 +268,7 @@ public class Main {
             //
             // Initialize the BitcoinCore library
             //
-            NetParams.configure(testNetwork, 60000, softwareName, NetParams.NODE_NETWORK);
+            NetParams.configure(testNetwork, Parameters.MIN_PROTOCOL_VERSION, softwareName, NetParams.NODE_NETWORK);
             //
             // Migrate the LevelDB database to an H2 database
             //
