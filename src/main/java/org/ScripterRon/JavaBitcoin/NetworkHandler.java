@@ -354,32 +354,42 @@ public class NetworkHandler implements Runnable {
                     List<Peer> inactiveList = new ArrayList<>();
                     connections.stream().forEach((chkPeer) -> {
                         PeerAddress chkAddress = chkPeer.getAddress();
-                        if (chkAddress.getTimeStamp() < currentTime-4*60) {
+                        if (chkAddress.getTimeStamp() < currentTime-5*60) {
                             inactiveList.add(chkPeer);
                         } else if (chkAddress.getTimeStamp() < currentTime-2*60) {
                             if (chkPeer.getVersionCount() < 2) {
                                 inactiveList.add(chkPeer);
                             } else if (!chkPeer.wasPingSent()) {
-                                chkPeer.setPing(true);
-                                Message chkMsg = PingMessage.buildPingMessage(chkPeer);
-                                synchronized(Parameters.lock) {
-                                    chkPeer.getOutputList().add(chkMsg);
-                                    SelectionKey chkKey = chkPeer.getKey();
-                                    chkKey.interestOps(chkKey.interestOps() | SelectionKey.OP_WRITE);
-                                    log.info(String.format("'ping' message sent to %s", chkAddress));
+                                int banScore = 0;
+                                if (chkPeer.getServices() != 0) {
+                                    banScore = chkPeer.getBanScore() + 10;
+                                    chkPeer.setBanScore(banScore);
+                                }
+                                if (banScore < Parameters.MAX_BAN_SCORE) {
+                                    chkPeer.setPing(true);
+                                    Message chkMsg = PingMessage.buildPingMessage(chkPeer);
+                                    synchronized(Parameters.lock) {
+                                        chkPeer.getOutputList().add(chkMsg);
+                                        SelectionKey chkKey = chkPeer.getKey();
+                                        chkKey.interestOps(chkKey.interestOps() | SelectionKey.OP_WRITE);
+                                        log.info(String.format("'ping' message sent to %s", chkAddress));
+                                    }
+                                } else {
+                                   inactiveList.add(chkPeer);
                                 }
                             }
                         }
                     });
-                    inactiveList.stream().map((chkPeer) -> {
+                    inactiveList.stream().forEach((chkPeer) -> {
                         log.info(String.format("Closing connection due to inactivity: %s", chkPeer.getAddress()));
-                        return chkPeer;
-                    }).map((chkPeer) -> {
                         closeConnection(chkPeer);
-                        return chkPeer;
-                    }).forEach((chkPeer) -> {
+                        PeerAddress chkAddress = chkPeer.getAddress();
+                        if (chkPeer.getBanScore() >= Parameters.MAX_BAN_SCORE &&
+                                            !bannedAddresses.contains(chkAddress.getAddress())) {
+                            bannedAddresses.add(chkAddress.getAddress());
+                            log.info(String.format("Peer address %s banned", chkAddress.getAddress().getHostAddress()));
+                        }
                         synchronized(Parameters.lock) {
-                            PeerAddress chkAddress = chkPeer.getAddress();
                             Parameters.peerMap.remove(chkAddress);
                             Parameters.peerAddresses.remove(chkAddress);
                         }
