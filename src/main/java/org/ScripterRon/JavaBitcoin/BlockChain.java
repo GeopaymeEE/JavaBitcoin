@@ -155,7 +155,7 @@ public class BlockChain {
                 onHold = true;
                 PeerRequest request = new PeerRequest(exc.getHash(), InventoryItem.INV_BLOCK);
                 if (Parameters.networkHandler != null) {
-                    synchronized(Parameters.lock) {
+                    synchronized(Parameters.pendingRequests) {
                         if (!Parameters.pendingRequests.contains(request) &&
                                             !Parameters.processedRequests.contains(request))
                             Parameters.pendingRequests.add(request);

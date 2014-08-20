@@ -108,7 +108,7 @@ public class MessageHandler implements Runnable {
                                     cmdName, address), exc);
             reasonCode = RejectMessage.REJECT_MALFORMED;
             if (cmdOp == MessageHeader.MessageCommand.TX)
-                Parameters.txRejected++;
+                Parameters.txRejected.incrementAndGet();
             else if (cmdOp == MessageHeader.MessageCommand.VERSION)
                 peer.setDisconnect(true);
             if (peer.getVersion() >= 70002) {
@@ -125,7 +125,7 @@ public class MessageHandler implements Runnable {
                                     cmdName, address, exc.getMessage(), exc.getHash()));
             reasonCode = exc.getReason();
             if (cmdOp == MessageHeader.MessageCommand.TX)
-                Parameters.txRejected++;
+                Parameters.txRejected.incrementAndGet();
             else if (cmdOp == MessageHeader.MessageCommand.VERSION)
                 peer.setDisconnect(true);
             if (peer.getVersion() >= 70002) {

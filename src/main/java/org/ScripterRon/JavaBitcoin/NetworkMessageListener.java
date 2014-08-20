@@ -111,15 +111,13 @@ public class NetworkMessageListener extends AbstractMessageListener {
                     // Send a transaction from the memory pool
                     //
                     StoredTransaction tx;
-                    synchronized(Parameters.lock) {
+                    synchronized(Parameters.txMap) {
                         tx = Parameters.txMap.get(item.getHash());
                     }
                     if (tx != null) {
                         Message txMsg = TransactionMessage.buildTransactionMessage(peer, tx.getBytes());
                         Parameters.networkHandler.sendMessage(txMsg);
-                        synchronized(Parameters.lock) {
-                            Parameters.txSent++;
-                        }
+                        Parameters.txSent.incrementAndGet();
                         log.debug(String.format("Sent tx %s", tx.getHash()));
                     } else {
                         notFound.add(item);
@@ -135,9 +133,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                             blocksSent++;
                             Message blockMsg = BlockMessage.buildBlockMessage(peer, block.getBytes());
                             Parameters.networkHandler.sendMessage(blockMsg);
-                            synchronized(Parameters.lock) {
-                                Parameters.blocksSent++;
-                            }
+                            Parameters.blocksSent.incrementAndGet();
                             log.debug(String.format("Sent block %s", block.getHash()));
                         } else {
                             notFound.add(item);
@@ -239,7 +235,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                     // Skip the transaction if we have already seen it
                     //
                     boolean newTx;
-                    synchronized(Parameters.lock) {
+                    synchronized(Parameters.txMap) {
                         newTx = (Parameters.recentTxMap.get(item.getHash()) == null);
                     }
                     if (!newTx)
@@ -257,7 +253,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                     //
                     try {
                         if (Parameters.blockStore.isNewTransaction(item.getHash())) {
-                            synchronized(Parameters.lock) {
+                            synchronized(Parameters.pendingRequests) {
                                 if (Parameters.recentTxMap.get(item.getHash()) == null &&
                                                     !Parameters.pendingRequests.contains(request) &&
                                                     !Parameters.processedRequests.contains(request)) {
@@ -278,7 +274,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                     //
                     try {
                         if (Parameters.blockStore.isNewBlock(item.getHash())) {
-                            synchronized(Parameters.lock) {
+                            synchronized(Parameters.pendingRequests) {
                                 if (!Parameters.pendingRequests.contains(request) &&
                                                 !Parameters.processedRequests.contains(request))
                                     Parameters.pendingRequests.add(request);
@@ -306,7 +302,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
     @Override
     public void requestNotFound(Message msg, List<InventoryItem> invList) {
         for (InventoryItem item : invList) {
-            synchronized(Parameters.lock) {
+            synchronized(Parameters.pendingRequests) {
                 //
                 // Remove the request from the processedRequests list and put it
                 // back on the pendingRequests list.  The network handler will
@@ -341,7 +337,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         // of 1000 transaction identifiers.
         //
         List<InventoryItem> invList;
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.txMap) {
             Set<Sha256Hash> txSet = Parameters.txMap.keySet();
             invList = new ArrayList<>(txSet.size());
             Iterator<Sha256Hash> it = txSet.iterator();
@@ -378,7 +374,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
                         !addr.equals(Parameters.listenAddress))
             .forEach((addr) -> {
                 long timeStamp = addr.getTimeStamp();
-                synchronized(Parameters.lock) {
+                synchronized(Parameters.peerAddresses) {
                     PeerAddress mapAddress = Parameters.peerMap.get(addr);
                     if (mapAddress == null) {
                         int index, lowIndex, highIndex;
@@ -469,15 +465,15 @@ public class NetworkMessageListener extends AbstractMessageListener {
         //
         // Indicate the block is being processed so the block request won't be rebroadcast
         //
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.pendingRequests) {
             for (PeerRequest chkRequest : Parameters.processedRequests) {
                 if (chkRequest.getType()==InventoryItem.INV_BLOCK && chkRequest.getHash().equals(block.getHash())) {
                     chkRequest.setProcessing(true);
                     break;
                 }
             }
-            Parameters.blocksReceived++;
         }
+        Parameters.blocksReceived.incrementAndGet();
         //
         // Add the block to the database handler queue
         //
@@ -499,7 +495,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
      */
     @Override
     public void processFilterClear(Message msg, BloomFilter oldFilter) {
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.bloomFilters) {
             Parameters.bloomFilters.remove(oldFilter);
         }
     }
@@ -516,7 +512,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
      */
     @Override
     public void processFilterLoad(Message msg, BloomFilter oldFilter, BloomFilter newFilter) {
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.bloomFilters) {
             if (oldFilter != null)
                 Parameters.bloomFilters.remove(oldFilter);
             Parameters.bloomFilters.add(newFilter);
@@ -534,7 +530,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
     @Override
     public void processGetAddress(Message msg) {
         List<PeerAddress> addressList;
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.peerAddresses) {
             addressList = new ArrayList<>(Parameters.peerAddresses);
         }
         Message addrMsg = AddressMessage.buildAddressMessage(msg.getPeer(), addressList, Parameters.listenAddress);
@@ -720,7 +716,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         //
         // Remove the request from the processedRequests list
         //
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.pendingRequests) {
             Iterator<PeerRequest> it = Parameters.processedRequests.iterator();
             while (it.hasNext()) {
                 PeerRequest request = it.next();
@@ -735,7 +731,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         // the recent transaction list
         //
         boolean duplicateTx = false;
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.txMap) {
             if (Parameters.recentTxMap.get(txHash) != null) {
                 duplicateTx = true;
             } else {
@@ -775,7 +771,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             // Process orphan transactions that were waiting on this transaction
             //
             List<StoredTransaction> orphanTxList;
-            synchronized(Parameters.lock) {
+            synchronized(Parameters.txMap) {
                 orphanTxList = Parameters.orphanTxMap.remove(txHash);
             }
             if (orphanTxList != null) {
@@ -788,7 +784,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             //
             // Clean up the transaction pools
             //
-            synchronized(Parameters.lock) {
+            synchronized(Parameters.txMap) {
                 // Clean up the transaction memory pool
                 if (Parameters.txMap.size() > 5000) {
                     Set<Sha256Hash> txSet = Parameters.txMap.keySet();
@@ -829,7 +825,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         } catch (EOFException exc) {
             log.error(String.format("End-of-data while processing 'tx' message from %s", peer.getAddress()));
             reasonCode = RejectMessage.REJECT_MALFORMED;
-            Parameters.txRejected++;
+            Parameters.txRejected.incrementAndGet();
             if (peer.getVersion() >= 70002) {
                 Message rejectMsg = RejectMessage.buildRejectMessage(peer, "tx", reasonCode, exc.getMessage());
                 Parameters.networkHandler.sendMessage(rejectMsg);
@@ -838,7 +834,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             log.error(String.format("Message verification failed for 'tx' message from %s\n  %s\n  %s",
                                     peer.getAddress(), exc.getMessage(), exc.getHash()));
             reasonCode = exc.getReason();
-            Parameters.txRejected++;
+            Parameters.txRejected.incrementAndGet();
             if (peer.getVersion() >= 70002) {
                 Message rejectMsg = RejectMessage.buildRejectMessage(peer, "tx", reasonCode,
                                                                      exc.getMessage(), exc.getHash());
@@ -927,9 +923,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         //
         Message blockMsg = MerkleBlockMessage.buildMerkleBlockMessage(peer, block, txIndexes);
         Parameters.networkHandler.sendMessage(blockMsg);
-        synchronized(Parameters.lock) {
-            Parameters.filteredBlocksSent++;
-        }
+        Parameters.filteredBlocksSent.incrementAndGet();
         //
         // Send a 'tx' message for each matching transaction
         //
@@ -937,9 +931,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             Transaction tx = txList.get(txIndex);
             Message txMsg = TransactionMessage.buildTransactionMessage(peer, tx);
             Parameters.networkHandler.sendMessage(txMsg);
-            synchronized(Parameters.lock) {
-                Parameters.txSent++;
-            }
+            Parameters.txSent.incrementAndGet();
         });
     }
 
@@ -1014,13 +1006,13 @@ public class NetworkMessageListener extends AbstractMessageListener {
             StoredOutput output = null;
             Sha256Hash spendHash;
             boolean outputSpent = false;
-            synchronized(Parameters.lock) {
+            synchronized(Parameters.txMap) {
                 spendHash = Parameters.spentOutputsMap.get(outPoint);
             }
             if (spendHash == null) {
                 // Connected output is not in the recently spent list, check the memory pool
                 StoredTransaction outTx;
-                synchronized(Parameters.lock) {
+                synchronized(Parameters.txMap) {
                     outTx = Parameters.txMap.get(outPoint.getHash());
                 }
                 if (outTx != null) {
@@ -1123,7 +1115,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         if (orphanTx) {
             StoredTransaction storedTx = new StoredTransaction(tx);
             storedTx.setParent(orphanHash);
-            synchronized(Parameters.lock) {
+            synchronized(Parameters.txMap) {
                 List<StoredTransaction> orphanList = Parameters.orphanTxMap.get(orphanHash);
                 if (orphanList == null) {
                     orphanList = new ArrayList<>();
@@ -1155,13 +1147,11 @@ public class NetworkMessageListener extends AbstractMessageListener {
         //
         if (txLength <= 50*1024) {
             StoredTransaction storedTx = new StoredTransaction(tx);
-            synchronized(Parameters.lock) {
+            synchronized(Parameters.txMap) {
                 if (Parameters.txMap.get(txHash) == null) {
                     Parameters.txMap.put(txHash, storedTx);
-                    Parameters.txReceived++;
-                    spentOutputs.stream().forEach((outPoint) -> {
-                        Parameters.spentOutputsMap.put(outPoint, txHash);
-                    });
+                    Parameters.txReceived.incrementAndGet();
+                    spentOutputs.stream().forEach((outPoint) -> Parameters.spentOutputsMap.put(outPoint, txHash));
                 }
             }
         }
@@ -1188,7 +1178,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         // Copy the current list of Bloom filters
         //
         List<BloomFilter> filters;
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.bloomFilters) {
             filters = new ArrayList<>(Parameters.bloomFilters);
         }
         //
@@ -1200,7 +1190,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             // Remove the filter if the peer is no longer connected
             //
             if (!peer.isConnected()) {
-                synchronized(Parameters.lock) {
+                synchronized(Parameters.bloomFilters) {
                     Parameters.bloomFilters.remove(filter);
                 }
                 continue;

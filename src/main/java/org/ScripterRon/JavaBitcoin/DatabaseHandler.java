@@ -146,7 +146,7 @@ public class DatabaseHandler implements Runnable {
             //
             // Remove the request from the processedRequests list
             //
-            synchronized(Parameters.lock) {
+            synchronized(Parameters.pendingRequests) {
                 Iterator<PeerRequest> it = Parameters.processedRequests.iterator();
                 while (it.hasNext()) {
                     PeerRequest request = it.next();
@@ -207,7 +207,7 @@ public class DatabaseHandler implements Runnable {
     private void updateTxPool(Block block) throws BlockStoreException {
         List<Transaction> txList = block.getTransactions();
         List<StoredTransaction> retryList = new ArrayList<>();
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.txMap) {
             txList.stream().forEach((tx) -> {
                 Sha256Hash txHash = tx.getHash();
                 //

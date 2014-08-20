@@ -320,7 +320,7 @@ public class NetworkHandler implements Runnable {
                 long currentTime = System.currentTimeMillis()/1000;
                 if (currentTime > lastPeerUpdateTime + (30*60)) {
                     List<PeerAddress> newAddresses = new ArrayList<>(Parameters.peerAddresses.size());
-                    synchronized(Parameters.lock) {
+                    synchronized(Parameters.peerAddresses) {
                         Iterator<PeerAddress> iterator = Parameters.peerAddresses.iterator();
                         while (iterator.hasNext()) {
                             PeerAddress address = iterator.next();
@@ -415,9 +415,10 @@ public class NetworkHandler implements Runnable {
                                 Parameters.networkChainHeight, Parameters.blockStore.getChainHeight(),
                                 outboundCount, connections.size()-outboundCount,
                                 Parameters.peerAddresses.size(), bannedAddresses.size(),
-                                Parameters.blocksReceived, Parameters.blocksSent, Parameters.filteredBlocksSent,
-                                Parameters.txReceived, Parameters.txSent, Parameters.txMap.size(),
-                                Parameters.txRejected, Parameters.orphanTxMap.size()));
+                                Parameters.blocksReceived.get(), Parameters.blocksSent.get(),
+                                Parameters.filteredBlocksSent.get(), Parameters.txReceived.get(),
+                                Parameters.txSent.get(), Parameters.txMap.size(),
+                                Parameters.txRejected.get(), Parameters.orphanTxMap.size()));
                     System.gc();
                 }
             }
@@ -450,7 +451,7 @@ public class NetworkHandler implements Runnable {
         // Get the current connection list
         //
         List<Peer> connectionList;
-        synchronized(Parameters.lock) {
+        synchronized(connections) {
             connectionList = new ArrayList<>(connections);
         }
         //
@@ -514,7 +515,7 @@ public class NetworkHandler implements Runnable {
         //
         // Send the message to each connected peer
         //
-        synchronized(Parameters.lock) {
+        synchronized(connections) {
             connections.stream()
                 .filter((relayPeer) -> relayPeer.getVersionCount() > 2)
                 .forEach((relayPeer) -> {
@@ -576,7 +577,7 @@ public class NetworkHandler implements Runnable {
                     log.info(String.format("Connection accepted from %s", address));
                     Message msg = VersionMessage.buildVersionMessage(peer, Parameters.listenAddress,
                                                                      Parameters.blockStore.getChainHeight());
-                    synchronized(Parameters.lock) {
+                    synchronized(connections) {
                         connections.add(peer);
                         connectionMap.put(address.getAddress(), peer);
                         peer.getOutputList().add(msg);
@@ -604,7 +605,7 @@ public class NetworkHandler implements Runnable {
         // Get the most recent peer that does not have a connection
         //
         PeerAddress address = null;
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.peerAddresses) {
             for (PeerAddress chkAddress : Parameters.peerAddresses) {
                 if (!chkAddress.isConnected() && connectionMap.get(chkAddress.getAddress())==null &&
                                 (!staticConnections || chkAddress.isStatic())) {
@@ -631,7 +632,7 @@ public class NetworkHandler implements Runnable {
             address.setOutbound(true);
             channel.connect(address.toSocketAddress());
             outboundCount++;
-            synchronized(Parameters.lock) {
+            synchronized(connections) {
                 connections.add(peer);
                 connectionMap.put(address.getAddress(), peer);
             }
@@ -668,7 +669,7 @@ public class NetworkHandler implements Runnable {
             log.info(exc.getLocalizedMessage());
             closeConnection(peer);
             if (!address.isStatic()) {
-                synchronized(Parameters.lock) {
+                synchronized(Parameters.peerAddresses) {
                     if (Parameters.peerMap.get(address) != null) {
                         Parameters.peerAddresses.remove(address);
                         Parameters.peerMap.remove(address);
@@ -867,10 +868,12 @@ public class NetworkHandler implements Runnable {
             address.setConnected(false);
             address.setOutbound(false);
             peer.setConnected(false);
-            synchronized(Parameters.lock) {
+            synchronized(connections) {
                 connections.remove(peer);
                 connectionMap.remove(address.getAddress());
-                if (!address.isStatic()) {
+            }
+            if (!address.isStatic()) {
+                synchronized(Parameters.peerAddresses) {
                     Parameters.peerAddresses.remove(address);
                     Parameters.peerMap.remove(address);
                 }
@@ -1027,7 +1030,7 @@ public class NetworkHandler implements Runnable {
         //
         // Check for request timeouts (we will wait 10 seconds for a response)
         //
-        synchronized(Parameters.lock) {
+        synchronized(Parameters.pendingRequests) {
             while (!Parameters.processedRequests.isEmpty()) {
                 request = Parameters.processedRequests.get(0);
                 if (request.getTimeStamp() >= currentTime-10 || request.isProcessing())
@@ -1050,7 +1053,7 @@ public class NetworkHandler implements Runnable {
         // are placed at the end of the queue.
         //
         while (!Parameters.pendingRequests.isEmpty()) {
-            synchronized(Parameters.lock) {
+            synchronized(Parameters.pendingRequests) {
                 request = Parameters.pendingRequests.get(0);
                 if (request.getType() == InventoryItem.INV_BLOCK &&
                             (Parameters.databaseQueue.size() >= 10 || Parameters.processedRequests.size() > 50)) {
@@ -1101,7 +1104,7 @@ public class NetworkHandler implements Runnable {
             //
             if (peer == null) {
                 Peer originPeer = request.getOrigin();
-                synchronized(Parameters.lock) {
+                synchronized(Parameters.pendingRequests) {
                     Parameters.processedRequests.remove(request);
                 }
                 if (originPeer != null) {

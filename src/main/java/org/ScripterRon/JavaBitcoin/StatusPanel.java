@@ -464,7 +464,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         public Object getValueAt(int row, int column) {
             Object value;
             BlockStatus status;
-            synchronized(Parameters.lock) {
+            synchronized(blockMap) {
                 status = blocks[row];
             }
             //
@@ -502,7 +502,7 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         public void blockStored(StoredBlock storedBlock) {
             Sha256Hash blockHash = storedBlock.getHash();
             Integer blockHeight = storedBlock.getHeight();
-            synchronized(Parameters.lock) {
+            synchronized(blockMap) {
                 //
                 // Update the block status
                 //

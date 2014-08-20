@@ -25,6 +25,7 @@ import org.ScripterRon.BitcoinCore.PeerAddress;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -80,45 +81,45 @@ public class Parameters {
     public static int listenPort;
 
     /** Number of blocks received */
-    public static long blocksReceived;
+    public static final AtomicLong blocksReceived = new AtomicLong();
 
     /** Number of blocks sent */
-    public static long blocksSent;
+    public static final AtomicLong blocksSent = new AtomicLong();
 
     /** Number of filtered blocks sent */
-    public static long filteredBlocksSent;
+    public static final AtomicLong filteredBlocksSent = new AtomicLong();
 
     /** Number of transactions received */
-    public static long txReceived;
+    public static final AtomicLong txReceived = new AtomicLong();
 
     /** Number of transactions sent */
-    public static long txSent;
+    public static final AtomicLong txSent = new AtomicLong();
 
     /** Number of transactions rejected */
-    public static long txRejected;
+    public static final AtomicLong txRejected = new AtomicLong();
 
     /** Network chain height */
     public static int networkChainHeight;
 
-    /** List of peer requests that are waiting to be sent */
+    /** List of peer requests that are waiting to be sent - synchronized on pendingRequests */
     public static final List<PeerRequest> pendingRequests = new LinkedList<>();
 
-    /** List of peer requests that are waiting for a response */
+    /** List of peer requests that are waiting for a response - synchronized on pendingRequests */
     public static final List<PeerRequest> processedRequests = new LinkedList<>();
 
-    /** Map of transactions in the memory pool (txHash, tx) */
+    /** Map of transactions in the memory pool (txHash, tx) - synchronized on txMap */
     public static final Map<Sha256Hash, StoredTransaction> txMap = new HashMap<>(250);
 
-    /** Map of recent transactions (txHash, txHash) */
+    /** Map of recent transactions (txHash, txHash) - synchronized on txMap */
     public static final Map<Sha256Hash, Sha256Hash> recentTxMap = new HashMap<>(250);
 
-    /** Map of orphan transactions (parentTxHash, orphanTxList) */
+    /** Map of orphan transactions (parentTxHash, orphanTxList) - synchronized on txMap */
     public static final Map<Sha256Hash, List<StoredTransaction>> orphanTxMap = new HashMap<>(250);
 
-    /** Map of recent spent outputs (Outpoint. spendingTxHash) */
+    /** Map of recent spent outputs (Outpoint. spendingTxHash) - synchronized on txMap */
     public static final Map<OutPoint, Sha256Hash> spentOutputsMap = new HashMap<>(250);
 
-    /** List of Bloom filters */
+    /** List of Bloom filters - synchronized on bloomFilters */
     public static final List<BloomFilter> bloomFilters = new LinkedList<>();
 
     /** Database handler message queue */
@@ -127,10 +128,10 @@ public class Parameters {
     /** Message handler message queue */
     public static final LinkedBlockingQueue<Message> messageQueue = new LinkedBlockingQueue<>(250);
 
-    /** Peer addresses */
+    /** Peer addresses - synchronized on peerAddresses */
     public static final List<PeerAddress> peerAddresses = new LinkedList<>();
 
-    /** Peer address map */
+    /** Peer address map - synchronized on peerAddresses */
     public static final Map<PeerAddress, PeerAddress> peerMap = new HashMap<>(250);
 
     /** Completed messages */
@@ -138,7 +139,4 @@ public class Parameters {
 
     /** Alert list */
     public static final List<Alert> alerts = new ArrayList<>();
-
-    /** Short-term lock object */
-    public static final Object lock = new Object();
 }
