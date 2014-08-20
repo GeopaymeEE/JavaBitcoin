@@ -37,6 +37,9 @@ import java.io.EOFException;
  */
 public class MessageHandler implements Runnable {
 
+    /** Message handler shutdown requested */
+    private boolean messageShutdown = false;
+
     /**
      * Creates a message handler
      */
@@ -55,7 +58,7 @@ public class MessageHandler implements Runnable {
         try {
             while (true) {
                 Message msg = Parameters.messageQueue.take();
-                if (msg instanceof ShutdownMessage)
+                if (messageShutdown)
                     break;
                 processMessage(msg);
             }
@@ -68,6 +71,18 @@ public class MessageHandler implements Runnable {
         // Stopping
         //
         log.info("Message handler stopped");
+    }
+
+    /**
+     * Shutdown the message handler
+     */
+    public void shutdown() {
+        try {
+            messageShutdown = true;
+            Parameters.messageQueue.put(new ShutdownMessage());
+        } catch (InterruptedException exc) {
+            log.warn("Message handler shutdown interrupted", exc);
+        }
     }
 
     /**
@@ -127,8 +142,8 @@ public class MessageHandler implements Runnable {
         // bump the banscore for the peer if the message was rejected because it was malformed
         // or invalid.
         //
-        synchronized(Parameters.lock) {
-            Parameters.completedMessages.add(msg);
+        Parameters.completedMessages.add(msg);
+        synchronized(peer) {
             if (reasonCode == RejectMessage.REJECT_MALFORMED || reasonCode == RejectMessage.REJECT_INVALID) {
                 int banScore = peer.getBanScore() + 5;
                 peer.setBanScore(banScore);

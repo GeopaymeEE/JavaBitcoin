@@ -418,8 +418,8 @@ public class Main {
         //
         try {
             Parameters.networkHandler.shutdown();
-            Parameters.databaseQueue.put(new ShutdownDatabase());
-            Parameters.messageQueue.put(new ShutdownMessage());
+            databaseHandler.shutdown();
+            messageHandler.shutdown();
             for (Thread thread : threads)
                 thread.join(60000);
         } catch (InterruptedException exc) {

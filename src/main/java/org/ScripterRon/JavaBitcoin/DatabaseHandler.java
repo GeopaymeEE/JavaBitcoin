@@ -43,6 +43,9 @@ public class DatabaseHandler implements Runnable {
     /** Database timer */
     private Timer timer;
 
+    /** Database shutdown requested */
+    private boolean databaseShutdown = false;
+
     /**
      * Creates the database listener
      */
@@ -75,10 +78,9 @@ public class DatabaseHandler implements Runnable {
         try {
             while (true) {
                 Block block = Parameters.databaseQueue.take();
-                if (block instanceof ShutdownDatabase)
+                if (databaseShutdown)
                     break;
                 processBlock(block);
-                System.gc();
             }
         } catch (InterruptedException exc) {
             log.warn("Database handler interrupted", exc);
@@ -90,6 +92,18 @@ public class DatabaseHandler implements Runnable {
         //
         timer.cancel();
         log.info("Database handler stopped");
+    }
+
+    /**
+     * Shutdown the database handler
+     */
+    public void shutdown() {
+        try {
+            databaseShutdown = true;
+            Parameters.databaseQueue.put(new ShutdownDatabase());
+        } catch (InterruptedException exc) {
+            log.warn("Database handler shutdown interrupted", exc);
+        }
     }
 
     /**

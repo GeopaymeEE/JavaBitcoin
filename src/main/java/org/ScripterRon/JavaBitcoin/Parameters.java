@@ -25,6 +25,7 @@ import org.ScripterRon.BitcoinCore.PeerAddress;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -133,7 +134,7 @@ public class Parameters {
     public static final Map<PeerAddress, PeerAddress> peerMap = new HashMap<>(250);
 
     /** Completed messages */
-    public static final List<Message> completedMessages = new LinkedList<>();
+    public static final ConcurrentLinkedQueue<Message> completedMessages = new ConcurrentLinkedQueue<>();
 
     /** Alert list */
     public static final List<Alert> alerts = new ArrayList<>();

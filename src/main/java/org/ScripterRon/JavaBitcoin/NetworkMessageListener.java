@@ -189,7 +189,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             ByteBuffer msgBuffer = msg.getBuffer();
             msgBuffer.rewind();
             msg.setRestartBuffer(msgBuffer);
-            synchronized(Parameters.lock) {
+            synchronized(peer) {
                 peer.setDeferredMessage(msg);
             }
         }
@@ -848,7 +848,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
         //
         // Increment the banscore for the peer if this is an invalid and malformed transaction
         //
-        synchronized(Parameters.lock) {
+        synchronized(peer) {
             if (reasonCode == RejectMessage.REJECT_MALFORMED || reasonCode == RejectMessage.REJECT_INVALID) {
                 int banScore = peer.getBanScore() + 5;
                 peer.setBanScore(banScore);

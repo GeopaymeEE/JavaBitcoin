@@ -361,14 +361,16 @@ public class NetworkHandler implements Runnable {
                                 inactiveList.add(chkPeer);
                             } else if (!chkPeer.wasPingSent()) {
                                 int banScore = 0;
-                                if (chkPeer.getServices() != 0) {
-                                    banScore = chkPeer.getBanScore() + 10;
-                                    chkPeer.setBanScore(banScore);
+                                synchronized(chkPeer) {
+                                    if (chkPeer.getServices() != 0) {
+                                        banScore = chkPeer.getBanScore() + 10;
+                                        chkPeer.setBanScore(banScore);
+                                    }
                                 }
                                 if (banScore < Parameters.MAX_BAN_SCORE) {
                                     chkPeer.setPing(true);
                                     Message chkMsg = PingMessage.buildPingMessage(chkPeer);
-                                    synchronized(Parameters.lock) {
+                                    synchronized(chkPeer) {
                                         chkPeer.getOutputList().add(chkMsg);
                                         SelectionKey chkKey = chkPeer.getKey();
                                         chkKey.interestOps(chkKey.interestOps() | SelectionKey.OP_WRITE);
@@ -383,16 +385,6 @@ public class NetworkHandler implements Runnable {
                     inactiveList.stream().forEach((chkPeer) -> {
                         log.info(String.format("Closing connection due to inactivity: %s", chkPeer.getAddress()));
                         closeConnection(chkPeer);
-                        PeerAddress chkAddress = chkPeer.getAddress();
-                        if (chkPeer.getBanScore() >= Parameters.MAX_BAN_SCORE &&
-                                            !bannedAddresses.contains(chkAddress.getAddress())) {
-                            bannedAddresses.add(chkAddress.getAddress());
-                            log.info(String.format("Peer address %s banned", chkAddress.getAddress().getHostAddress()));
-                        }
-                        synchronized(Parameters.lock) {
-                            Parameters.peerMap.remove(chkAddress);
-                            Parameters.peerAddresses.remove(chkAddress);
-                        }
                     });
                 }
                 //
@@ -499,7 +491,7 @@ public class NetworkHandler implements Runnable {
         if (peer != null) {
             SelectionKey key = peer.getKey();
             PeerAddress address = peer.getAddress();
-            synchronized(Parameters.lock) {
+            synchronized(peer) {
                 if (address.isConnected()) {
                     peer.getOutputList().add(msg);
                     key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
@@ -535,9 +527,11 @@ public class NetworkHandler implements Runnable {
                             sendMsg = relayPeer.shouldRelayTx();
                     }
                     if (sendMsg) {
-                        relayPeer.getOutputList().add(msg.clone(relayPeer));
-                        SelectionKey relayKey = relayPeer.getKey();
-                        relayKey.interestOps(relayKey.interestOps() | SelectionKey.OP_WRITE);
+                        synchronized(relayPeer) {
+                            relayPeer.getOutputList().add(msg.clone(relayPeer));
+                            SelectionKey relayKey = relayPeer.getKey();
+                            relayKey.interestOps(relayKey.interestOps() | SelectionKey.OP_WRITE);
+                        }
                     }
                 });
         }
@@ -665,7 +659,7 @@ public class NetworkHandler implements Runnable {
             address.setTimeConnected(System.currentTimeMillis()/1000);
             Message msg = VersionMessage.buildVersionMessage(peer, Parameters.listenAddress,
                                                              Parameters.blockStore.getChainHeight());
-            synchronized(Parameters.lock) {
+            synchronized(peer) {
                 peer.getOutputList().add(msg);
                 key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
             }
@@ -761,7 +755,7 @@ public class NetworkHandler implements Runnable {
                     buffer.position(0);
                     Message msg = new Message(buffer, peer, null);
                     Parameters.messageQueue.put(msg);
-                    synchronized(Parameters.lock) {
+                    synchronized(peer) {
                         count = peer.getInputCount() + 1;
                         peer.setInputCount(count);
                         if (count >= MAX_INPUT_MESSAGES || peer.getOutputList().size() >= MAX_OUTPUT_MESSAGES)
@@ -797,7 +791,7 @@ public class NetworkHandler implements Runnable {
                 // if there are no more messages to write.
                 //
                 if (buffer == null) {
-                    synchronized(Parameters.lock) {
+                    synchronized(peer) {
                         List<Message> outputList = peer.getOutputList();
                         if (outputList.isEmpty()) {
                             key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
@@ -826,7 +820,7 @@ public class NetworkHandler implements Runnable {
             // Restart a deferred request if we have sent all of the pending data
             //
             if (peer.getOutputBuffer() == null) {
-                synchronized(Parameters.lock) {
+                synchronized(peer) {
                     if (peer.getInputCount() == 0)
                         key.interestOps(key.interestOps() | SelectionKey.OP_READ);
                     Message deferredMsg = peer.getDeferredMessage();
@@ -882,6 +876,17 @@ public class NetworkHandler implements Runnable {
                 }
             }
             //
+            // Ban the peer if necessary
+            //
+            synchronized(peer) {
+                if (peer.getBanScore() >= Parameters.MAX_BAN_SCORE &&
+                                !bannedAddresses.contains(address.getAddress())) {
+                    bannedAddresses.add(address.getAddress());
+                    log.info(String.format("Peer address %s banned",
+                                           address.getAddress().getHostAddress()));
+                }
+            }
+            //
             // Notify listeners that a connection has ended
             //
             if (peer.getVersionCount() > 2) {
@@ -904,11 +909,8 @@ public class NetworkHandler implements Runnable {
      * Processes completed messages
      */
     private void processCompletedMessages() {
-        while (!Parameters.completedMessages.isEmpty()) {
-            Message msg;
-            synchronized(Parameters.lock) {
-                msg = Parameters.completedMessages.remove(0);
-            }
+        Message msg;
+        while ((msg=Parameters.completedMessages.poll()) != null) {
             Peer peer = msg.getPeer();
             if (peer == null)
                 continue;
@@ -924,19 +926,13 @@ public class NetworkHandler implements Runnable {
             //
             if (peer.shouldDisconnect()) {
                 closeConnection(peer);
-                if (peer.getBanScore() >= Parameters.MAX_BAN_SCORE &&
-                                !bannedAddresses.contains(peer.getAddress().getAddress())) {
-                    bannedAddresses.add(peer.getAddress().getAddress());
-                    log.info(String.format("Peer address %s banned",
-                                           peer.getAddress().getAddress().getHostAddress()));
-                }
                 continue;
             }
             //
             // Send the response (if any)
             //
             if (msg.getBuffer() != null) {
-                synchronized(Parameters.lock) {
+                synchronized(peer) {
                     peer.getOutputList().add(msg);
                     key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                 }
@@ -946,7 +942,7 @@ public class NetworkHandler implements Runnable {
             // when the count reaches zero.  Read is disabled when the peer has
             // sent too many requests at one time.
             //
-            synchronized(Parameters.lock) {
+            synchronized(peer) {
                 int count = peer.getInputCount() - 1;
                 peer.setInputCount(count);
                 if (count == 0 && peer.getOutputList().isEmpty())
@@ -960,6 +956,14 @@ public class NetworkHandler implements Runnable {
                 Parameters.networkChainHeight = Math.max(Parameters.networkChainHeight, peer.getHeight());
                 log.info(String.format("Connection handshake completed with %s", address));
                 //
+                // Disconnect if this is an outbound connection and the peer doesn't provide network services
+                //
+                if ((peer.getServices()&NetParams.NODE_NETWORK) == 0 && address.isOutbound()) {
+                    log.info(String.format("Network services not provided by %s", address));
+                    closeConnection(peer);
+                    continue;
+                }
+                //
                 // Send a 'getaddr' message to exchange peer address lists.
                 // Do not do this if we are using static connections since we don't need
                 // to know peer addresses.
@@ -967,7 +971,7 @@ public class NetworkHandler implements Runnable {
                 if (!staticConnections) {
                     if ((peer.getServices()&NetParams.NODE_NETWORK) != 0) {
                         Message addrMsg = GetAddressMessage.buildGetAddressMessage(peer);
-                        synchronized(Parameters.lock) {
+                        synchronized(peer) {
                             peer.getOutputList().add(addrMsg);
                             key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                         }
@@ -983,7 +987,7 @@ public class NetworkHandler implements Runnable {
                                             alert.getExpireTime() > currentTime))
                         .forEach((alert) -> {
                             Message alertMsg = AlertMessage.buildAlertMessage(peer, alert);
-                            synchronized(Parameters.lock) {
+                            synchronized(peer) {
                                 peer.getOutputList().add(alertMsg);
                                 key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                             }
@@ -998,7 +1002,7 @@ public class NetworkHandler implements Runnable {
                     if (peer.getHeight() > Parameters.blockStore.getChainHeight()) {
                         List<Sha256Hash> blockList = getBlockList();
                         Message getMsg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
-                        synchronized(Parameters.lock) {
+                        synchronized(peer) {
                             peer.getOutputList().add(getMsg);
                             key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                         }
@@ -1099,8 +1103,10 @@ public class NetworkHandler implements Runnable {
                 Peer originPeer = request.getOrigin();
                 synchronized(Parameters.lock) {
                     Parameters.processedRequests.remove(request);
-                    if (originPeer != null) {
-                        int banScore = originPeer.getBanScore() + 2;
+                }
+                if (originPeer != null) {
+                    synchronized(originPeer) {
+                        int banScore = originPeer.getBanScore() + 5;
                         originPeer.setBanScore(banScore);
                         if (banScore >= Parameters.MAX_BAN_SCORE)
                             originPeer.setDisconnect(true);
@@ -1120,7 +1126,7 @@ public class NetworkHandler implements Runnable {
             List<InventoryItem> invList = new ArrayList<>(1);
             invList.add(new InventoryItem(request.getType(), request.getHash()));
             Message msg = GetDataMessage.buildGetDataMessage(peer, invList);
-            synchronized(Parameters.lock) {
+            synchronized(peer) {
                 peer.getOutputList().add(msg);
                 SelectionKey key = peer.getKey();
                 key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
@@ -1134,7 +1140,7 @@ public class NetworkHandler implements Runnable {
                             Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight - 100) {
                 List<Sha256Hash> blockList = getBlockList();
                 msg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
-                synchronized(Parameters.lock) {
+                synchronized(peer) {
                     peer.getOutputList().add(msg);
                 }
                 getBlocksTime = System.currentTimeMillis()/1000;
