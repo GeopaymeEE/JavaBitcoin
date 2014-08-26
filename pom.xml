@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.ScripterRon</groupId>
     <artifactId>JavaBitcoin</artifactId>
-    <version>3.0</version>
+    <version>3.0.0</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -13,7 +13,7 @@
         <bouncycastle.version>1.51</bouncycastle.version>
         <leveldb.version>1.8</leveldb.version>
         <h2.version>1.3.176</h2.version>
-        <BitcoinCore.version>2.0</BitcoinCore.version>
+        <BitcoinCore.version>2.0.0</BitcoinCore.version>
     </properties>
     <name>Java Bitcoin Node Server</name>
     <url>https://github.com/ScripterRon/JavaBitcoin</url>
