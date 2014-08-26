@@ -19,6 +19,7 @@ I use the Netbeans IDE but any build environment with Maven and the Java compile
 
 Here are the steps for a manual build.  You will need to install Maven 3 and Java SE Development Kit 8 if you don't already have them.
 
+  - Build and install BitcoinCore (https://github.com/ScripterRon/BitcoinCore)      
   - Create the executable: mvn clean package
   - [Optional] Create the documentation: mvn javadoc:javadoc
   - [Optional] Copy target/JavaBitcoin-v.r.jar and target/lib/* to wherever you want to store the executable.
