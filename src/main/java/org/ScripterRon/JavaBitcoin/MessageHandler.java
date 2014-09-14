@@ -140,12 +140,24 @@ public class MessageHandler implements Runnable {
         //
         // Add the message to the completed message list and wakeup the network listener.  We will
         // bump the banscore for the peer if the message was rejected because it was malformed
-        // or invalid.
+        // or invalid.  We will ban the peer if it is using an obsolete protocol.
         //
         Parameters.completedMessages.add(msg);
-        synchronized(peer) {
-            if (reasonCode == RejectMessage.REJECT_MALFORMED || reasonCode == RejectMessage.REJECT_INVALID) {
-                int banScore = peer.getBanScore() + 5;
+        int banScore;
+        switch (reasonCode) {
+            case RejectMessage.REJECT_MALFORMED:
+            case RejectMessage.REJECT_INVALID:
+                banScore = 5;
+                break;
+            case RejectMessage.REJECT_OBSOLETE:
+                banScore = Parameters.MAX_BAN_SCORE;
+                break;
+            default:
+                banScore = 0;
+        }
+        if (banScore > 0) {
+            synchronized(peer) {
+                banScore += peer.getBanScore();
                 peer.setBanScore(banScore);
                 if (banScore >= Parameters.MAX_BAN_SCORE)
                     peer.setDisconnect(true);

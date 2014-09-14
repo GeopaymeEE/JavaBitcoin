@@ -904,7 +904,7 @@ public class BlockStoreLdb extends BlockStore {
                 log.info("Deleting spent transaction outputs");
                 try (DBIterator it = dbTxSpent.iterator()) {
                     it.seekToFirst();
-                    while (it.hasNext() && purgeList.size()<1000) {
+                    while (it.hasNext() && purgeList.size()<2000) {
                         Entry<byte[], byte[]> dbEntry = it.next();
                         long timeSpent = getLong(dbEntry.getValue());
                         if (timeSpent < ageLimit) {
