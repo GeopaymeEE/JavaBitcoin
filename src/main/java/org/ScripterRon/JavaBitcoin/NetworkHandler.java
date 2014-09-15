@@ -556,7 +556,6 @@ public class NetworkHandler implements Runnable {
             if (channel != null) {
                 InetSocketAddress remoteAddress = (InetSocketAddress)channel.getRemoteAddress();
                 PeerAddress address = new PeerAddress(remoteAddress);
-                address.setTimeConnected(System.currentTimeMillis()/1000);
                 if (connections.size() >= maxConnections) {
                     channel.close();
                     log.info(String.format("Max connections reached: Connection rejected from %s", address));
@@ -567,6 +566,7 @@ public class NetworkHandler implements Runnable {
                     channel.close();
                     log.info(String.format("Duplicate connection rejected from %s", address));
                 } else {
+                    address.setTimeConnected(System.currentTimeMillis()/1000);
                     channel.configureBlocking(false);
                     channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
                     SelectionKey key = channel.register(networkSelector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
@@ -865,6 +865,8 @@ public class NetworkHandler implements Runnable {
             peer.getOutputList().clear();
             if (address.isOutbound())
                 outboundCount--;
+            else if (System.currentTimeMillis()/1000-address.getTimeConnected() < 60)
+                peer.setBanScore(Parameters.MAX_BAN_SCORE);
             address.setConnected(false);
             address.setOutbound(false);
             peer.setConnected(false);
