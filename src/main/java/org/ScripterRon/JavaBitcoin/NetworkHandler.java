@@ -608,6 +608,7 @@ public class NetworkHandler implements Runnable {
         synchronized(Parameters.peerAddresses) {
             for (PeerAddress chkAddress : Parameters.peerAddresses) {
                 if (!chkAddress.isConnected() && connectionMap.get(chkAddress.getAddress())==null &&
+                                !bannedAddresses.contains(chkAddress.getAddress()) &&
                                 (!staticConnections || chkAddress.isStatic())) {
                     address = chkAddress;
                     break;
@@ -865,8 +866,6 @@ public class NetworkHandler implements Runnable {
             peer.getOutputList().clear();
             if (address.isOutbound())
                 outboundCount--;
-            else if (System.currentTimeMillis()/1000-address.getTimeConnected() < 60)
-                peer.setBanScore(Parameters.MAX_BAN_SCORE);
             address.setConnected(false);
             address.setOutbound(false);
             peer.setConnected(false);
@@ -875,6 +874,8 @@ public class NetworkHandler implements Runnable {
                 connectionMap.remove(address.getAddress());
             }
             if (!address.isStatic()) {
+                if (System.currentTimeMillis()/1000-address.getTimeConnected() < 60)
+                    peer.setBanScore(Parameters.MAX_BAN_SCORE);
                 synchronized(Parameters.peerAddresses) {
                     Parameters.peerAddresses.remove(address);
                     Parameters.peerMap.remove(address);
