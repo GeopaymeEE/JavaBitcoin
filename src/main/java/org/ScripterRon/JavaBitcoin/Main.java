@@ -310,10 +310,6 @@ public class Main {
                 System.exit(0);
             }
             //
-            // Compact the database
-            //
-            //blockStore.compactDatabase();
-            //
             // Load the block chain from disk and then exit
             //
             if (loadBlockChain) {

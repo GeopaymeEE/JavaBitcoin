@@ -31,6 +31,7 @@ import org.ScripterRon.BitcoinCore.InventoryItem;
 import org.ScripterRon.BitcoinCore.InventoryMessage;
 import org.ScripterRon.BitcoinCore.MerkleBlockMessage;
 import org.ScripterRon.BitcoinCore.Message;
+import org.ScripterRon.BitcoinCore.NetParams;
 import org.ScripterRon.BitcoinCore.NotFoundMessage;
 import org.ScripterRon.BitcoinCore.OutPoint;
 import org.ScripterRon.BitcoinCore.Peer;
@@ -576,7 +577,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             // We go back to the genesis block if none of the supplied locators are on the main chain
             //
             if (!foundJunction)
-                startBlock = new Sha256Hash(Parameters.GENESIS_BLOCK_HASH);
+                startBlock = new Sha256Hash(NetParams.GENESIS_BLOCK_HASH);
             //
             // Get the chain list
             //
@@ -628,7 +629,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             // We go back to the genesis block if none of the supplied locators are on the main chain
             //
             if (!foundJunction)
-                startBlock = new Sha256Hash(Parameters.GENESIS_BLOCK_HASH);
+                startBlock = new Sha256Hash(NetParams.GENESIS_BLOCK_HASH);
             //
             // Get the chain list
             //
