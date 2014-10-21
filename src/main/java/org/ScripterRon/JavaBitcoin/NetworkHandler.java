@@ -874,8 +874,6 @@ public class NetworkHandler implements Runnable {
                 connectionMap.remove(address.getAddress());
             }
             if (!address.isStatic()) {
-                if (System.currentTimeMillis()/1000-address.getTimeConnected() < 60)
-                    peer.setBanScore(Parameters.MAX_BAN_SCORE);
                 synchronized(Parameters.peerAddresses) {
                     Parameters.peerAddresses.remove(address);
                     Parameters.peerMap.remove(address);

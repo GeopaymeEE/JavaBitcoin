@@ -5,7 +5,7 @@ JavaBitcoin is a bitcoin client node written in Java.  It supports receiving and
 
 It does full verification for blocks that it receives and will reject blocks that do not pass the verification tests.  These rejected blocks are still stored in the database and can be included in the block chain by either temporarily turning off block verification or by updating the verification logic.  Spent transaction outputs are periodically removed from the database.  The full blocks are maintained in external storage in the same manner as the reference client (blknnnnn.dat files).
 
-There is a graphical user interface that displays alerts, peer connections (network address and client version) and recent blocks (both chain and orphan).
+There is a graphical user interface that displays alerts, peer connections (network address and client version) and recent blocks (both chain and orphan).  You can use this GUI for a local node or BitcoinMonitor for a remote node.  The SIGTERM signal is used to stop JavaBitcoin when running in headless mode.
 
 JavaBitcoin supports LevelDB and H2 for the database support.  
 
@@ -22,7 +22,7 @@ Here are the steps for a manual build.  You will need to install Maven 3 and Jav
   - Build and install BitcoinCore (https://github.com/ScripterRon/BitcoinCore)      
   - Create the executable: mvn clean package
   - [Optional] Create the documentation: mvn javadoc:javadoc
-  - [Optional] Copy target/JavaBitcoin-v.r.jar and target/lib/* to wherever you want to store the executable.
+  - [Optional] Copy target/JavaBitcoin-v.r.m.jar and target/lib/* to wherever you want to store the executable.
   - Create a shortcut to start JavaBitcoin using java.exe for a command window or javaw.exe for GUI only. 
   
   
@@ -72,6 +72,9 @@ The following command-line options can be specified using -Dname=value
 		- Mac: user-home/Library/Application Support/JavaBitcoin	
 		- Windows: user-home\AppData\Roaming\JavaBitcoin	
 	
+  - bitcoin.headless=n        
+    The local GUI is not started when 1 is specified.  You can use BitcoinMonitor to monitor a remote node running in headless mode.        
+    
   - bitcoin.verify.blocks=n		
     Blocks are normally verified as they are added to the block chain. Block verification can be disabled to improve performance. Specify 1 to enable verification and 0 to disable verification. The default is 1.
 	
@@ -105,7 +108,7 @@ The following configuration options can be specified in JavaBitcoin.conf.  This 
 	
 Sample Windows shortcut:
 
-	javaw.exe -Xmx512m -Djava.library.path=\Bitcoin\JavaBitcoin -jar \Bitcoin\JavaBitcoin\JavaBitcoin.jar PROD
+	javaw.exe -Xmx512m -Djava.library.path=\Bitcoin\JavaBitcoin -jar \Bitcoin\JavaBitcoin\JavaBitcoin.4.0.0.jar PROD
 	
 Replace javaw.exe with java.exe if you want to run from a command prompt.  This will allow you to view log messages as they occur.
 

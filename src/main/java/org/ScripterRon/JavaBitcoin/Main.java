@@ -110,6 +110,9 @@ public class Main {
     /** Database type */
     private static String dbType = "LevelDB";
 
+    /** Headless mode (no GUI) */
+    private static boolean headless = false;
+
     /** Migrate the LevelDB database to the H2 database */
     private static boolean migrateDatabase = false;
 
@@ -155,6 +158,9 @@ public class Main {
     /** Message handlers */
     private static MessageHandler messageHandler;
 
+    /** Shutdown has started */
+    private static volatile boolean shutdownStarted = false;
+
     /** Deferred exception text */
     private static String deferredText;
 
@@ -189,6 +195,9 @@ public class Main {
             String pString = System.getProperty("bitcoin.verify.blocks");
             if (pString != null && pString.equals("0"))
                 verifyBlocks = false;
+            pString = System.getProperty("bitcoin.headless");
+            if (pString != null && pString.equals("1"))
+                headless = true;
             //
             // Process command-line arguments
             //
@@ -355,10 +364,19 @@ public class Main {
             thread.start();
             threads.add(thread);
             //
+            // Set the shutdown hook
+            //
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                if (!shutdownStarted)
+                    shutdown();
+            }));
+            //
             // Start the GUI
             //
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            javax.swing.SwingUtilities.invokeLater(() -> createAndShowGUI());
+            if (!headless) {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                javax.swing.SwingUtilities.invokeLater(() -> createAndShowGUI());
+            }
         } catch (Throwable exc) {
             log.error(String.format("%s: %s", exc.getClass().getName(), exc.getMessage()));
         }
@@ -409,6 +427,7 @@ public class Main {
      *
      */
     public static void shutdown() {
+        shutdownStarted = true;
         //
         // Stop the worker threads
         //

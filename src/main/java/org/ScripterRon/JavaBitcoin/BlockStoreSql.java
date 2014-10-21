@@ -127,10 +127,19 @@ public class BlockStoreSql extends BlockStore {
      */
     public BlockStoreSql(String dataPath) throws BlockStoreException {
         super(dataPath);
+        long maxMemory = Runtime.getRuntime().maxMemory()/(1024*1024);
+        long dbCacheSize;
+        if (maxMemory < 256)
+            dbCacheSize = 64;
+        else if (maxMemory < 384)
+            dbCacheSize = 128;
+        else
+            dbCacheSize = maxMemory/2;
         String databasePath = dataPath.replace('\\', '/');
         connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;"
-                            + "LOCK_TIMEOUT=5000;MAX_COMPACT_TIME=15000;MVCC=TRUE;CACHE_SIZE=65536",
-                            databasePath);
+                            + "DB_CLOSE_ON_EXIT=FALSE;MAX_COMPACT_TIME=15000;MVCC=TRUE;CACHE_SIZE=%d",
+                            databasePath, dbCacheSize*1024);
+        log.info("Database connection URL: "+connectionURL);
         //
         // Load the JDBC driver
         //
@@ -184,7 +193,7 @@ public class BlockStoreSql extends BlockStore {
         //
         synchronized (lock) {
             try {
-                threadConnection.set(DriverManager.getConnection(connectionURL, "ScripterRon", ""));
+                threadConnection.set(DriverManager.getConnection(connectionURL, "SCRIPTERRON", "Bitcoin"));
                 conn = threadConnection.get();
                 allConnections.add(conn);
                 log.info(String.format("Database connection %d created", allConnections.size()));

@@ -39,7 +39,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class Parameters {
 
     /** Minimum protocol version */
-    public static final int MIN_PROTOCOL_VERSION = 70001;
+    public static final int MIN_PROTOCOL_VERSION = 60001;
 
     /** Genesis block bytes */
     public static byte[] GENESIS_BLOCK_BYTES;
