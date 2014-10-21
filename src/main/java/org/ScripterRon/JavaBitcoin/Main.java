@@ -47,6 +47,11 @@ import javax.swing.*;
  */
 public class Main {
 
+    /** Override the Java log manager.  This must be done before any logging references. */
+    static {
+        System.setProperty("java.util.logging.manager", "org.ScripterRon.JavaBitcoin.LogManagerOverride");
+    }
+
     /** Logger instance */
     public static final Logger log = LoggerFactory.getLogger("org.ScripterRon.JavaBitcoin");
 
@@ -158,8 +163,11 @@ public class Main {
     /** Message handlers */
     private static MessageHandler messageHandler;
 
-    /** Shutdown has started */
+    /** Application shutdown started */
     private static volatile boolean shutdownStarted = false;
+
+    /** Java VM shutdown started */
+    private static volatile boolean javaShutdownStarted = false;
 
     /** Deferred exception text */
     private static String deferredText;
@@ -367,8 +375,10 @@ public class Main {
             // Set the shutdown hook
             //
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                if (!shutdownStarted)
+                if (!javaShutdownStarted) {
+                    javaShutdownStarted = true;
                     shutdown();
+                }
             }));
             //
             // Start the GUI
@@ -424,10 +434,12 @@ public class Main {
 
     /**
      * Shutdown and exit
-     *
      */
     public static void shutdown() {
+        if (shutdownStarted)
+            return;
         shutdownStarted = true;
+        log.info("JavaBitcoin shutdown started");
         //
         // Stop the worker threads
         //
@@ -478,7 +490,11 @@ public class Main {
         //
         // All done
         //
-        System.exit(0);
+        log.info("JavaBitcoin shutdown completed");
+        if (LogManager.getLogManager() instanceof LogManagerOverride)
+            ((LogManagerOverride)LogManager.getLogManager()).logShutdown();
+        if (!javaShutdownStarted)
+            System.exit(0);
     }
 
     /**

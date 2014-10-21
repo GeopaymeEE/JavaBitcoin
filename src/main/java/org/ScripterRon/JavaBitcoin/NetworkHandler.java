@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 package org.ScripterRon.JavaBitcoin;
-
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
 import org.ScripterRon.BitcoinCore.AddressMessage;
