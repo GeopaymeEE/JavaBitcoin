@@ -385,6 +385,29 @@ public class BlockStoreSql extends BlockStore {
     }
 
     /**
+     * Returns the block hash for the block stored at the specified height.
+     *
+     * @param       height                  Chain height
+     * @return                              The block hash or null if the block is not found
+     * @throws      BlockStoreException     Unable to get block from database
+     */
+    @Override
+    public Sha256Hash getBlockId(int height) throws BlockStoreException {
+        Sha256Hash blockHash = null;
+        Connection conn = getConnection();
+        try (PreparedStatement s = conn.prepareStatement("SELECT block_hash FROM Blocks WHERE block_height=?")) {
+            s.setInt(1, height);
+            ResultSet r = s.executeQuery();
+            if (r.next())
+                blockHash = new Sha256Hash(r.getBytes(1));
+        } catch (SQLException exc) {
+            log.error(String.format("Unable to get block hash from database: Height %d", height), exc);
+            throw new BlockStoreException("Unable to get block hash from database");
+        }
+        return blockHash;
+    }
+
+    /**
      * Return a block stored in the database.  The returned block contains
      * the basic block plus information about its current location within the block chain.
      *

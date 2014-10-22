@@ -7,6 +7,8 @@ It does full verification for blocks that it receives and will reject blocks tha
 
 There is a graphical user interface that displays alerts, peer connections (network address and client version) and recent blocks (both chain and orphan).  You can use this GUI for a local node or BitcoinMonitor for a remote node.  The SIGTERM signal is used to stop JavaBitcoin when running in headless mode.
 
+The RPC interface currently supports just the requests needed by BitcoinMonitor.  These are based on the Bitcoin reference client and will be expanded as needed.  However, JavaBitcoin does not support mining and does not manage a wallet, so most of the Bitcoin RPC requests are not needed in this environment.
+
 JavaBitcoin supports LevelDB and H2 for the database support.  
 
 You can use the production network (PROD) or the regression test network (TEST).  The regression test network is useful because bitcoind will immediately generate a specified number of blocks.  To use the regression test network, start bitcoind with the -regtest option.  You can then generate blocks using bitcoin-cli to issue 'setgenerate true n' where 'n' is the number of blocks to generate.  Block generation will stop after the requested number of blocks have been generated.  Note that the genesis block, address formats and magic numbers are different between the two networks.  JavaBitcoin will create files related to the TEST network in the TestNet subdirectory of the application data directory.
@@ -89,22 +91,34 @@ The following command-line options can be specified using -Dname=value
 The following configuration options can be specified in JavaBitcoin.conf.  This file is optional and must be in the application directory in order to be used.
 
   - connect=[address]:port		
-    Specifies the address and port of a peer node.  This statement can be repeated to define multiple nodes.  If this option is specified, outbound connections will be created to only the listed addresses and DNS discovery will not be used.
+    Specifies the address and port of a peer node.  Note that the IP address is enclosed in brackets.  This statement can be repeated to define multiple nodes.  If this option is specified, outbound connections will be created to only the listed addresses and DNS discovery will not be used. 
 	
   - dbType=type		
-    Specifies the database type and may be 'LevelDB' or 'H2'.  The LevelDB database will be used if no database type is specified.
+    Specifies the database type and may be 'LevelDB' or 'H2'.  The LevelDB database will be used if no database type is specified.  
 	
   - hostName=host.domain		
 	Specifies the host name for this node.  An HTTP request will be made to checkip.dyndns.org to resolve the external IP address if no host name is specified in the configuration file.
 	
   - maxConnections=n	
-    Specifies the maximum number of inbound and outbound connections and defaults to 32.
+    Specifies the maximum number of inbound and outbound connections and defaults to 32.    
 	
   - maxOutbound=n	
-    Specifies the maximum number of outbound connections and defaults to 8.
+    Specifies the maximum number of outbound connections and defaults to 8. 
 	
   - port=n		
-	Specifies the port for receiving inbound connections and defaults to 8333
+	Specifies the port for receiving inbound connections and defaults to 8333       
+    
+  - rpcAllowIp=address     
+    Specifies the address of a host that is allowed to issue JSON-RPC requests.  The default is to allow no hosts.  This statement can be repeated to define multiple hosts.  
+    
+  - rpcPassword=password    
+    Specifies the password for RPC requests and defaults to an empty string.    
+    
+  - rpcPort=n   
+    Specifies the port for receiving JSON-RPC requests and defaults to 8332    
+    
+  - rpcUser=name    
+    Specifies the user for RPC requests and defaults to an empty string.    
 	
 Sample Windows shortcut:
 

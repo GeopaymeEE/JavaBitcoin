@@ -231,6 +231,15 @@ public abstract class BlockStore {
     public abstract Block getBlock(Sha256Hash blockHash) throws BlockStoreException;
 
     /**
+     * Returns the block hash for the block stored at the specified height.
+     *
+     * @param       height                  Chain height
+     * @return                              The block hash or null if the block is not found
+     * @throws      BlockStoreException     Unable to get block from database
+     */
+    public abstract Sha256Hash getBlockId(int height) throws BlockStoreException;
+
+    /**
      * Returns a block that was stored in the database.  The returned block contains
      * the basic block plus information about its current location within the block chain.
      *

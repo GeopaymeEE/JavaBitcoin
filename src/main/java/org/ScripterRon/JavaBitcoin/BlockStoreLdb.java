@@ -449,6 +449,27 @@ public class BlockStoreLdb extends BlockStore {
     }
 
     /**
+     * Returns the block hash for the block stored at the specified height.
+     *
+     * @param       height                  Chain height
+     * @return                              The block hash or null if the block is not found
+     * @throws      BlockStoreException     Unable to get block from database
+     */
+    @Override
+    public Sha256Hash getBlockId(int height) throws BlockStoreException {
+        Sha256Hash blockHash = null;
+        try {
+            byte[] value = dbBlockChain.get(getIntegerBytes(height));
+            if (value != null)
+                blockHash = new Sha256Hash(value);
+        } catch (DBException exc) {
+            log.error(String.format("Unable to get block hash from database: Height %d", height), exc);
+            throw new BlockStoreException("Unable to get block hash from database");
+        }
+        return blockHash;
+    }
+
+    /**
      * Returns a block that was stored in the database.  The returned block contains
      * the protocol block plus information about its current location within the block chain.
      *

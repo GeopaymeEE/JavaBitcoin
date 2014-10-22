@@ -31,6 +31,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.FileLock;
 import java.util.ArrayList;
@@ -115,6 +116,18 @@ public class Main {
     /** Database type */
     private static String dbType = "LevelDB";
 
+    /** RPC port */
+    private static int rpcPort = 8332;
+
+    /** RPC allowed hosts */
+    private static final List<InetAddress> rpcAllowIp = new ArrayList<>();
+
+    /** RPC user */
+    private static String rpcUser = "";
+
+    /** RPC password */
+    private static String rpcPassword = "";
+
     /** Headless mode (no GUI) */
     private static boolean headless = false;
 
@@ -160,8 +173,11 @@ public class Main {
     /** Database listener */
     private static DatabaseHandler databaseHandler;
 
-    /** Message handlers */
+    /** Message handler */
     private static MessageHandler messageHandler;
+
+    /** RPC handler */
+    private static RpcHandler rpcHandler;
 
     /** Application shutdown started */
     private static volatile boolean shutdownStarted = false;
@@ -372,6 +388,10 @@ public class Main {
             thread.start();
             threads.add(thread);
             //
+            // Start the RPC handler
+            //
+            rpcHandler = new RpcHandler(rpcPort, rpcAllowIp, rpcUser, rpcPassword);
+            //
             // Set the shutdown hook
             //
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -447,6 +467,7 @@ public class Main {
             Parameters.networkHandler.shutdown();
             databaseHandler.shutdown();
             messageHandler.shutdown();
+            rpcHandler.shutdown();
             for (Thread thread : threads)
                 thread.join(60000);
         } catch (InterruptedException exc) {
@@ -637,6 +658,19 @@ public class Main {
                         break;
                     case "port":
                         listenPort = Integer.parseInt(value);
+                        break;
+                    case "rpcallowip":
+                        InetAddress inetAddr = InetAddress.getByName(value);
+                        rpcAllowIp.add(inetAddr);
+                        break;
+                    case "rpcpassword":
+                        rpcPassword = value;
+                        break;
+                    case "rpcport":
+                        rpcPort = Integer.parseInt(value);
+                        break;
+                    case "rpcuser":
+                        rpcUser = value;
                         break;
                     default:
                         throw new IllegalArgumentException(String.format("Invalid configuration option: %s", line));
