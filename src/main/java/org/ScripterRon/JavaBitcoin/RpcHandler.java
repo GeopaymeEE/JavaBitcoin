@@ -333,7 +333,8 @@ public class RpcHandler implements HttpHandler {
             throw new RequestException(RPC_INVALID_PARAMETER, "The block hash must be a string");
         log.debug("Processing 'getblock' for "+(String)elem);
         JSONObject result = new JSONObject();
-        Block block = Parameters.blockStore.getBlock(new Sha256Hash((String)elem));
+        StoredBlock storedBlock = Parameters.blockStore.getStoredBlock(new Sha256Hash((String)elem));
+        Block block = storedBlock.getBlock();
         JSONArray idList = new JSONArray();
         List<Transaction> txList = block.getTransactions();
         txList.stream().forEach((tx) -> idList.add(tx.getHashAsString()));
@@ -346,6 +347,8 @@ public class RpcHandler implements HttpHandler {
         result.put("version", block.getVersion());
         result.put("nonce", block.getNonce());
         result.put("difficulty", block.getTargetDifficulty());
+        result.put("height", storedBlock.getHeight());
+        result.put("chainwork", storedBlock.getChainWork().toString(16));
         return result;
     }
 
