@@ -203,8 +203,7 @@ public class BlockStoreLdb extends BlockStore {
                     for (String fileName : fileList) {
                         int sep = fileName.lastIndexOf('.');
                         if (sep >= 0) {
-                            if (fileName.substring(0, 3).equals("blk") &&
-                                        fileName.substring(sep).equals(".dat")) {
+                            if (fileName.substring(0, 3).equals("blk") && fileName.substring(sep).equals(".dat")) {
                                 blockFileNumber = Math.max(blockFileNumber,
                                                            Integer.parseInt(fileName.substring(3, sep)));
                             }
@@ -491,7 +490,8 @@ public class BlockStoreLdb extends BlockStore {
                 int fileNumber = blockEntry.getFileNumber();
                 int fileOffset = blockEntry.getFileOffset();
                 Block block = getBlock(fileNumber, fileOffset);
-                storedBlock = new StoredBlock(block, blockWork, blockHeight, onChain, onHold);
+                if (block != null)
+                    storedBlock = new StoredBlock(block, blockWork, blockHeight, onChain, onHold);
             }
         } catch (DBException | EOFException exc) {
             log.error(String.format("Unable to get block from database\n  Block %s", blockHash), exc);
@@ -775,10 +775,10 @@ public class BlockStoreLdb extends BlockStore {
      * block.  A maximum of 2000 blocks will be returned.  The list will start with the
      * genesis block if the start block is not found.
      *
-     * @param       startBlock          The start block
-     * @param       stopBlock           The stop block
-     * @return                          Block header list
-     * @throws      BlockStoreException Unable to get data from the database
+     * @param       startBlock              The start block
+     * @param       stopBlock               The stop block
+     * @return                              Block header list (empty list if one or more blocks not found)
+     * @throws      BlockStoreException     Unable to get data from the database
      */
     @Override
     public List<BlockHeader> getHeaderList(Sha256Hash startBlock, Sha256Hash stopBlock)
@@ -819,6 +819,10 @@ public class BlockStoreLdb extends BlockStore {
                         int fileNumber = blockEntry.getFileNumber();
                         int fileOffset = blockEntry.getFileOffset();
                         Block block = getBlock(fileNumber, fileOffset);
+                        if (block == null) {
+                            headerList.clear();
+                            break;
+                        }
                         //
                         // Add the block header to the list
                         //
@@ -1033,6 +1037,11 @@ public class BlockStoreLdb extends BlockStore {
                                 if (chainList.size() >= 25)
                                     throw new ChainTooLongException("Chain length too long", blockHash);
                                 Block block = getBlock(fileNumber, fileOffset);
+                                if (block == null) {
+                                    log.error(String.format("Chain block file %d is not available\n  Block %s",
+                                                            fileNumber, blockHash));
+                                    throw new BlockNotFoundException("Unable to resolve block chain", blockHash);
+                                }
                                 chainStoredBlock = new StoredBlock(block, BigInteger.ZERO, 0, false, onHold);
                                 blockHash = block.getPrevBlockHash();
                             } else {
@@ -1130,6 +1139,11 @@ public class BlockStoreLdb extends BlockStore {
                         int fileNumber = blockEntry.getFileNumber();
                         int fileOffset = blockEntry.getFileOffset();
                         block = getBlock(fileNumber, fileOffset);
+                        if (block == null) {
+                            log.error(String.format("Chain block file %d is not available\n  Block %s",
+                                                    fileNumber, blockHash));
+                            throw new BlockStoreException("Chain block is not available");
+                        }
                         //
                         // Process each transaction in the block
                         //

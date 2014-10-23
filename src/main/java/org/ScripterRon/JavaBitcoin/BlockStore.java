@@ -344,7 +344,7 @@ public abstract class BlockStore {
      *
      * @param       startBlock              The start block
      * @param       stopBlock               The stop block
-     * @return                              Block header list
+     * @return                              Block header list (empty list if one or more blocks not found)
      * @throws      BlockStoreException     Unable to get data from the database
      */
     public abstract List<BlockHeader> getHeaderList(Sha256Hash startBlock, Sha256Hash stopBlock)
@@ -426,6 +426,10 @@ public abstract class BlockStore {
         Block block = null;
         File blockFile = new File(String.format("%s%sBlocks%sblk%05d.dat",
                                         dataPath, Main.fileSeparator, Main.fileSeparator, fileNumber));
+        if (!blockFile.exists()) {
+            log.info(String.format("Block file %d does not exist", fileNumber));
+            return null;
+        }
         try {
             try (RandomAccessFile inFile = new RandomAccessFile(blockFile, "r")) {
                 inFile.seek(fileOffset);

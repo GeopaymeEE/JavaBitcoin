@@ -433,7 +433,8 @@ public class BlockStoreSql extends BlockStore {
                 int fileNumber = r.getInt(4);
                 int fileOffset = r.getInt(5);
                 Block block = getBlock(fileNumber, fileOffset);
-                storedBlock = new StoredBlock(block, blockWork, blockHeight, (blockHeight>=0), onHold);
+                if (block != null)
+                    storedBlock = new StoredBlock(block, blockWork, blockHeight, (blockHeight>=0), onHold);
             }
         } catch (SQLException exc) {
             log.error(String.format("Unable to get block\n  Block %s", blockHash), exc);
@@ -468,7 +469,8 @@ public class BlockStoreSql extends BlockStore {
                 int fileNumber = r.getInt(4);
                 int fileOffset = r.getInt(5);
                 Block block = getBlock(fileNumber, fileOffset);
-                childStoredBlock = new StoredBlock(block, blockWork, blockHeight, (blockHeight>=0), onHold);
+                if (block != null)
+                    childStoredBlock = new StoredBlock(block, blockWork, blockHeight, (blockHeight>=0), onHold);
                 if (blockHeight >= 0)
                     break;
             }
@@ -733,7 +735,7 @@ public class BlockStoreSql extends BlockStore {
      *
      * @param       startBlock              The start block
      * @param       stopBlock               The stop block
-     * @return                              Block header list
+     * @return                              Block header list (empty list if one or more blocks not found)
      * @throws      BlockStoreException     Unable to get data from the database
      */
     @Override
@@ -767,6 +769,10 @@ public class BlockStoreSql extends BlockStore {
                     int fileNumber = r.getInt(1);
                     int fileOffset = r.getInt(2);
                     Block block = getBlock(fileNumber, fileOffset);
+                    if (block == null) {
+                        headerList.clear();
+                        break;
+                    }
                     headerList.add(new BlockHeader(block.getBytes(), false));
                 }
             }
@@ -911,6 +917,11 @@ public class BlockStoreSql extends BlockStore {
                                     throw new ChainTooLongException("Chain length too long", blockHash);
                                 }
                                 block = getBlock(fileNumber, fileOffset);
+                                if (block == null) {
+                                    log.error(String.format("Chain block file %d is not available\n  Block %s",
+                                                            fileNumber, blockHash));
+                                    throw new BlockNotFoundException("Unable to resolve block chain", blockHash);
+                                }
                                 chainStoredBlock = new StoredBlock(block, BigInteger.ZERO, -1, false, onHold);
                                 blockHash = block.getPrevBlockHash();
                             } else {
@@ -1012,6 +1023,11 @@ public class BlockStoreSql extends BlockStore {
                         int fileNumber = r.getInt(1);
                         int fileOffset = r.getInt(2);
                         block = getBlock(fileNumber, fileOffset);
+                        if (block == null) {
+                            log.error(String.format("Chain block file %d is not available\n  Block %s",
+                                                    fileNumber, blockHash));
+                            throw new BlockStoreException("Chain block is not available");
+                        }
                         //
                         // Process each transaction in the block
                         //
@@ -1340,6 +1356,11 @@ public class BlockStoreSql extends BlockStore {
                 int fileNumber = r.getInt(6);
                 int fileOffset = r.getInt(7);
                 Block block = getBlock(fileNumber, fileOffset);
+                if (block == null) {
+                    log.error(String.format("Unable to get block from block file %d, offset %d\n  %s",
+                                            fileNumber, fileOffset, chainHead));
+                    throw new BlockStoreException("Unable to get block from block file", chainHead);
+                }
                 targetDifficulty = block.getTargetDifficulty();
             }
             //

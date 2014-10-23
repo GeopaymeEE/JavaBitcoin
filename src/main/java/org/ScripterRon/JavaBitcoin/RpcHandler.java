@@ -334,6 +334,8 @@ public class RpcHandler implements HttpHandler {
         log.debug("Processing 'getblock' for "+(String)elem);
         JSONObject result = new JSONObject();
         StoredBlock storedBlock = Parameters.blockStore.getStoredBlock(new Sha256Hash((String)elem));
+        if (storedBlock == null)
+            throw new RequestException(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
         Block block = storedBlock.getBlock();
         JSONArray idList = new JSONArray();
         List<Transaction> txList = block.getTransactions();
