@@ -165,13 +165,16 @@ public class BlockStoreSql extends BlockStore {
      */
     @Override
     public void close() {
-        allConnections.stream().forEach((conn) -> {
+        int index = 0;
+        for (Connection conn : allConnections) {
+            index++;
             try {
                 conn.close();
+                log.info(String.format("Database connection %d closed", index));
             } catch (SQLException exc) {
-                log.error("SQL error while closing connection", exc);
+                log.error(String.format("SQL error while closing connection %d", index), exc);
             }
-        });
+        }
         allConnections.clear();
     }
 
