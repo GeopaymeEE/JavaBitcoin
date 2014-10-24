@@ -409,6 +409,9 @@ public class Main {
             }
         } catch (Throwable exc) {
             log.error(String.format("%s: %s", exc.getClass().getName(), exc.getMessage()));
+            if (LogManager.getLogManager() instanceof LogManagerOverride)
+                ((LogManagerOverride)LogManager.getLogManager()).logShutdown();
+            System.exit(0);
         }
     }
 

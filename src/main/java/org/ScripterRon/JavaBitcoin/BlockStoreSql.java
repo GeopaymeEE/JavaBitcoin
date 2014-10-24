@@ -65,14 +65,15 @@ public class BlockStoreSql extends BlockStore {
     /** Blocks table definition */
     private static final String Blocks_Table = "CREATE TABLE Blocks ("+
             "block_hash     BINARY          NOT NULL "+     // Block hash
-                           "PRIMARY KEY,"+
+                                           "PRIMARY KEY,"+
             "prev_hash      BINARY          NOT NULL,"+     // Previous hash
             "timestamp      BIGINT          NOT NULL,"+     // Block timestamp
             "block_height   INTEGER         NOT NULL,"+     // Block height or -1
             "chain_work     BINARY          NOT NULL,"+     // Cumulative chain work
             "on_hold        BOOLEAN         NOT NULL,"+     // Block is held
             "file_number    INTEGER         NOT NULL,"+     // Block file number
-            "file_offset    INTEGER         NOT NULL)";     // Block offset within file
+            "file_offset    INTEGER         NOT NULL,"+     // Block offset within file
+            "header         BINARY          NOT NULL)";     // Block header
     private static final String Blocks_IX1 = "CREATE INDEX Blocks_IX2 ON Blocks(prev_hash)";
     private static final String Blocks_IX2 = "CREATE INDEX Blocks_IX3 ON Blocks(block_height)";
 
@@ -108,7 +109,7 @@ public class BlockStoreSql extends BlockStore {
     private static final String schemaName = "JavaBitcoin Block Store";
 
     /** Database schema version */
-    private static final int schemaVersion = 100;
+    private static final int schemaVersion = 101;
 
     /** Per-thread database connection */
     private final ThreadLocal<Connection> threadConnection = new ThreadLocal<>();
@@ -760,21 +761,13 @@ public class BlockStoreSql extends BlockStore {
             // we will start at the block following the genesis block.
             //
             try (PreparedStatement s = conn.prepareStatement(
-                            "SELECT file_number,file_offset,block_height FROM Blocks "+
+                            "SELECT header,block_height FROM Blocks "+
                             "WHERE block_height>? AND block_height<=? ORDER BY block_height ASC")) {
                 s.setInt(1, blockHeight);
                 s.setInt(2, blockHeight+2000);
                 r = s.executeQuery();
-                while (r.next()) {
-                    int fileNumber = r.getInt(1);
-                    int fileOffset = r.getInt(2);
-                    Block block = getBlock(fileNumber, fileOffset);
-                    if (block == null) {
-                        headerList.clear();
-                        break;
-                    }
-                    headerList.add(new BlockHeader(block.getBytes(), false));
-                }
+                while (r.next())
+                    headerList.add(new BlockHeader(r.getBytes(1), false));
             }
         } catch (EOFException | SQLException | VerificationException exc) {
             log.error("Unable to get header list", exc);
@@ -818,7 +811,7 @@ public class BlockStoreSql extends BlockStore {
             Connection conn = getConnection();
             try (PreparedStatement s1 = conn.prepareStatement(
                         "INSERT INTO Blocks (block_hash,prev_hash,block_height,timestamp,"+
-                        "chain_work,on_hold,file_number,file_offset) VALUES(?,?,?,?,?,?,?,?)")) {
+                        "chain_work,on_hold,file_number,file_offset,header) VALUES(?,?,?,?,?,?,?,?,?)")) {
                 //
                 // Store the block in the Blocks table
                 //
@@ -830,6 +823,7 @@ public class BlockStoreSql extends BlockStore {
                 s1.setBoolean(6, storedBlock.isOnHold());
                 s1.setInt(7, fileLocation[0]);
                 s1.setInt(8, fileLocation[1]);
+                s1.setBytes(9, block.getHeaderBytes());
                 s1.executeUpdate();
             } catch (SQLException exc) {
                 log.error(String.format("Unable to store block in database\n  Block %s", storedBlock.getHash()), exc);
@@ -1223,7 +1217,7 @@ public class BlockStoreSql extends BlockStore {
     /**
      * Create the tables
      *
-     * @throws      BlockStoreException Unable to create database tables
+     * @throws      BlockStoreException     Unable to create database tables
      */
     private void createTables() throws BlockStoreException {
         Connection conn = getConnection();
@@ -1283,11 +1277,12 @@ public class BlockStoreSql extends BlockStore {
             //
             try (PreparedStatement s = conn.prepareStatement(
                         "INSERT INTO Blocks(block_hash,prev_hash,block_height,timestamp,chain_work,on_hold,"+
-                                           "file_number,file_offset) VALUES(?,?,0,?,?,false,0,0)")) {
+                                           "file_number,file_offset,header) VALUES(?,?,0,?,?,false,0,0,?)")) {
                 s.setBytes(1, chainHead.getBytes());
                 s.setBytes(2, prevChainHead.getBytes());
                 s.setLong(3, chainTime);
                 s.setBytes(4, chainWork.toByteArray());
+                s.setBytes(5, genesisBlock.getHeaderBytes());
                 s.executeUpdate();
             }
             //
@@ -1335,9 +1330,15 @@ public class BlockStoreSql extends BlockStore {
                 if (!r.next())
                     throw new BlockStoreException("Incorrect database schema");
                 version = r.getInt(1);
-                if (version != schemaVersion)
+                if (version > schemaVersion)
                     throw new BlockStoreException(String.format("Schema version %d.%d is not supported",
                                                                 version/100, version%100));
+                switch (version) {
+                    case 100:
+                        dbUpgrade100(conn);             // Upgrade from Version 1.00 to 1.01
+                        version = 101;
+                        break;
+                }
             }
             //
             // Get the current chain values from the chain head block
@@ -1383,6 +1384,69 @@ public class BlockStoreSql extends BlockStore {
         } catch (SQLException exc) {
             log.error("Unable to get initial table settings", exc);
             throw new BlockStoreException("Unable to get initial table settings");
+        }
+    }
+
+    /**
+     * Upgrade the database from Version 1.00 to 1.01
+     *
+     * @param       conn                    Database connection
+     * @throws      BlockStoreException     Unable to upgrade the database
+     */
+    private void dbUpgrade100(Connection conn) throws BlockStoreException {
+        ResultSet r;
+        Statement s1 = null;
+        PreparedStatement s2 = null;
+        PreparedStatement s3 = null;
+        try {
+            log.info("Upgrading the SQL database from Version 1.00 to Version 1.01");
+            conn.setAutoCommit(false);
+            //
+            // Add the 'header' column to the Blocks table
+            //
+            s1 = conn.createStatement();
+            s1.executeUpdate("ALTER TABLE Blocks ADD header BINARY");
+            s2 = conn.prepareStatement("SELECT file_number,file_offset FROM Blocks WHERE block_hash=?");
+            s3 = conn.prepareStatement("UPDATE Blocks SET header=? WHERE block_hash=?");
+            //
+            // Build the block list
+            //
+            List<Sha256Hash> blockList = new LinkedList<>();
+            r = s1.executeQuery("SELECT block_hash FROM Blocks");
+            while (r.next())
+                blockList.add(new Sha256Hash(r.getBytes(1)));
+            r.close();
+            //
+            // Add the block headers to the database
+            //
+            for (Sha256Hash blockHash : blockList) {
+                s2.setBytes(1, blockHash.getBytes());
+                r = s2.executeQuery();
+                if (!r.next()) {
+                    log.warn(String.format("Block file pointer not found in database\n  Block %s", blockHash));
+                    throw new BlockStoreException("Block file pointer not found in database");
+                }
+                int fileNumber = r.getInt(1);
+                int fileOffset = r.getInt(2);
+                r.close();
+                Block block = getBlock(fileNumber, fileOffset);
+                if (block == null) {
+                    log.error(String.format("Block in file %d at position %d is unavailable", fileNumber, fileOffset));
+                    throw new BlockStoreException("Unable to upgrade database due to unavailable block");
+                }
+                s3.setBytes(1, block.getHeaderBytes());
+                s3.setBytes(2, blockHash.getBytes());
+                s3.executeUpdate();
+            }
+            s1.executeUpdate("ALTER TABLE Blocks ALTER COLUMN header BINARY NOT NULL");
+            s1.executeUpdate("UPDATE Settings SET schema_version=101");
+            conn.commit();
+            conn.setAutoCommit(true);
+            log.info("Database upgrade completed");
+        } catch (SQLException exc) {
+            log.error("Unable to upgrade database version", exc);
+            rollback(s1, s2, s3);
+            throw new BlockStoreException("Unable to upgrade database version");
         }
     }
 }

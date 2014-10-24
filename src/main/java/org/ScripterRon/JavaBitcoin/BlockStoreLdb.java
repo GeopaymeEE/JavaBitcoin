@@ -105,8 +105,8 @@ public class BlockStoreLdb extends BlockStore {
     /**
      * Creates a new LevelDB block store
      *
-     * @param       dataPath            Application data path
-     * @throws      BlockStoreException Unable to open database
+     * @param       dataPath                Application data path
+     * @throws      BlockStoreException     Unable to open database
      */
     public BlockStoreLdb(String dataPath) throws BlockStoreException {
         super(dataPath);
@@ -190,11 +190,16 @@ public class BlockStoreLdb extends BlockStore {
                     int fileOffset = blockEntry.getFileOffset();
                     Block block = getBlock(fileNumber, fileOffset);
                     if (block == null) {
-                        log.error(String.format("Unable to get block from block file %d, offset %d\n  %s",
+                        log.error(String.format("Unable to get chain header from block file %d, offset %d\n  %s",
                                                 fileNumber, fileOffset, chainHead));
-                        throw new BlockStoreException("Unable to get block from block file", chainHead);
+                        throw new BlockStoreException("Unable to get chain header from block file", chainHead);
                     }
                     targetDifficulty = block.getTargetDifficulty();
+                    //
+                    // Add block headers to the database if necessary
+                    //
+                    if (blockEntry.getHeaderBytes().length == 0)
+                        dbUpgrade100();
                     //
                     // Get the cuurrent block file number
                     //
@@ -249,7 +254,8 @@ public class BlockStoreLdb extends BlockStore {
                     //
                     storeBlock(genesisBlock);
                     BlockEntry blockEntry = new BlockEntry(prevChainHead, chainHeight, chainWork,
-                                                           true, false, chainTime, 0, 0);
+                                                           true, false, chainTime, 0, 0,
+                                                           genesisBlock.getHeaderBytes());
                     dbBlocks.put(chainHead.getBytes(), blockEntry.getBytes());
                     //
                     // Add an entry to the BlockChain database for the genesis block
@@ -814,19 +820,9 @@ public class BlockStoreLdb extends BlockStore {
                         entryData = dbBlocks.get(blockHash.getBytes());
                         BlockEntry blockEntry = new BlockEntry(entryData);
                         //
-                        // Get the block data from the block file
-                        //
-                        int fileNumber = blockEntry.getFileNumber();
-                        int fileOffset = blockEntry.getFileOffset();
-                        Block block = getBlock(fileNumber, fileOffset);
-                        if (block == null) {
-                            headerList.clear();
-                            break;
-                        }
-                        //
                         // Add the block header to the list
                         //
-                        headerList.add(new BlockHeader(block.getBytes(), false));
+                        headerList.add(new BlockHeader(blockEntry.getHeaderBytes(), false));
                         if (blockHash.equals(stopBlock) || headerList.size() >= 2000)
                             break;
                     }
@@ -894,7 +890,7 @@ public class BlockStoreLdb extends BlockStore {
                 BlockEntry blockEntry = new BlockEntry(block.getPrevBlockHash(), storedBlock.getHeight(),
                                                        storedBlock.getChainWork(), storedBlock.isOnChain(),
                                                        storedBlock.isOnHold(), block.getTimeStamp(),
-                                                       fileNumber, fileOffset);
+                                                       fileNumber, fileOffset, block.getHeaderBytes());
                 dbBlocks.put(blockHash.getBytes(), blockEntry.getBytes());
                 //
                 // Add an entry to the Child database if this is the first child block.  There can be
@@ -1342,6 +1338,49 @@ public class BlockStoreLdb extends BlockStore {
     }
 
     /**
+     * Upgrade the database from Version 1.00 to 1.01
+     *
+     * @throws      BlockStoreException     Unable to upgrade the database
+     */
+    private void dbUpgrade100() throws BlockStoreException {
+        try {
+            log.info("Upgrading LevelDB database from Version 1.00 to Version 1.01");
+            //
+            // Build the block list
+            //
+            Entry<byte[], byte[]> dbEntry;
+            List<Sha256Hash> blockList = new ArrayList<>(chainHeight+256);
+            try (DBIterator it = dbBlocks.iterator()) {
+                it.seekToFirst();
+                while (it.hasNext()) {
+                    dbEntry = it.next();
+                    blockList.add(new Sha256Hash(dbEntry.getKey()));
+                }
+            }
+            //
+            // Add the block header for each block to the database
+            //
+            for (Sha256Hash blockHash : blockList) {
+                byte[] entryBytes = dbBlocks.get(blockHash.getBytes());
+                BlockEntry blockEntry = new BlockEntry(entryBytes);
+                int fileNumber = blockEntry.getFileNumber();
+                int fileOffset = blockEntry.getFileOffset();
+                Block block = getBlock(fileNumber, fileOffset);
+                if (block == null) {
+                    log.error(String.format("Block in file %d at position %d is unavailable", fileNumber, fileOffset));
+                    throw new BlockStoreException("Unable to upgrade database due to unavailable block");
+                }
+                blockEntry.setHeaderBytes(block.getHeaderBytes());
+                dbBlocks.put(blockHash.getBytes(), blockEntry.getBytes());
+            }
+            log.info("LevelDB database upgrade completed");
+        } catch (IOException | DBException exc) {
+            log.error("Unable to upgrade database", exc);
+            throw new BlockStoreException("Unable to upgrade database");
+        }
+    }
+
+    /**
      * Get the 4-byte key for an integer value.  The key uses big-endian format
      * since LevelDB uses a byte comparator to sort the keys.  This will result
      * in the keys being sorted by ascending value.
@@ -1419,6 +1458,7 @@ public class BlockStoreLdb extends BlockStore {
      *   VarInt     BlockHeight     Block height
      *   VarInt     FileNumber      Block file number
      *   VarInt     FileOffset      Block file offset
+     *  80 bytes    Header          Block header
      * </pre>
      */
     private class BlockEntry {
@@ -1447,6 +1487,9 @@ public class BlockStoreLdb extends BlockStore {
         /** Block file offset */
         private int fileOffset;
 
+        /** Block header */
+        private byte[] header;
+
         /**
          * Creates a new BlockEntry
          *
@@ -1456,12 +1499,13 @@ public class BlockStoreLdb extends BlockStore {
          * @param       onChain         TRUE if the block is on the chain
          * @param       onHold          TRUE if the block is held
          * @param       timeStamp       Block timestamp
-         * @param       fileNumber      The block file number
-         * @param       fileOffset      The block file offset
+         * @param       fileNumber      Block file number
+         * @param       fileOffset      Block file offset
+         * @param       header          Block header
          */
         public BlockEntry(Sha256Hash prevHash, int blockHeight, BigInteger chainWork,
                                         boolean onChain, boolean onHold, long timeStamp,
-                                        int fileNumber, int fileOffset) {
+                                        int fileNumber, int fileOffset, byte[] header) {
             this.prevHash = prevHash;
             this.blockHeight = blockHeight;
             this.chainWork = chainWork;
@@ -1470,6 +1514,7 @@ public class BlockStoreLdb extends BlockStore {
             this.timeStamp = timeStamp;
             this.fileNumber = fileNumber;
             this.fileOffset = fileOffset;
+            this.header = header;
         }
 
         /**
@@ -1488,6 +1533,10 @@ public class BlockStoreLdb extends BlockStore {
             blockHeight = inBuffer.getVarInt();
             fileNumber = inBuffer.getVarInt();
             fileOffset = inBuffer.getVarInt();
+            if (inBuffer.available() >= BlockHeader.HEADER_SIZE)
+                header = inBuffer.getBytes(BlockHeader.HEADER_SIZE);
+            else
+                header = new byte[0];
         }
 
         /**
@@ -1506,7 +1555,8 @@ public class BlockStoreLdb extends BlockStore {
                      .putVarLong(timeStamp)
                      .putVarInt(blockHeight)
                      .putVarInt(fileNumber)
-                     .putVarInt(fileOffset);
+                     .putVarInt(fileOffset)
+                     .putBytes(header);
             return outBuffer.toByteArray();
         }
 
@@ -1634,6 +1684,24 @@ public class BlockStoreLdb extends BlockStore {
          */
         public void setFileOffset(int fileOffset) {
             this.fileOffset = fileOffset;
+        }
+
+        /**
+         * Return the block header bytes
+         *
+         * @return                      Header bytes
+         */
+        public byte[] getHeaderBytes() {
+            return header;
+        }
+
+        /**
+         * Set the block header bytes
+         *
+         * @param       headerBytes     Header bytes
+         */
+        public void setHeaderBytes(byte[] headerBytes) {
+            header = headerBytes;
         }
     }
 

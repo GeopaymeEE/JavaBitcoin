@@ -16,6 +16,7 @@
 package org.ScripterRon.JavaBitcoin;
 import static org.ScripterRon.JavaBitcoin.Main.log;
 
+import org.ScripterRon.BitcoinCore.BlockHeader;
 import org.ScripterRon.BitcoinCore.SerializedBuffer;
 import org.ScripterRon.BitcoinCore.Sha256Hash;
 import org.ScripterRon.BitcoinCore.VarInt;
@@ -59,7 +60,8 @@ public class MigrateLdb {
             "chain_work     BINARY          NOT NULL,"+     // Cumulative chain work
             "on_hold        BOOLEAN         NOT NULL,"+     // Block is held
             "file_number    INTEGER         NOT NULL,"+     // Block file number
-            "file_offset    INTEGER         NOT NULL)";     // Block offset within file
+            "file_offset    INTEGER         NOT NULL,"+     // Block offset within file
+            "header         BINARY          NOT NULL)";     // Block header
     private static final String Blocks_IX1 = "CREATE UNIQUE INDEX Blocks_IX1 on Blocks(block_hash)";
     private static final String Blocks_IX2 = "CREATE INDEX Blocks_IX2 ON Blocks(prev_hash)";
     private static final String Blocks_IX3 = "CREATE INDEX Blocks_IX3 ON Blocks(block_height)";
@@ -96,7 +98,7 @@ public class MigrateLdb {
     private static final String schemaName = "JavaBitcoin Block Store";
 
     /** Database schema version */
-    private static final int schemaVersion = 100;
+    private static final int schemaVersion = 101;
 
     /** Blocks database */
     private DB dbBlocks;
@@ -147,7 +149,7 @@ public class MigrateLdb {
             String databasePath = dataPath.replace('\\', '/');
             String connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;MAX_COMPACT_TIME=15000",
                                                  databasePath);
-            conn = DriverManager.getConnection(connectionURL, "ScripterRon", "");
+            conn = DriverManager.getConnection(connectionURL, "SCRIPTERRON", "Bitcoin");
             try (Statement s = conn.createStatement()) {
                 s.executeUpdate(Settings_Table);
                 s.executeUpdate(TxOutputs_Table);
@@ -183,8 +185,8 @@ public class MigrateLdb {
         //
         log.info("Migrating the Blocks database");
         try (PreparedStatement s = conn.prepareStatement("INSERT INTO Blocks "
-                + "(block_hash,prev_hash,timestamp,block_height,chain_work,on_hold,file_number,file_offset) "
-                + "VALUES(?,?,?,?,?,?,?,?)")) {
+                + "(block_hash,prev_hash,timestamp,block_height,chain_work,on_hold,file_number,file_offset,header) "
+                + "VALUES(?,?,?,?,?,?,?,?,?)")) {
             DBIterator it = dbBlocks.iterator();
             it.seekToFirst();
             while (it.hasNext()) {
@@ -199,6 +201,7 @@ public class MigrateLdb {
                 s.setBoolean(6, blockEntry.isOnHold());
                 s.setInt(7, blockEntry.getFileNumber());
                 s.setInt(8, blockEntry.getFileOffset());
+                s.setBytes(9, blockEntry.getHeaderBytes());
                 s.executeUpdate();
                 if (blockEntry.getHeight() >= 0)
                     chainTime = Math.max(chainTime, blockEntry.getTimeStamp());
@@ -281,6 +284,7 @@ public class MigrateLdb {
      *   VarInt     BlockHeight     Block height
      *   VarInt     FileNumber      Block file number
      *   VarInt     FileOffset      Block file offset
+     *  80 bytes    Header          Block header
      * </pre>
      */
     private class BlockEntry {
@@ -309,6 +313,9 @@ public class MigrateLdb {
         /** Block file offset */
         private int fileOffset;
 
+        /** Block header */
+        private byte[] header;
+
         /**
          * Creates a new BlockEntry
          *
@@ -318,12 +325,13 @@ public class MigrateLdb {
          * @param       onChain         TRUE if the block is on the chain
          * @param       onHold          TRUE if the block is held
          * @param       timeStamp       Block timestamp
-         * @param       fileNumber      The block file number
-         * @param       fileOffset      The block file offset
+         * @param       fileNumber      Block file number
+         * @param       fileOffset      Block file offset
+         * @param       header          Block header
          */
         public BlockEntry(Sha256Hash prevHash, int blockHeight, BigInteger chainWork,
                                         boolean onChain, boolean onHold, long timeStamp,
-                                        int fileNumber, int fileOffset) {
+                                        int fileNumber, int fileOffset, byte[] header) {
             this.prevHash = prevHash;
             this.blockHeight = blockHeight;
             this.chainWork = chainWork;
@@ -332,6 +340,7 @@ public class MigrateLdb {
             this.timeStamp = timeStamp;
             this.fileNumber = fileNumber;
             this.fileOffset = fileOffset;
+            this.header = header;
         }
 
         /**
@@ -350,6 +359,10 @@ public class MigrateLdb {
             blockHeight = inBuffer.getVarInt();
             fileNumber = inBuffer.getVarInt();
             fileOffset = inBuffer.getVarInt();
+            if (inBuffer.available() >= BlockHeader.HEADER_SIZE)
+                header = inBuffer.getBytes(BlockHeader.HEADER_SIZE);
+            else
+                header = new byte[0];
         }
 
         /**
@@ -368,7 +381,8 @@ public class MigrateLdb {
                      .putVarLong(timeStamp)
                      .putVarInt(blockHeight)
                      .putVarInt(fileNumber)
-                     .putVarInt(fileOffset);
+                     .putVarInt(fileOffset)
+                     .putBytes(header);
             return outBuffer.toByteArray();
         }
 
@@ -496,6 +510,24 @@ public class MigrateLdb {
          */
         public void setFileOffset(int fileOffset) {
             this.fileOffset = fileOffset;
+        }
+
+        /**
+         * Return the block header bytes
+         *
+         * @return                      Header bytes
+         */
+        public byte[] getHeaderBytes() {
+            return header;
+        }
+
+        /**
+         * Set the block header bytes
+         *
+         * @param       headerBytes     Header bytes
+         */
+        public void setHeaderBytes(byte[] headerBytes) {
+            header = headerBytes;
         }
     }
 
