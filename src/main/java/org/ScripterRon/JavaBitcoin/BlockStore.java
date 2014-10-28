@@ -367,14 +367,6 @@ public abstract class BlockStore {
     public abstract void storeBlock(StoredBlock storedBlock) throws BlockStoreException;
 
     /**
-     * Compacts the database tables
-     *
-     * @throws      BlockStoreException     Unable to compact database
-     */
-    public void compactDatabase() throws BlockStoreException {
-    }
-
-    /**
      * Locates the junction where the chain represented by the specified block joins
      * the current block chain.  The returned list starts with the junction block
      * and contains all blocks in the chain leading to the specified block.

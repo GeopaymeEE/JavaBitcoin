@@ -949,33 +949,6 @@ public class BlockStoreLdb extends BlockStore {
     }
 
     /**
-     * Compacts the database tables
-     *
-     * @throws      BlockStoreException     Unable to compact database
-     */
-    @Override
-    public void compactDatabase() throws BlockStoreException {
-        synchronized(lock) {
-            try {
-                //
-                // Compact the database
-                //
-                log.info("Compacting database");
-                ((JniDB)dbBlockChain).compactRange(null, null);
-                ((JniDB)dbBlocks).compactRange(null, null);
-                ((JniDB)dbChild).compactRange(null, null);
-                ((JniDB)dbTxSpent).compactRange(null, null);
-                ((JniDB)dbTxOutputs).compactRange(null, null);
-                ((JniDB)dbAlert).compactRange(null, null);
-                log.info("Finished compacting databases");
-            } catch (DBException exc) {
-                log.error("Unable to compact database", exc);
-                throw new BlockStoreException("Unable to compact database");
-            }
-        }
-    }
-
-    /**
      * Locates the junction where the chain represented by the specified block joins
      * the current block chain.  The returned list starts with the junction block
      * and contains all blocks in the chain leading to the specified block.

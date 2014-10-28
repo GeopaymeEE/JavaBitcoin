@@ -3,7 +3,9 @@ JavaBitcoin
 
 JavaBitcoin is a bitcoin client node written in Java.  It supports receiving and relaying blocks and transactions but does not support bitcoin mining.  This ensure that running this node won't cause a block chain fork.  It also supports Simple Payment Verification (SPV) clients such as the Android Wallet and MultiBit.
 
-It does full verification for blocks that it receives and will reject blocks that do not pass the verification tests.  These rejected blocks are still stored in the database and can be included in the block chain by either temporarily turning off block verification or by updating the verification logic.  Spent transaction outputs are periodically removed from the database.  The full blocks are maintained in external storage in the same manner as the reference client (blknnnnn.dat files).
+It does full verification for blocks that it receives and will reject blocks that do not pass the verification tests.  These rejected blocks are still stored in the database and can be included in the block chain by either temporarily turning off block verification or by updating the verification logic.  Spent transaction outputs are periodically removed from the database.  The full blocks are maintained in external storage in the same manner as the reference client (blknnnnn.dat files).  
+
+Starting with JavaBitcoin 4.0.0, the block files can be deleted to reduce the disk space requirement.  If this is done, JavaBitcoin will return a NOT FOUND error if a block in a deleted block file is requested.  Recent block files should not be deleted since a block chain reorganization will require access to all of the blocks in the new chain following the junction block (the block where the current chain and the new chain intersect).  I suggest keeping all block files containing blocks generated within the previous 6 months.
 
 There is a graphical user interface that displays alerts, peer connections (network address and client version) and recent blocks (both chain and orphan).  You can use this GUI for a local node or BitcoinMonitor for a remote node.  The SIGTERM signal is used to stop JavaBitcoin when running in headless mode.
 
@@ -75,7 +77,7 @@ The following command-line options can be specified using -Dname=value
 		- Windows: user-home\AppData\Roaming\JavaBitcoin	
 	
   - bitcoin.headless=n        
-    The local GUI is not started when 1 is specified.  You can use BitcoinMonitor to monitor a remote node running in headless mode.        
+    The local GUI is not started when 1 is specified (the default is 0).  You can use BitcoinMonitor to monitor a remote node running in headless mode.  You should also remove console logging in logging.properties so that all logging is done to a log file.        
     
   - bitcoin.verify.blocks=n		
     Blocks are normally verified as they are added to the block chain. Block verification can be disabled to improve performance. Specify 1 to enable verification and 0 to disable verification. The default is 1.

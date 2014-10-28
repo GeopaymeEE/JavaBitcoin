@@ -1405,7 +1405,7 @@ public class BlockStoreSql extends BlockStore {
             // Add the 'header' column to the Blocks table
             //
             s1 = conn.createStatement();
-            s1.executeUpdate("ALTER TABLE Blocks ADD header BINARY");
+            s1.executeUpdate("ALTER TABLE IF NOT EXIST Blocks ADD COLUMN header BINARY");
             s2 = conn.prepareStatement("SELECT file_number,file_offset FROM Blocks WHERE block_hash=?");
             s3 = conn.prepareStatement("UPDATE Blocks SET header=? WHERE block_hash=?");
             //
