@@ -127,32 +127,21 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         setBackground(Color.WHITE);
         setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
         JPanel tablePane = new JPanel();
+        tablePane.setLayout(new BoxLayout(tablePane, BoxLayout.Y_AXIS));
         tablePane.setBackground(Color.WHITE);
-        //
-        // Get the main window size
-        //
-        int frameWidth = 640;
-        int frameHeight = 580;
-        String frameSize = Main.properties.getProperty("window.main.size");
-        if (frameSize != null) {
-            int sep = frameSize.indexOf(',');
-            frameWidth = Integer.parseInt(frameSize.substring(0, sep));
-            frameHeight = Integer.parseInt(frameSize.substring(sep+1));
-        }
         //
         // Create the alert table
         //
-        int tableHeight;
-        int rowHeight;
+        //int tableHeight;
+        //int rowHeight;
         try {
             alertTableModel = new AlertTableModel(alertColumnNames, alertColumnClasses);
             alertTable = new SizedTable(alertTableModel, alertColumnTypes);
             alertTable.setRowSorter(new TableRowSorter<>(alertTableModel));
             alertTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-            tableHeight = frameHeight/8;
-            rowHeight = alertTable.getRowHeight();
-            tableHeight = (tableHeight/rowHeight)*rowHeight;
-            alertTable.setPreferredScrollableViewportSize(new Dimension(frameWidth-70, tableHeight));
+            alertTable.setPreferredScrollableViewportSize(new Dimension(
+                    alertTable.getPreferredScrollableViewportSize().width,
+                    alertTable.getRowHeight()*3));
             alertScrollPane = new JScrollPane(alertTable);
             tablePane.add(Box.createGlue());
             tablePane.add(new JLabel("<html><h3>Alerts</h3></html>"));
@@ -167,10 +156,6 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         connectionTable = new SizedTable(connectionTableModel, connectionColumnTypes);
         connectionTable.setRowSorter(new TableRowSorter<>(connectionTableModel));
         connectionTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        tableHeight = frameHeight/5;
-        rowHeight = connectionTable.getRowHeight();
-        tableHeight = (tableHeight/rowHeight)*rowHeight;
-        connectionTable.setPreferredScrollableViewportSize(new Dimension(frameWidth-70, tableHeight));
         connectionScrollPane = new JScrollPane(connectionTable);
         tablePane.add(Box.createGlue());
         tablePane.add(new JLabel("<html><h3>Connections</h3></html>"));
@@ -183,10 +168,6 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
             blockTable = new SizedTable(blockTableModel, blockColumnTypes);
             blockTable.setRowSorter(new TableRowSorter<>(blockTableModel));
             blockTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-            tableHeight = frameHeight/4;
-            rowHeight = blockTable.getRowHeight();
-            tableHeight = (tableHeight/rowHeight)*rowHeight;
-            blockTable.setPreferredScrollableViewportSize(new Dimension(frameWidth-70, tableHeight));
             blockScrollPane = new JScrollPane(blockTable);
             tablePane.add(Box.createGlue());
             tablePane.add(new JLabel("<html><h3>Recent Blocks</h3></html>"));
