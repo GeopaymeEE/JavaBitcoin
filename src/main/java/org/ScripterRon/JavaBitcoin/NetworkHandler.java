@@ -360,25 +360,14 @@ public class NetworkHandler implements Runnable {
                             if (chkPeer.getVersionCount() < 2) {
                                 inactiveList.add(chkPeer);
                             } else if (!chkPeer.wasPingSent()) {
-                                int banScore = 0;
+                                chkPeer.setPing(true);
+                                Message chkMsg = PingMessage.buildPingMessage(chkPeer);
                                 synchronized(chkPeer) {
-                                    if (chkPeer.getServices() != 0) {
-                                        banScore = chkPeer.getBanScore() + 10;
-                                        chkPeer.setBanScore(banScore);
-                                    }
+                                    chkPeer.getOutputList().add(chkMsg);
+                                    SelectionKey chkKey = chkPeer.getKey();
+                                    chkKey.interestOps(chkKey.interestOps() | SelectionKey.OP_WRITE);
                                 }
-                                if (banScore < Parameters.MAX_BAN_SCORE) {
-                                    chkPeer.setPing(true);
-                                    Message chkMsg = PingMessage.buildPingMessage(chkPeer);
-                                    synchronized(chkPeer) {
-                                        chkPeer.getOutputList().add(chkMsg);
-                                        SelectionKey chkKey = chkPeer.getKey();
-                                        chkKey.interestOps(chkKey.interestOps() | SelectionKey.OP_WRITE);
-                                        log.info(String.format("'ping' message sent to %s", chkAddress));
-                                    }
-                                } else {
-                                   inactiveList.add(chkPeer);
-                                }
+                                log.info(String.format("'ping' message sent to %s", chkAddress));
                             }
                         }
                     });
