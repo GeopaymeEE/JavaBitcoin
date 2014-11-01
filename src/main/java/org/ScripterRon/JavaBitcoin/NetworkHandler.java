@@ -1090,14 +1090,15 @@ public class NetworkHandler implements Runnable {
             //
             // Discard the request if all of the available peers have been contacted.  We will
             // increment the banscore for the origin peer since he is broadcasting inventory
-            // that he doesn't have.
+            // that he doesn't have (except transactions which are removed from the memory pool
+            // when they are included in a block)
             //
             if (peer == null) {
                 Peer originPeer = request.getOrigin();
                 synchronized(Parameters.pendingRequests) {
                     Parameters.processedRequests.remove(request);
                 }
-                if (originPeer != null) {
+                if (originPeer!=null && request.getType()!=InventoryItem.INV_TX) {
                     synchronized(originPeer) {
                         int banScore = originPeer.getBanScore() + 5;
                         originPeer.setBanScore(banScore);
@@ -1107,7 +1108,7 @@ public class NetworkHandler implements Runnable {
                 }
                 String originAddress = (originPeer!=null ? originPeer.getAddress().toString() : "local");
                 log.warn(String.format("Purging unavailable %s request initiated by %s\n  %s",
-                                       (request.getType()==InventoryItem.INV_BLOCK?"block":"transaction"),
+                                       (request.getType()==InventoryItem.INV_TX?"transaction":"block"),
                                        originAddress, request.getHash()));
                 continue;
             }
