@@ -134,6 +134,9 @@ public class Main {
     /** Migrate the LevelDB database to the H2 database */
     private static boolean migrateDatabase = false;
 
+    /** Create bootstrap files */
+    private static boolean createBootstrap = false;
+
     /** Load block chain */
     private static boolean loadBlockChain = false;
 
@@ -202,6 +205,16 @@ public class Main {
             lineSeparator = System.getProperty("line.separator");
             userHome = System.getProperty("user.home");
             osName = System.getProperty("os.name").toLowerCase();
+            //
+            // Set the shutdown hook now so that the log will be cleaned up
+            // properly if an exception occurs during initialization
+            //
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                if (!javaShutdownStarted) {
+                    javaShutdownStarted = true;
+                    shutdown();
+                }
+            }));
             //
             // Process command-line options
             //
@@ -309,7 +322,7 @@ public class Main {
                 MigrateLdb db = new MigrateLdb(dataPath);
                 db.migrateDb();
                 db.close();
-                System.exit(0);
+                shutdown();
             }
             //
             // Create the block store
@@ -339,16 +352,21 @@ public class Main {
                 } else{
                     log.error(String.format("Block not found\n  Block %s", retryHash.toString()));
                 }
-                blockStore.close();
-                System.exit(0);
+                shutdown();
             }
             //
             // Load the block chain from disk and then exit
             //
             if (loadBlockChain) {
                 LoadBlockChain.load(blockChainPath, startBlock, stopBlock);
-                blockStore.close();
-                System.exit(0);
+                shutdown();
+            }
+            //
+            // Create the bootstrap files and then exit
+            //
+            if (createBootstrap) {
+                CreateBootstrap.process(blockChainPath, startBlock, stopBlock);
+                shutdown();
             }
             //
             // Get the peer addresses
@@ -392,15 +410,6 @@ public class Main {
             //
             rpcHandler = new RpcHandler(rpcPort, rpcAllowIp, rpcUser, rpcPassword);
             //
-            // Set the shutdown hook
-            //
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                if (!javaShutdownStarted) {
-                    javaShutdownStarted = true;
-                    shutdown();
-                }
-            }));
-            //
             // Start the GUI
             //
             if (!headless) {
@@ -409,9 +418,7 @@ public class Main {
             }
         } catch (Throwable exc) {
             log.error(String.format("%s: %s", exc.getClass().getName(), exc.getMessage()));
-            if (LogManager.getLogManager() instanceof LogManagerOverride)
-                ((LogManagerOverride)LogManager.getLogManager()).logShutdown();
-            System.exit(0);
+            shutdown();
         }
     }
 
@@ -466,50 +473,62 @@ public class Main {
         //
         // Stop the worker threads
         //
-        try {
-            Parameters.networkHandler.shutdown();
-            databaseHandler.shutdown();
-            messageHandler.shutdown();
-            rpcHandler.shutdown();
-            for (Thread thread : threads)
-                thread.join(60000);
-        } catch (InterruptedException exc) {
-            // Nothing to be done at this point
+        if (!threads.isEmpty()) {
+            try {
+                if (Parameters.networkHandler != null)
+                    Parameters.networkHandler.shutdown();
+                if (databaseHandler != null)
+                    databaseHandler.shutdown();
+                if (messageHandler != null)
+                    messageHandler.shutdown();
+                if (rpcHandler != null)
+                    rpcHandler.shutdown();
+                for (Thread thread : threads)
+                    thread.join(60000);
+            } catch (InterruptedException exc) {
+                // Nothing to be done at this point
+            }
         }
         //
         // Close the database
         //
-        blockStore.close();
+        if (blockStore != null)
+            blockStore.close();
         //
         // Save the first 50 peer addresses
         //
-        try {
-            try (FileOutputStream outStream = new FileOutputStream(peersFile)) {
-                int peerCount = 0;
-                for (PeerAddress peerAddress : Parameters.peerAddresses) {
-                    if (!peerAddress.isStatic()) {
-                        outStream.write(peerAddress.getBytes());
-                        peerCount++;
-                        if (peerCount >= 50)
-                            break;
+        if (!Parameters.peerAddresses.isEmpty()) {
+            try {
+                try (FileOutputStream outStream = new FileOutputStream(peersFile)) {
+                    int peerCount = 0;
+                    for (PeerAddress peerAddress : Parameters.peerAddresses) {
+                        if (!peerAddress.isStatic()) {
+                            outStream.write(peerAddress.getBytes());
+                            peerCount++;
+                            if (peerCount >= 50)
+                                break;
+                        }
                     }
                 }
+            } catch (IOException exc) {
+                log.error("Unable to save peer addresses", exc);
             }
-        } catch (IOException exc) {
-            log.error("Unable to save peer addresses", exc);
         }
         //
         // Save the application properties
         //
-        saveProperties();
+        if (propFile != null)
+            saveProperties();
         //
         // Close the application lock file
         //
-        try {
-            fileLock.release();
-            lockFile.close();
-        } catch (IOException exc) {
-            log.error("Unable to release application lock", exc);
+        if (fileLock != null) {
+            try {
+                fileLock.release();
+                lockFile.close();
+            } catch (IOException exc) {
+                log.error("Unable to release application lock", exc);
+            }
         }
         //
         // All done
@@ -537,6 +556,35 @@ public class Main {
         // MIGRATE indicate we should migrate a LevelDB database to an H2 database
         //
         switch (args[0].toLowerCase()) {
+            case "bootstrap":
+                createBootstrap = true;
+                if (args.length < 2)
+                    throw new IllegalArgumentException("Specify PROD or TEST with the BOOTSTRAP option");
+                if (args[1].equalsIgnoreCase("TEST")) {
+                    testNetwork = true;
+                } else if (!args[1].equalsIgnoreCase("PROD")) {
+                    throw new IllegalArgumentException("Specify PROD or TEST after the BOOTSTRAP option");
+                }
+                if (args.length < 3)
+                    throw new IllegalArgumentException("You must specify the bootstrap directory");
+                blockChainPath = args[2];
+                if (args.length > 3) {
+                    startBlock = Integer.parseInt(args[3]);
+                    if (startBlock < 0)
+                        throw new IllegalArgumentException("Start height is less than 0");
+                } else {
+                    startBlock = 0;
+                }
+                if (args.length > 4) {
+                    stopBlock = Integer.parseInt(args[4]);
+                    if (stopBlock < startBlock)
+                        throw new IllegalArgumentException("Stop height is less than start height");
+                } else {
+                    stopBlock = Integer.MAX_VALUE;
+                }
+                if (args.length > 5)
+                    throw new IllegalArgumentException("Unrecognized command line parameter");
+                break;
             case "load":
                 loadBlockChain = true;
                 if (args.length < 2)
@@ -559,6 +607,8 @@ public class Main {
                 }
                 if (args.length > 3) {
                     startBlock = Integer.parseInt(args[3]);
+                    if (startBlock < 0)
+                        throw new IllegalArgumentException("Start block is less than 0");
                 } else {
                     startBlock = 0;
                 }
