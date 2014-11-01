@@ -56,6 +56,13 @@ The following command-line arguments are supported:
   - BOOTSTRAP PROD|TEST directory-path start-height stop-height     
     Create bootstrap files in the 'blocks' subdirectory of the specified directory.  Specify PROD to use the production database or TEST to use the test database.  The block file names are blknnnnn.dat.gz and the files will contain just blocks in the current block chain (orphan blocks will be ignored).  start-height defaults to 0 and stop-height defaults to the current block chain height.  Use the LOAD option to load the bootstrap files and create the database on another system.  The program will terminate after creating the bootstrap files.       
     
+  - COMPACT PROD|TEST   
+    Compact the database.  This is a lengthy process and must not be aborted once it has been started.  
+    
+    For LevelDB, each database is compacted in-place.  
+    
+    For H2, a SQL backup script is created, the database is deleted and then it is recreated from the backup script.  The backup script is backup.sql.gz and can be found in the Database subdirectory.  You can delete it once you have verified that the new database is working correctly.   
+    
   - LOAD PROD|TEST directory-path start-block stop-block		
     Load the block chain from the 'blocks' subdirectory of the specified directory and create the block chain database. Specify PROD to load the production database or TEST to load the test database. The default reference client data directory will be used if no directory path is specified.  The block file names are blknnnnn.dat or blknnnnn.dat.gz where nnnnn is the block file number specified by start-block and stop-block.  start-block defaults to 0 and stop-block defaults to the highest contiguous block file number following the start block.  The program will terminate after loading the block chain.  The block files used by the LOAD option can be deleted upon completion since new block files will be created in the Blocks subdirectory.
 	

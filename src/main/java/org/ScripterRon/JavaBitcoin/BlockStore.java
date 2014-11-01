@@ -131,6 +131,14 @@ public abstract class BlockStore {
      */
     public void close() {
     }
+    
+    /**
+     * Compacts the database tables
+     *
+     * @throws      BlockStoreException     Unable to compact database
+     */
+    public void compactDatabase() throws BlockStoreException {
+    }
 
     /**
      * Returns the block hash for the current chain head

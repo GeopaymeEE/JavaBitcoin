@@ -137,6 +137,9 @@ public class Main {
     /** Create bootstrap files */
     private static boolean createBootstrap = false;
 
+    /** Compact database */
+    private static boolean compactDatabase = false;
+
     /** Load block chain */
     private static boolean loadBlockChain = false;
 
@@ -332,6 +335,13 @@ public class Main {
             else if (dbType.equalsIgnoreCase("h2"))
                 blockStore = new BlockStoreSql(dataPath);
             Parameters.blockStore = blockStore;
+            //
+            // Compact the database
+            //
+            if (compactDatabase) {
+                blockStore.compactDatabase();
+                shutdown();
+            }
             //
             // Create the block chain
             //
@@ -583,6 +593,18 @@ public class Main {
                     stopBlock = Integer.MAX_VALUE;
                 }
                 if (args.length > 5)
+                    throw new IllegalArgumentException("Unrecognized command line parameter");
+                break;
+            case "compact":
+                compactDatabase = true;
+                if (args.length < 2)
+                    throw new IllegalArgumentException("Specify PROD or TEST with the COMPACT option");
+                if (args[1].equalsIgnoreCase("TEST")) {
+                    testNetwork = true;
+                } else if (!args[1].equalsIgnoreCase("PROD")) {
+                    throw new IllegalArgumentException("Specify PROD or TEST after the COMPACT option");
+                }
+                if (args.length > 2)
                     throw new IllegalArgumentException("Unrecognized command line parameter");
                 break;
             case "load":

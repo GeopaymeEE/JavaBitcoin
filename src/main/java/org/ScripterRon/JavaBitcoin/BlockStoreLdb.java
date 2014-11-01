@@ -297,6 +297,38 @@ public class BlockStoreLdb extends BlockStore {
     }
 
     /**
+     * Compacts the database tables
+     *
+     * @throws      BlockStoreException     Unable to compact database
+     */
+    @Override
+    public void compactDatabase() throws BlockStoreException {
+        synchronized(lock) {
+            try {
+                //
+                // Compact the database
+                //
+                log.info("Compacting BlockChain database");
+                ((JniDB)dbBlockChain).compactRange(null, null);
+                log.info("Compacting Blocks database");
+                ((JniDB)dbBlocks).compactRange(null, null);
+                log.info("Compacting Child database");
+                ((JniDB)dbChild).compactRange(null, null);
+                log.info("Compacting TxSpent database");
+                ((JniDB)dbTxSpent).compactRange(null, null);
+                log.info("Compacting TxOutputs database");
+                ((JniDB)dbTxOutputs).compactRange(null, null);
+                log.info("Compacting Alert database");
+                ((JniDB)dbAlert).compactRange(null, null);
+                log.info("Finished compacting databases");
+            } catch (DBException exc) {
+                log.error("Unable to compact database", exc);
+                throw new BlockStoreException("Unable to compact database");
+            }
+        }
+    }
+
+    /**
      * Checks if the alert is already in our database
      *
      * @param       alertID             Alert identifier

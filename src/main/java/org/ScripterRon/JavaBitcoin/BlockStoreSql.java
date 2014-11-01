@@ -47,23 +47,26 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * <p>BlockStoreSql manages the SQL database containing the block chain information.
+ * BlockStoreSql manages the SQL database containing the block chain information.
  * The database is periodically pruned to reduce storage requirements by removing transactions
- * with completely-spent outputs.</p>
+ * with completely-spent outputs.
  *
- * <p>The block files are named 'blknnnnn.dat' and are stored in the 'Blocks' subdirectory.  A new
+ * The block files are named 'blknnnnn.dat' and are stored in the 'Blocks' subdirectory.  A new
  * block is added to the end of the current block file.  When the file reaches the maximum size,
- * the file number is incremented and a new block file is created.</p>
+ * the file number is incremented and a new block file is created.
+ *
+ * Any changes made to the database schema must be reflected in the database migration support.
+ * This includes the database user and password.
  */
 public class BlockStoreSql extends BlockStore {
 
    /** Settings table definition */
-    private static final String Settings_Table = "CREATE TABLE Settings ("+
+    public static final String Settings_Table = "CREATE TABLE Settings ("+
         "schema_name        VARCHAR(32)     NOT NULL,"+     // Schema name
         "schema_version     INTEGER         NOT NULL)";     // Schema version
 
     /** Blocks table definition */
-    private static final String Blocks_Table = "CREATE TABLE Blocks ("+
+    public static final String Blocks_Table = "CREATE TABLE Blocks ("+
             "block_hash     BINARY          NOT NULL "+     // Block hash
                                            "PRIMARY KEY,"+
             "prev_hash      BINARY          NOT NULL,"+     // Previous hash
@@ -74,11 +77,11 @@ public class BlockStoreSql extends BlockStore {
             "file_number    INTEGER         NOT NULL,"+     // Block file number
             "file_offset    INTEGER         NOT NULL,"+     // Block offset within file
             "header         BINARY          NOT NULL)";     // Block header
-    private static final String Blocks_IX1 = "CREATE INDEX Blocks_IX2 ON Blocks(prev_hash)";
-    private static final String Blocks_IX2 = "CREATE INDEX Blocks_IX3 ON Blocks(block_height)";
+    public static final String Blocks_IX1 = "CREATE INDEX Blocks_IX2 ON Blocks(prev_hash)";
+    public static final String Blocks_IX2 = "CREATE INDEX Blocks_IX3 ON Blocks(block_height)";
 
     /** TxOutputs table definition */
-    private static final String TxOutputs_Table = "CREATE TABLE TxOutputs ("+
+    public static final String TxOutputs_Table = "CREATE TABLE TxOutputs ("+
             "db_id          IDENTITY,"+                     // Database identity
             "tx_hash        BINARY          NOT NULL,"+     // Transaction hash
             "tx_index       SMALLINT        NOT NULL,"+     // Output index
@@ -88,17 +91,17 @@ public class BlockStoreSql extends BlockStore {
             "is_coinbase    BOOLEAN         NOT NULL,"+     // Coinbase transaction
             "value          BIGINT          NOT NULL,"+     // Value
             "script_bytes   BINARY          NOT NULL)";     // Script bytes
-    private static final String TxOutputs_IX1 = "CREATE UNIQUE INDEX TxOutputs_IX1 ON TxOutputs(tx_hash,tx_index)";
+    public static final String TxOutputs_IX1 = "CREATE UNIQUE INDEX TxOutputs_IX1 ON TxOutputs(tx_hash,tx_index)";
 
     /** TxSpentOutputs table definition */
-    private static final String TxSpentOutputs_Table = "CREATE TABLE TxSpentOutputs ("+
+    public static final String TxSpentOutputs_Table = "CREATE TABLE TxSpentOutputs ("+
             "time_spent     BIGINT          NOT NULL,"+     // Time when output spent
             "db_id          INTEGER         NOT NULL "+     // Referenced spent output
                            "REFERENCES TxOutputs(db_id) ON DELETE CASCADE)";
-    private static final String TxSpentOutputs_IX1 = "CREATE INDEX TxSpentOutputs_IX1 ON TxSpentOutputs(time_spent)";
+    public static final String TxSpentOutputs_IX1 = "CREATE INDEX TxSpentOutputs_IX1 ON TxSpentOutputs(time_spent)";
 
     /** Alerts table definition */
-    private static final String Alerts_Table = "CREATE TABLE Alerts ("+
+    public static final String Alerts_Table = "CREATE TABLE Alerts ("+
             "alert_id       INTEGER         NOT NULL "+     // Alert identifier
                            "PRIMARY KEY,"+
             "is_cancelled   BOOLEAN         NOT NULL,"+     // Alert cancelled
@@ -106,10 +109,10 @@ public class BlockStoreSql extends BlockStore {
             "signature      BINARY          NOT NULL)";     // Signature
 
     /** Database schema name */
-    private static final String schemaName = "JavaBitcoin Block Store";
+    public static final String schemaName = "JavaBitcoin Block Store";
 
     /** Database schema version */
-    private static final int schemaVersion = 101;
+    public static final int schemaVersion = 101;
 
     /** Per-thread database connection */
     private final ThreadLocal<Connection> threadConnection = new ThreadLocal<>();
@@ -180,27 +183,95 @@ public class BlockStoreSql extends BlockStore {
     }
 
     /**
+     * Compacts the database tables
+     *
+     * All database connections will be closed and the database will be deleted
+     * and recreated.  This means the database should be compacted only in single-thread
+     * maintenance mode.
+     *
+     * @throws      BlockStoreException     Unable to compact database
+     */
+    @Override
+    public void compactDatabase() throws BlockStoreException {
+        File backupFile = new File(String.format("%s%sDatabase%sbackup.sql.gz",
+                                            dataPath, Main.fileSeparator, Main.fileSeparator));
+        File databaseFile = new File(String.format("%s%sDatabase%sbitcoin.h2.db",
+                                            dataPath, Main.fileSeparator, Main.fileSeparator));
+        File lockFile = new File(String.format("%s%sDatabase%sbitcoin.lock.db",
+                                            dataPath, Main.fileSeparator, Main.fileSeparator));
+        Connection conn = getConnection();
+        ResultSet r;
+        //
+        // Create the SQL backup script
+        //
+        try {
+            log.info("Creating the SQL backup script");
+            if (backupFile.exists())
+                backupFile.delete();
+            try (Statement s = conn.createStatement()) {
+                r = s.executeQuery(String.format("SCRIPT TO '%s' COMPRESSION GZIP CHARSET 'UTF-8'",
+                                   backupFile.getPath()));
+                while (r.next())
+                    log.debug(r.getString(1));
+                r.close();
+            }
+            log.info("SQL backup script created");
+        } catch (SQLException exc) {
+            log.error("Unable to create the SQL backup script", exc);
+            throw new BlockStoreException("Unable to create the SQL backup script");
+        }
+        //
+        // Close and delete the database
+        //
+        close();
+        threadConnection.set(null);
+        log.info("Database closed");
+        if (lockFile.exists()) {
+            log.info("Waiting for database lock to be released");
+            try {
+                while (lockFile.exists())
+                    Thread.sleep(1000);
+            } catch (InterruptedException exc) {
+                log.error("Interrupted while waiting on database lock");
+                throw new BlockStoreException("Interrupted while waiting on database lock");
+            }
+            log.info("Database lock released");
+        }
+        databaseFile.delete();
+        log.info("Database deleted");
+        //
+        // Create the new database
+        //
+        log.info("Creating database from SQL backup script");
+        conn = getConnection();
+        try (Statement s = conn.createStatement()) {
+            int count = s.executeUpdate(String.format("RUNSCRIPT FROM '%s' COMPRESSION GZIP CHARSET 'UTF-8'",
+                                    backupFile.getPath()));
+            log.debug(String.format("%d database updates completed", count));
+        } catch (SQLException exc) {
+            log.error("Unable to create database from SQL backup script", exc);
+            throw new BlockStoreException("Unable to create database from SQL backup script");
+        }
+        log.info("Database created");
+    }
+
+    /**
      * Get the database connection for the current thread
      *
      * @return                              Connection for the current thread
      * @throws      BlockStoreException     Unable to obtain a database connection
      */
     private Connection getConnection() throws BlockStoreException {
-        //
-        // Return the current connection if we have one
-        //
-        Connection conn = threadConnection.get();
-        if (conn != null)
-            return conn;
-        //
-        // Obtain a new connection
-        //
+        Connection conn;
         synchronized (lock) {
             try {
-                threadConnection.set(DriverManager.getConnection(connectionURL, "SCRIPTERRON", "Bitcoin"));
                 conn = threadConnection.get();
-                allConnections.add(conn);
-                log.info(String.format("Database connection %d created", allConnections.size()));
+                if (conn == null || conn.isClosed()) {
+                    threadConnection.set(DriverManager.getConnection(connectionURL, "SCRIPTERRON", "Bitcoin"));
+                    conn = threadConnection.get();
+                    allConnections.add(conn);
+                    log.info(String.format("Database connection %d created", allConnections.size()));
+                }
             } catch (SQLException exc) {
                 log.error(String.format("Unable to connect to SQL database %s", connectionURL), exc);
                 throw new BlockStoreException("Unable to connect to SQL database");
@@ -647,7 +718,7 @@ public class BlockStoreSql extends BlockStore {
         synchronized(lock) {
             log.info("Deleting spent transaction outputs");
             try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
-                                + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 1000)")) {
+                                + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 2000)")) {
                 s.setLong(1, ageLimit);
                 deletedCount = s.executeUpdate();
                 s.close();
