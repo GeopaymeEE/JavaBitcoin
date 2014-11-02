@@ -141,6 +141,14 @@ public class LoadBlockChain {
                         }
                     }
                     blockCount++;
+                    //
+                    // Delete spent transaction outputs every 100 blocks
+                    //
+                    if (blockCount%100 == 0) {
+                        do {
+                            count = Parameters.blockStore.deleteSpentTxOutputs();
+                        } while (count != 0);
+                    }
                 }
                 in.close();
                 //

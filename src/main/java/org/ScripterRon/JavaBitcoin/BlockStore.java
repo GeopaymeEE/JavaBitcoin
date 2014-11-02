@@ -131,7 +131,7 @@ public abstract class BlockStore {
      */
     public void close() {
     }
-    
+
     /**
      * Compacts the database tables
      *
@@ -315,9 +315,10 @@ public abstract class BlockStore {
     /**
      * Deletes spent transaction outputs that are older than the maximum transaction age
      *
+     * @return                              The number of deleted outputs
      * @throws      BlockStoreException     Unable to delete spent transaction outputs
      */
-    public void deleteSpentTxOutputs() throws BlockStoreException {
+    public int deleteSpentTxOutputs() throws BlockStoreException {
     }
 
     /**

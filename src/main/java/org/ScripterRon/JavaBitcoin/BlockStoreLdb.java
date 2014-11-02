@@ -942,10 +942,11 @@ public class BlockStoreLdb extends BlockStore {
     /**
      * Deletes spent transaction outputs that are older than the maximum transaction age
      *
+     * @return                              The number of deleted outputs
      * @throws      BlockStoreException     Unable to delete spent transaction outputs
      */
     @Override
-    public void deleteSpentTxOutputs() throws BlockStoreException {
+    public int deleteSpentTxOutputs() throws BlockStoreException {
         long ageLimit = chainTime - MAX_TX_AGE;
         int txPurged = 0;
         List<byte[]> purgeList = new ArrayList<>(1000);
@@ -978,6 +979,7 @@ public class BlockStoreLdb extends BlockStore {
                 throw new BlockStoreException("Unable to remove spent transactions");
             }
         }
+        return txPurged;
     }
 
     /**

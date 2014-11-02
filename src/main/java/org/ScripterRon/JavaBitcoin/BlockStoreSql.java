@@ -704,10 +704,11 @@ public class BlockStoreSql extends BlockStore {
     /**
      * Deletes spent transaction outputs that are older than the maximum transaction age
      *
+     * @return                              The number of deleted outputs
      * @throws      BlockStoreException     Unable to delete spent transaction outputs
      */
     @Override
-    public void deleteSpentTxOutputs() throws BlockStoreException {
+    public int deleteSpentTxOutputs() throws BlockStoreException {
         Connection conn = getConnection();
         long ageLimit = Math.max(chainTime-MAX_TX_AGE, 0);
         int deletedCount = 0;
@@ -718,7 +719,7 @@ public class BlockStoreSql extends BlockStore {
         synchronized(lock) {
             log.info("Deleting spent transaction outputs");
             try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
-                                + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 2000)")) {
+                                + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 1000)")) {
                 s.setLong(1, ageLimit);
                 deletedCount = s.executeUpdate();
                 s.close();
@@ -728,6 +729,7 @@ public class BlockStoreSql extends BlockStore {
             }
             log.info(String.format("Deleted %d spent transaction outputs", deletedCount));
         }
+        return deletedCount;
     }
 
     /**
@@ -1359,7 +1361,8 @@ public class BlockStoreSql extends BlockStore {
             //
             // Copy the genesis block as the initial block file
             //
-            File blockFile = new File(String.format("%s\\Blocks\\blk00000.dat", dataPath));
+            File blockFile = new File(String.format("%s%sBlocks%sblk00000.dat",
+                                        dataPath, Main.fileSeparator, Main.fileSeparator));
             try (FileOutputStream outFile = new FileOutputStream(blockFile)) {
                 byte[] prefixBytes = new byte[8];
                 Utils.uint32ToByteArrayLE(NetParams.MAGIC_NUMBER, prefixBytes, 0);
