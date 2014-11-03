@@ -61,14 +61,14 @@ import java.util.List;
 public class BlockStoreSql extends BlockStore {
 
    /** Settings table definition */
-    public static final String Settings_Table = "CREATE TABLE Settings ("+
+    public static final String Settings_Table = "CREATE TABLE IF NOT EXISTS Settings ("+
         "schema_name        VARCHAR(32)     NOT NULL,"+     // Schema name
         "schema_version     INTEGER         NOT NULL)";     // Schema version
 
     /** Blocks table definition */
-    public static final String Blocks_Table = "CREATE TABLE Blocks ("+
-            "block_hash     BINARY          NOT NULL "+     // Block hash
-                                           "PRIMARY KEY,"+
+    public static final String Blocks_Table = "CREATE TABLE IF NOT EXISTS Blocks ("+
+            "db_id          IDENTITY,"+                     // Database identity
+            "block_hash     BINARY          NOT NULL,"+     // Block hash
             "prev_hash      BINARY          NOT NULL,"+     // Previous hash
             "timestamp      BIGINT          NOT NULL,"+     // Block timestamp
             "block_height   INTEGER         NOT NULL,"+     // Block height or -1
@@ -77,11 +77,12 @@ public class BlockStoreSql extends BlockStore {
             "file_number    INTEGER         NOT NULL,"+     // Block file number
             "file_offset    INTEGER         NOT NULL,"+     // Block offset within file
             "header         BINARY          NOT NULL)";     // Block header
-    public static final String Blocks_IX1 = "CREATE INDEX Blocks_IX2 ON Blocks(prev_hash)";
-    public static final String Blocks_IX2 = "CREATE INDEX Blocks_IX3 ON Blocks(block_height)";
+    public static final String Blocks_IX1 = "CREATE UNIQUE INDEX IF NOT EXISTS Blocks_IX1 on Blocks(block_hash)";
+    public static final String Blocks_IX2 = "CREATE INDEX IF NOT EXISTS Blocks_IX2 ON Blocks(prev_hash)";
+    public static final String Blocks_IX3 = "CREATE INDEX IF NOT EXISTS Blocks_IX3 ON Blocks(block_height)";
 
     /** TxOutputs table definition */
-    public static final String TxOutputs_Table = "CREATE TABLE TxOutputs ("+
+    public static final String TxOutputs_Table = "CREATE TABLE IF NOT EXISTS TxOutputs ("+
             "db_id          IDENTITY,"+                     // Database identity
             "tx_hash        BINARY          NOT NULL,"+     // Transaction hash
             "tx_index       SMALLINT        NOT NULL,"+     // Output index
@@ -91,17 +92,17 @@ public class BlockStoreSql extends BlockStore {
             "is_coinbase    BOOLEAN         NOT NULL,"+     // Coinbase transaction
             "value          BIGINT          NOT NULL,"+     // Value
             "script_bytes   BINARY          NOT NULL)";     // Script bytes
-    public static final String TxOutputs_IX1 = "CREATE UNIQUE INDEX TxOutputs_IX1 ON TxOutputs(tx_hash,tx_index)";
+    public static final String TxOutputs_IX1 = "CREATE UNIQUE INDEX IF NOT EXISTS TxOutputs_IX1 ON TxOutputs(tx_hash,tx_index)";
 
     /** TxSpentOutputs table definition */
-    public static final String TxSpentOutputs_Table = "CREATE TABLE TxSpentOutputs ("+
+    public static final String TxSpentOutputs_Table = "CREATE TABLE IF NOT EXISTS TxSpentOutputs ("+
             "time_spent     BIGINT          NOT NULL,"+     // Time when output spent
             "db_id          INTEGER         NOT NULL "+     // Referenced spent output
                            "REFERENCES TxOutputs(db_id) ON DELETE CASCADE)";
-    public static final String TxSpentOutputs_IX1 = "CREATE INDEX TxSpentOutputs_IX1 ON TxSpentOutputs(time_spent)";
+    public static final String TxSpentOutputs_IX1 = "CREATE INDEX IF NOT EXISTS TxSpentOutputs_IX1 ON TxSpentOutputs(time_spent)";
 
     /** Alerts table definition */
-    public static final String Alerts_Table = "CREATE TABLE Alerts ("+
+    public static final String Alerts_Table = "CREATE TABLE IF NOT EXISTS Alerts ("+
             "alert_id       INTEGER         NOT NULL "+     // Alert identifier
                            "PRIMARY KEY,"+
             "is_cancelled   BOOLEAN         NOT NULL,"+     // Alert cancelled
@@ -1288,13 +1289,16 @@ public class BlockStoreSql extends BlockStore {
     }
 
     /**
-     * Create the tables
+     * Create the database tables
      *
      * @throws      BlockStoreException     Unable to create database tables
      */
     private void createTables() throws BlockStoreException {
         Connection conn = getConnection();
         try (Statement s = conn.createStatement()) {
+            //
+            // Create the tables
+            //
             conn.setAutoCommit(false);
             s.executeUpdate(Settings_Table);
             s.executeUpdate(TxOutputs_Table);
@@ -1304,10 +1308,20 @@ public class BlockStoreSql extends BlockStore {
             s.executeUpdate(Blocks_Table);
             s.executeUpdate(Blocks_IX1);
             s.executeUpdate(Blocks_IX2);
+            s.executeUpdate(Blocks_IX3);
             s.executeUpdate(Alerts_Table);
             conn.commit();
             conn.setAutoCommit(true);
             log.info("SQL database tables created");
+            //
+            // We are creating a new database, so delete any existing block files
+            //
+            File dirFile = new File(String.format("%s%sBlocks", dataPath, Main.fileSeparator));
+            if (dirFile.exists()) {
+                File[] fileList = dirFile.listFiles();
+                for (File file : fileList)
+                    file.delete();
+            }
         } catch (SQLException exc) {
             log.error("Unable to create SQL database tables", exc);
             rollback();

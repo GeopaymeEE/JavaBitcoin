@@ -114,7 +114,7 @@ public class Main {
     private static int maxOutbound = 8;
 
     /** Database type */
-    private static String dbType = "LevelDB";
+    private static String dbType = "leveldb";
 
     /** RPC port */
     private static int rpcPort = 8332;
@@ -322,18 +322,31 @@ public class Main {
             // Migrate the LevelDB database to an H2 database
             //
             if (migrateDatabase) {
-                MigrateLdb db = new MigrateLdb(dataPath);
-                db.migrateDb();
-                db.close();
+                switch (dbType) {
+                    case "leveldb":
+                        MigrateDatabase.migrateLdb(dataPath);
+                        break;
+                    case "h2":
+                        MigrateDatabase.migrateSql(dataPath);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported database type");
+                }
                 shutdown();
             }
             //
             // Create the block store
             //
-            if (dbType.equalsIgnoreCase("leveldb"))
-                blockStore = new BlockStoreLdb(dataPath);
-            else if (dbType.equalsIgnoreCase("h2"))
-                blockStore = new BlockStoreSql(dataPath);
+            switch (dbType) {
+                case "leveldb":
+                    blockStore = new BlockStoreLdb(dataPath);
+                    break;
+                case "h2":
+                    blockStore = new BlockStoreSql(dataPath);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported database type");
+            }
             Parameters.blockStore = blockStore;
             //
             // Compact the database
@@ -720,7 +733,7 @@ public class Main {
                     case "dbtype":
                         if (!value.equalsIgnoreCase("leveldb") && !value.equalsIgnoreCase("h2"))
                             throw new IllegalArgumentException("Invalid database type specified");
-                        dbType = value;
+                        dbType = value.toLowerCase();
                         break;
                     case "hostname":
                         hostName = value;

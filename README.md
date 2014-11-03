@@ -57,7 +57,7 @@ The following command-line arguments are supported:
     Create bootstrap files in the 'blocks' subdirectory of the specified directory.  Specify PROD to use the production database or TEST to use the test database.  The block file names are blknnnnn.dat.gz and the files will contain just blocks in the current block chain (orphan blocks will be ignored).  start-height defaults to 0 and stop-height defaults to the current block chain height.  Use the LOAD option to load the bootstrap files and create the database on another system.  The program will terminate after creating the bootstrap files.       
     
   - COMPACT PROD|TEST   
-    Compact the database.  This is a lengthy process and must not be aborted once it has been started.  
+    Compact the database.  This is a lengthy process and must not be aborted once it has been started.  You should backup the database before compacting it in case an unrecoverable error occurs.  
     
     For LevelDB, each database is compacted in-place.  
     
@@ -67,7 +67,7 @@ The following command-line arguments are supported:
     Load the block chain from the 'blocks' subdirectory of the specified directory and create the block chain database. Specify PROD to load the production database or TEST to load the test database. The default reference client data directory will be used if no directory path is specified.  The block file names are blknnnnn.dat or blknnnnn.dat.gz where nnnnn is the block file number specified by start-block and stop-block.  start-block defaults to 0 and stop-block defaults to the highest contiguous block file number following the start block.  The program will terminate after loading the block chain.  The block files used by the LOAD option can be deleted upon completion since new block files will be created in the Blocks subdirectory.
 	
   - MIGRATE     
-    Migrate an existing LevelDB database to a new H2 database.  The existing Blocks subdirectory is not modified and will be used by the H2 database.  This means that you cannot switch back and forth between the LevelDB and H2 database since the other database will no longer match the Blocks subdirectory after a new block has been processed by the current database.
+    Migrate the current LevelDB database to a new H2 database or the current H2 database to a new LevelDB database.  The existing Blocks subdirectory is not modified and will be used by the new database.  This means that you cannot switch back and forth between the LevelDB and H2 databases since the other database will no longer match the Blocks subdirectory after a new block has been processed by the current database.  The current database is determined by the dbType configuration parameter.  After migrating the current database, be sure to change the dbType configuration parameter to the new database type.    
     
   - PROD	
     Start the program using the production network. Application files are stored in the application data directory and the production database is used. DNS discovery will be used to locate peer nodes.

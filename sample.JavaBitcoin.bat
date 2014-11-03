@@ -4,14 +4,14 @@ REM and copy it to a directory in your PATH if you want to use it.  Using the 'j
 REM to start the node server allows you to watch log messages as they are written to the console.
 REM
 REM Command line operands:
-REM   Start node server using production network (omit peer addresses to use DNS discovery)
-REM       JavaBitcoin prod <peer-addresses>
-REM   Start node server using test network (you must specify at least one peer address)
-REM       JavaBitcoin test <peer-addresses>
-REM   Load production block chain from disk (start block defaults to 0 if omitted)
-REM       JavaBitcoin load prod <start-block>
-REM   Load test block chain from disk (start block defaults to 0 if omitted)
-REM       JavaBitcoin load test <start-block>
+REM   Start node server using production network
+REM       JavaBitcoin prod
+REM   Start node server using test network
+REM       JavaBitcoin test
+REM   Load production block chain from disk (start defaults to 0 and stop defaults to highest block)
+REM       JavaBitcoin load prod <start-block> <stop-block>
+REM   Load test block chain from disk (start defaults to 0 and stop defaults to highest block)
+REM       JavaBitcoin load test <start-block> <stop-block>
 REM   Retry a failing block for the production network
 REM       JavaBitcoin retry prod block-hash
 REM   Retry a failing block for the production network with block verification disabled
@@ -27,9 +27,9 @@ set Blocks=\Users\user-name\AppData\Roaming\Bitcoin
 REM Directory contain leveldbjni.dll
 set LibPath=\Bitcoin\JavaBitcoin
 REM Jar file to use on the production network
-set ProdJar=\Bitcoin\JavaBitcoin\JavaBitcoin-2.0.jar
+set ProdJar=\Bitcoin\JavaBitcoin\JavaBitcoin-4.0.0.jar
 REM Jar file to use on the test network
-set TestJar=\GitHub\JavaBitcoin\target\JavaBitcoin-2.0.jar
+set TestJar=\Bitcoin\JavaBitcoin\JavaBitcoin-4.0.0.jar
 
 if .%1==.test goto runTest
 if .%1==.prod goto runProd
@@ -45,11 +45,11 @@ echo You must specify 'load prod' or 'load test'
 goto :DONE
 
 :loadTest
-java -Xmx384m -Dbitcoin.verify.blocks=1 -Djava.library.path=%LibPath% -jar "%TestJar%" LOAD TEST "%Blocks%" %3
+java -Xmx384m -Dbitcoin.verify.blocks=1 -Djava.library.path=%LibPath% -jar "%TestJar%" LOAD TEST "%Blocks%" %3 %4
 goto :DONE
 
 :loadProd
-java -Xmx384m -Dbitcoin.verify.blocks=0 -Djava.library.path=%LibPath% -jar "%ProdJar%" LOAD PROD "%Blocks%" %3
+java -Xmx384m -Dbitcoin.verify.blocks=0 -Djava.library.path=%LibPath% -jar "%ProdJar%" LOAD PROD "%Blocks%" %3 %4
 goto :DONE
 
 :runRetry

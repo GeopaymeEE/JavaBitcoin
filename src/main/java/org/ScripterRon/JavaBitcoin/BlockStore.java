@@ -318,8 +318,7 @@ public abstract class BlockStore {
      * @return                              The number of deleted outputs
      * @throws      BlockStoreException     Unable to delete spent transaction outputs
      */
-    public int deleteSpentTxOutputs() throws BlockStoreException {
-    }
+    public abstract int deleteSpentTxOutputs() throws BlockStoreException;
 
     /**
      * Returns the chain list from the block following the start block up to the stop
