@@ -30,9 +30,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.DataFormatException;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
 
 /**
  * BlockStore manages the database used to store blocks and transactions.  The database is
@@ -58,14 +62,6 @@ public abstract class BlockStore {
                         new Sha256Hash("000000001aeae195809d120b5d66a39c83eb48792e068f8ea1fea19d84a4278a"));
         checkpoints.put(75000,
                         new Sha256Hash("00000000000ace2adaabf1baf9dc0ec54434db11e9fd63c1819d8d77df40afda"));
-        checkpoints.put(91722,
-                        new Sha256Hash("00000000000271a2dc26e7667f8419f2e15416dc6955e5a6c6cdf3f2574dd08e"));
-        checkpoints.put(91812,
-                        new Sha256Hash("00000000000af0aed4792b1acee3d966af36cf5def14935db8de83d6f9306f2f"));
-        checkpoints.put(91842,
-                        new Sha256Hash("00000000000a4d0a398161ffc163c503763b1f4360639393e0e4c8e300e0caec"));
-        checkpoints.put(91880,
-                        new Sha256Hash("00000000000743f190a18c5577a3c2d2a1f610ae9601ac046a38084ccb7cd721"));
         checkpoints.put(100000,
                         new Sha256Hash("000000000003ba27aa200b1cecaad478d2b00432346c3f1f3986da1afd33e506"));
         checkpoints.put(125000,
@@ -82,6 +78,10 @@ public abstract class BlockStore {
                         new Sha256Hash("000000000000003887df1f29024b06fc2200b55f8af8f35453d7be294df2d214"));
         checkpoints.put(275000,
                         new Sha256Hash("00000000000000044750d80a0d3f3e307e54e8802397ae840d91adc28068f5bc"));
+        checkpoints.put(300000,
+                        new Sha256Hash("000000000000000082ccf8f1557c5d40b21edabb18d2d691cfbf87118bac7254"));
+        checkpoints.put(325000,
+                        new Sha256Hash("00000000000000000409695bce21828b31a7143fa35fcab64670dd337a71425d"));
     }
 
     /** Database update lock */
@@ -110,6 +110,12 @@ public abstract class BlockStore {
 
     /** Current block file number */
     protected int blockFileNumber;
+
+    /** Compressed block inflater */
+    protected final Inflater inflater = new Inflater();
+
+    /** Compressed block deflater */
+    protected final Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
 
     /**
      * Creates a BlockStore
@@ -415,10 +421,21 @@ public abstract class BlockStore {
     /**
      * Returns a block that was stored in one of the block files
      *
-     * @param       fileNumber          The block file number
-     * @param       fileOffset          The block offset within the file
-     * @return                          The requested block or null if the block is not found
-     * @throws      BlockStoreException Unable to read the block data
+     * An uncompressed block has the following format:
+     *   Bytes 0-3: Magic number
+     *   Bytes 4-7: Block length
+     *   Bytes 8-n: Block data
+     *
+     * A compressed block has the following format:
+     *   Bytes 0-3:  Magic number
+     *   Bytes 4-7:  Compressed data length with the high-order bit set to 1
+     *   Bytes 8-11: Uncompressed data length
+     *   Bytes 12-n: Compressed block data
+     *
+     * @param       fileNumber              The block file number
+     * @param       fileOffset              The block offset within the file
+     * @return                              The requested block or null if the block is not found
+     * @throws      BlockStoreException     Unable to read the block data
      */
     protected Block getBlock(int fileNumber, int fileOffset) throws BlockStoreException {
         if (fileNumber < 0)
@@ -432,6 +449,9 @@ public abstract class BlockStore {
         }
         try {
             try (RandomAccessFile inFile = new RandomAccessFile(blockFile, "r")) {
+                //
+                // Read the block prefix
+                //
                 inFile.seek(fileOffset);
                 byte[] bytes = new byte[8];
                 int count = inFile.read(bytes);
@@ -441,27 +461,52 @@ public abstract class BlockStore {
                     throw new BlockStoreException("Unable to read block file");
                 }
                 long magic = Utils.readUint32LE(bytes, 0);
-                int length = (int)Utils.readUint32LE(bytes, 4);
+                long length = Utils.readUint32LE(bytes, 4);
                 if (magic != NetParams.MAGIC_NUMBER) {
                     log.error(String.format("Magic number %X is incorrect in block file %d, offset %d",
                                             magic, fileNumber, fileOffset));
                     throw new BlockStoreException("Incorrect block file format");
                 }
-                if (length < BlockHeader.HEADER_SIZE) {
-                    log.error(String.format("Block length %d is too small in block file %d, offset %d",
-                                            length, fileNumber, fileOffset));
-                    throw new BlockStoreException("Incorrect block length");
+                if ((length&0x80000000L) != 0) {
+                    //
+                    // Read the compressed block data
+                    //
+                    length &= 0x7fffffffL;
+                    byte[] compressedData = new byte[(int)length+4];
+                    count = inFile.read(compressedData);
+                    if (count != length+4) {
+                        log.error(String.format("End-of-data reading compressed block from file %d, offset %d",
+                                                fileNumber, fileOffset));
+                        throw new BlockStoreException("Unable to read block file");
+                    }
+                    length = Utils.readUint32LE(compressedData, 0);
+                    byte[] blockData = new byte[(int)length];
+                    synchronized(inflater) {
+                        inflater.reset();
+                        inflater.setInput(compressedData, 4, compressedData.length-4);
+                        count = inflater.inflate(blockData);
+                        if (count != length || !inflater.finished()) {
+                            log.error(String.format("Incomplete compressed block read from file %d, offset %d",
+                                                    fileNumber, fileOffset));
+                            throw new BlockStoreException("Unable to read block file");
+                        }
+                    }
+                    block = new Block(blockData, 0, (int)length, false);
+                } else {
+                    //
+                    // Read the uncompressed block data
+                    //
+                    byte[] blockData = new byte[(int)length];
+                    count = inFile.read(blockData);
+                    if (count != length) {
+                        log.error(String.format("End-of-data reading uncompressed block from file %d, offset %d",
+                                                fileNumber, fileOffset));
+                        throw new BlockStoreException("Unable to read block file");
+                    }
+                    block = new Block(blockData, 0, (int)length, false);
                 }
-                byte[] blockData = new byte[length];
-                count = inFile.read(blockData);
-                if (count != length) {
-                    log.error(String.format("End-of-data reading block file %d, offset %d",
-                                            fileNumber, fileOffset));
-                    throw new BlockStoreException("Unable to read block file");
-                }
-                block = new Block(blockData, 0, length, false);
             }
-        } catch (IOException | VerificationException exc) {
+        } catch (DataFormatException | IOException | VerificationException exc) {
             log.error(String.format("Unable to read block file %d, offset %d",
                                     fileNumber, fileOffset), exc);
             throw new BlockStoreException("Unable to read block file");
@@ -472,16 +517,47 @@ public abstract class BlockStore {
     /**
      * Stores a block in the current block file
      *
-     * @param       block               Block to store
-     * @return                          Array containing the block file number and offset
-     * @throws      BlockStoreException Error while writing to the block file
+     * An uncompressed block has the following format:
+     *   Bytes 0-3: Magic number
+     *   Bytes 4-7: Block length
+     *   Bytes 8-n: Block data
+     *
+     * A compressed block has the following format:
+     *   Bytes 0-3:  Magic number
+     *   Bytes 4-7:  Compressed data length with the high-order bit set to 1
+     *   Bytes 8-11: Uncompressed data length
+     *   Bytes 12-n: Compressed block data
+     *
+     * @param       block                   Block to store
+     * @return                              Array containing the block file number and offset
+     * @throws      BlockStoreException     Error while writing to the block file
      */
     protected int[] storeBlock(Block block) throws BlockStoreException {
         int[] blockLocation = new int[2];
         try {
+            //
+            // Compress the block (we get 20-25% reduction in block size from compression)
+            //
             byte[] blockData = block.getBytes();
+            byte[] compressedData = new byte[blockData.length+128];
+            int offset = 0;
+            synchronized(deflater) {
+                deflater.reset();
+                deflater.setInput(blockData);
+                deflater.finish();
+                while (true) {
+                    int count = deflater.deflate(compressedData, offset, compressedData.length-offset);
+                    offset += count;
+                    if (deflater.finished())
+                        break;
+                    compressedData = Arrays.copyOf(compressedData, offset+(blockData.length-(int)deflater.getBytesRead()+256));
+                }
+            }
+            //
+            // Open the block file.  We will create a new block file if the current file is full.
+            //
             File blockFile = new File(String.format("%s%sBlocks%sblk%05d.dat",
-                                        dataPath, Main.fileSeparator, Main.fileSeparator, blockFileNumber));
+                                                    dataPath, Main.fileSeparator, Main.fileSeparator, blockFileNumber));
             long filePosition = blockFile.length();
             if (filePosition >= MAX_BLOCK_FILE_SIZE) {
                 blockFileNumber++;
@@ -491,13 +567,17 @@ public abstract class BlockStore {
                 if (blockFile.exists())
                     blockFile.delete();
             }
+            //
+            // Write the compressed block
+            //
             try (RandomAccessFile outFile = new RandomAccessFile(blockFile, "rws")) {
                 outFile.seek(filePosition);
-                byte[] bytes = new byte[8];
+                byte[] bytes = new byte[12];
                 Utils.uint32ToByteArrayLE(NetParams.MAGIC_NUMBER, bytes, 0);
-                Utils.uint32ToByteArrayLE(blockData.length, bytes, 4);
+                Utils.uint32ToByteArrayLE((long)offset|0x80000000L, bytes, 4);
+                Utils.uint32ToByteArrayLE(blockData.length, bytes, 8);
                 outFile.write(bytes);
-                outFile.write(blockData);
+                outFile.write(compressedData, 0, offset);
                 blockLocation[0] = blockFileNumber;
                 blockLocation[1] = (int)filePosition;
             }
