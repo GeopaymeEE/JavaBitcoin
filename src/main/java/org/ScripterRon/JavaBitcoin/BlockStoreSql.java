@@ -97,7 +97,7 @@ public class BlockStoreSql extends BlockStore {
     /** TxSpentOutputs table definition */
     public static final String TxSpentOutputs_Table = "CREATE TABLE IF NOT EXISTS TxSpentOutputs ("+
             "time_spent     BIGINT          NOT NULL,"+     // Time when output spent
-            "db_id          INTEGER         NOT NULL "+     // Referenced spent output
+            "db_id          BIGINT          NOT NULL "+     // Referenced spent output
                            "REFERENCES TxOutputs(db_id) ON DELETE CASCADE)";
     public static final String TxSpentOutputs_IX1 = "CREATE INDEX IF NOT EXISTS TxSpentOutputs_IX1 ON TxSpentOutputs(time_spent)";
 
@@ -1226,13 +1226,13 @@ public class BlockStoreSql extends BlockStore {
                                                         tx.getHashAsString()));
                                 throw new BlockStoreException("Transaction output not found");
                             }
-                            int dbId = r.getInt(1);
+                            long dbId = r.getLong(1);
                             s3.setLong(1, block.getTimeStamp());
                             s3.setInt(2, blockHeight);
-                            s3.setInt(3, dbId);
+                            s3.setLong(3, dbId);
                             s3.executeUpdate();
                             s5.setLong(1, block.getTimeStamp());
-                            s5.setInt(2, dbId);
+                            s5.setLong(2, dbId);
                             s5.executeUpdate();
                         }
                     }
