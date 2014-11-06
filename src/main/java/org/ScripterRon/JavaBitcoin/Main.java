@@ -507,7 +507,7 @@ public class Main {
                 if (rpcHandler != null)
                     rpcHandler.shutdown();
                 for (Thread thread : threads)
-                    thread.join(60000);
+                    thread.join(120000);
             } catch (InterruptedException exc) {
                 // Nothing to be done at this point
             }

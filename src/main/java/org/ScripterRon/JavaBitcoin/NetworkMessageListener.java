@@ -141,6 +141,9 @@ public class NetworkMessageListener extends AbstractMessageListener {
                         }
                     } catch (BlockStoreException exc) {
                         notFound.add(item);
+                    } catch (Throwable exc) {
+                        log.error("Unable to build message", exc);
+                        notFound.add(item);
                     }
                     break;
                 case InventoryItem.INV_FILTERED_BLOCK:
@@ -164,6 +167,9 @@ public class NetworkMessageListener extends AbstractMessageListener {
                                 notFound.add(item);
                             }
                         } catch (BlockStoreException exc) {
+                            notFound.add(item);
+                        } catch (Throwable exc) {
+                            log.error("Unable to build filtered block message", exc);
                             notFound.add(item);
                         }
                     }

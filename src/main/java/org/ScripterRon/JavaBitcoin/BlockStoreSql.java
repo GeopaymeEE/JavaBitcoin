@@ -142,7 +142,7 @@ public class BlockStoreSql extends BlockStore {
             dbCacheSize = maxMemory/2;
         String databasePath = dataPath.replace('\\', '/');
         connectionURL = String.format("jdbc:h2:%s/Database/bitcoin;"
-                            + "DB_CLOSE_ON_EXIT=FALSE;MAX_COMPACT_TIME=15000;MVCC=TRUE;CACHE_SIZE=%d",
+                            + "DB_CLOSE_ON_EXIT=FALSE;MAX_COMPACT_TIME=30000;MVCC=TRUE;CACHE_SIZE=%d",
                             databasePath, dbCacheSize*1024);
         log.info("Database connection URL: "+connectionURL);
         //
