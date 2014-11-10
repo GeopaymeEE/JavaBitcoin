@@ -1046,7 +1046,7 @@ public class BlockStoreSql extends BlockStore {
                             }
                             chainList.add(0, chainStoredBlock);
                         } else {
-                            log.warn(String.format("Chain block is not available\n  Block %s", blockHash));
+                            log.debug(String.format("Chain block is not available\n  Block %s", blockHash));
                             throw new BlockNotFoundException("Unable to resolve block chain", blockHash);
                         }
                     }
@@ -1362,7 +1362,6 @@ public class BlockStoreSql extends BlockStore {
             //
             // Create the tables
             //
-            conn.setAutoCommit(false);
             s.executeUpdate(Settings_Table);
             s.executeUpdate(TxOutputs_Table);
             s.executeUpdate(TxOutputs_IX1);
@@ -1373,8 +1372,6 @@ public class BlockStoreSql extends BlockStore {
             s.executeUpdate(Blocks_IX2);
             s.executeUpdate(Blocks_IX3);
             s.executeUpdate(Alerts_Table);
-            conn.commit();
-            conn.setAutoCommit(true);
             log.info("SQL database tables created");
             //
             // We are creating a new database, so delete any existing block files
@@ -1387,7 +1384,6 @@ public class BlockStoreSql extends BlockStore {
             }
         } catch (SQLException exc) {
             log.error("Unable to create SQL database tables", exc);
-            rollback();
             throw new BlockStoreException("Unable to create SQL database tables");
         }
     }

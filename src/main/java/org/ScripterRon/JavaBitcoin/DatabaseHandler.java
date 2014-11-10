@@ -59,19 +59,26 @@ public class DatabaseHandler implements Runnable {
     public void run() {
         log.info("Database handler started");
         //
-        // Create a timer to delete spent transaction outputs every 5 minutes
+        // Create a timer to delete spent transaction outputs every 60 minutes
         //
         timer = new Timer();
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
                 try {
-                    Parameters.blockStore.deleteSpentTxOutputs();
+                    for (int i=0; i<60; i++) {
+                        int count = Parameters.blockStore.deleteSpentTxOutputs();
+                        if (count == 0)
+                            break;
+                        Thread.sleep(30000);
+                    }
                 } catch (BlockStoreException exc) {
                     log.error("Unable to delete spent transaction outputs", exc);
+                } catch (InterruptedException exc) {
+                    log.error("Database prune thread interrupted", exc);
                 }
             }
-        }, 5*60*1000, 5*60*1000);
+        }, 5*60*1000, 60*60*1000);
         //
         // Process blocks until the shutdown() method is called
         //

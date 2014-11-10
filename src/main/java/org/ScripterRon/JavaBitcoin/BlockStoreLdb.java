@@ -1053,7 +1053,7 @@ public class BlockStoreLdb extends BlockStore {
                             }
                             chainList.add(0, chainStoredBlock);
                         } else {
-                            log.warn(String.format("Chain block is not available\n  Block %s", blockHash));
+                            log.debug(String.format("Chain block is not available\n  Block %s", blockHash));
                             throw new BlockNotFoundException("Unable to resolve block chain", blockHash);
                         }
                     }
