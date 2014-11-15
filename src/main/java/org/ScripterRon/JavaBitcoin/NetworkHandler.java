@@ -34,6 +34,7 @@ import org.ScripterRon.BitcoinCore.VersionMessage;
 
 import java.io.InputStream;
 import java.io.IOException;
+import java.net.BindException;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -609,13 +610,14 @@ public class NetworkHandler implements Runnable {
         //
         // Create a socket channel for the connection and open the connection
         //
+        Peer peer = null;
         try {
             SocketChannel channel = SocketChannel.open();
             channel.configureBlocking(false);
             channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
             channel.bind(null);
             SelectionKey key = channel.register(networkSelector, SelectionKey.OP_CONNECT);
-            Peer peer = new Peer(address, channel, key);
+            peer = new Peer(address, channel, key);
             key.attach(peer);
             peer.setConnected(true);
             address.setConnected(true);
@@ -626,6 +628,10 @@ public class NetworkHandler implements Runnable {
                 connections.add(peer);
                 connectionMap.put(address.getAddress(), peer);
             }
+        } catch (BindException exc) {
+            log.error(String.format("Unable to open connection to %s", address), exc);
+            if (peer != null)
+                closeConnection(peer);
         } catch (IOException exc) {
             log.error(String.format("Unable to open connection to %s", address), exc);
             networkShutdown = true;

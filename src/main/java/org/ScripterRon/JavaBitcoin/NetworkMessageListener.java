@@ -378,6 +378,7 @@ public class NetworkMessageListener extends AbstractMessageListener {
             .filter((addr) -> addr.getServices()!=0 && addr.getTimeStamp()>oldestTime &&
                         !addr.getAddress().isAnyLocalAddress() &&
                         !addr.getAddress().isLoopbackAddress() &&
+                        addr.getPort()>0 && addr.getPort()<65536 &&
                         !addr.equals(Parameters.listenAddress))
             .forEach((addr) -> {
                 long timeStamp = addr.getTimeStamp();
