@@ -952,7 +952,6 @@ public class NetworkHandler implements Runnable {
             //
             if (peer.getVersionCount() == 2) {
                 peer.incVersionCount();
-                Parameters.networkChainHeight = Math.max(Parameters.networkChainHeight, peer.getHeight());
                 log.info(String.format("Connection handshake completed with %s", address));
                 //
                 // Disconnect if this is an outbound connection and the peer doesn't provide network services
@@ -998,6 +997,8 @@ public class NetworkHandler implements Runnable {
                 // one yet
                 //
                 if (getBlocksTime == 0 && (peer.getServices()&NetParams.NODE_NETWORK) != 0) {
+                    Parameters.networkChainHeight = Math.max(Parameters.networkChainHeight, peer.getHeight());
+                    getBlocksTime = System.currentTimeMillis()/1000;
                     if (peer.getHeight() > Parameters.blockStore.getChainHeight()) {
                         List<Sha256Hash> blockList = getBlockList();
                         Message getMsg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
@@ -1005,10 +1006,12 @@ public class NetworkHandler implements Runnable {
                             peer.getOutputList().add(getMsg);
                             key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                         }
-                        getBlocksTime = System.currentTimeMillis()/1000;
                         log.info(String.format("Sent 'getblocks' message to %s", address));
                     }
                 }
+                //
+                // Notify listeners of the new connection
+                //
                 connectionListeners.stream().forEach((listener) -> {
                     listener.connectionStarted(peer, connections.size());
                 });
