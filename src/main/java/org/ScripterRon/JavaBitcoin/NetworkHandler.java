@@ -35,10 +35,9 @@ import org.ScripterRon.BitcoinCore.VersionMessage;
 import java.io.InputStream;
 import java.io.IOException;
 import java.net.BindException;
-import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.NoRouteToHostException;
+import java.net.SocketException;
 import java.net.StandardSocketOptions;
 import java.net.UnknownHostException;
 import java.net.URL;
@@ -661,8 +660,8 @@ public class NetworkHandler implements Runnable {
                 key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
             }
             log.info(String.format("Sent 'version' message to %s", address));
-        } catch (ConnectException | NoRouteToHostException exc) {
-            log.info(exc.getLocalizedMessage());
+        } catch (SocketException exc) {
+            log.info(String.format("%s: Peer %s", exc.getLocalizedMessage(), address));
             closeConnection(peer);
             if (!address.isStatic()) {
                 synchronized(Parameters.peerAddresses) {

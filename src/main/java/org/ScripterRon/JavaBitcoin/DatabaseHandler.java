@@ -42,6 +42,9 @@ public class DatabaseHandler implements Runnable {
 
     /** Database timer */
     private Timer timer;
+    
+    /** Timer task to delete spent outputs */
+    private TimerTask timerTask;
 
     /** Database shutdown requested */
     private boolean databaseShutdown = false;
@@ -59,26 +62,11 @@ public class DatabaseHandler implements Runnable {
     public void run() {
         log.info("Database handler started");
         //
-        // Create a timer to delete spent transaction outputs every 60 minutes
+        // Create a timer to delete spent transaction outputs
         //
         timer = new Timer();
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    for (int i=0; i<60; i++) {
-                        int count = Parameters.blockStore.deleteSpentTxOutputs();
-                        if (count == 0)
-                            break;
-                        Thread.sleep(30000);
-                    }
-                } catch (BlockStoreException exc) {
-                    log.error("Unable to delete spent transaction outputs", exc);
-                } catch (InterruptedException exc) {
-                    log.error("Database prune thread interrupted", exc);
-                }
-            }
-        }, 5*60*1000, 60*60*1000);
+        timerTask = new DeleteOutputsTask();
+        timer.schedule(timerTask, 1*60*1000);
         //
         // Process blocks until the shutdown() method is called
         //
@@ -97,6 +85,7 @@ public class DatabaseHandler implements Runnable {
         //
         // Stopping
         //
+        timerTask.cancel();
         timer.cancel();
         log.info("Database handler stopped");
     }
@@ -255,5 +244,82 @@ public class DatabaseHandler implements Runnable {
         Message invMsg = InventoryMessage.buildInventoryMessage(null, invList);
         invMsg.setInventoryType(InventoryItem.INV_BLOCK);
         Parameters.networkHandler.broadcastMessage(invMsg);
+    }
+    /**
+     * Timer task to delete spent transaction outputs
+     */
+    private class DeleteOutputsTask extends TimerTask {
+        
+        /** Task is active */
+        private volatile boolean isSleeping = false;
+        
+        /** Execution thread */
+        private volatile Thread thread;
+        
+        /**
+         * Create the timer task
+         */
+        public DeleteOutputsTask() {
+            super();
+        }
+        
+        /**
+         * Delete spent outputs every hour
+         */
+        @Override
+        public void run() {
+            thread = Thread.currentThread();
+            try {
+                //
+                // Delete spent transaction outputs at 10 second intervals
+                //
+                int count;
+                do {
+                    isSleeping = true;
+                    Thread.sleep(10000);
+                    isSleeping = false;
+                    if (databaseShutdown)
+                        break;
+                    count = Parameters.blockStore.deleteSpentTxOutputs();
+                } while (count>0 && !databaseShutdown);
+                //
+                // Schedule the next execution in one hour
+                //
+                timerTask = new DeleteOutputsTask();
+                timer.schedule(timerTask, 60*60*1000);
+            } catch (BlockStoreException exc) {
+                log.error("Unable to delete spent transaction outputs", exc);
+            } catch (InterruptedException exc) {
+                log.info("Database prune task terminated");
+            } catch (Throwable exc) {
+                log.error("Unexpected exception while deleting spent transaction outputs", exc);
+            }
+            thread = null;
+        }
+    
+        /**
+         * Cancel task execution
+         * 
+         * @return                  TRUE if a future execution was cancelled
+         */
+        @Override
+        public boolean cancel() {
+            //
+            // Cancel the current execution
+            //
+            try {
+                while (thread != null) {
+                    if (isSleeping)
+                        thread.interrupt();
+                    Thread.currentThread().sleep(1000);
+                }
+            } catch (InterruptedException exc) {
+                log.error("Unable to wait for database prune task to complete");
+            }
+            //
+            // Cancel future execution
+            //
+            return super.cancel();
+        }
     }
 }
