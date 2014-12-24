@@ -264,19 +264,33 @@ public class DatabaseHandler implements Runnable {
         }
         
         /**
-         * Delete spent outputs every hour
+         * Delete spent outputs every hour.  The task will run until all spent outputs are deleted before
+         * scheduling the next execution.  1000 outputs will be deleted in each batch with a 30-second
+         * interval between each database request.
          */
         @Override
         public void run() {
+            //
+            // Don't delete spent outputs if we are catching up to the current network level in order to
+            // avoid database contention and cache purges
+            //
+            if (Parameters.networkChainHeight > Parameters.blockStore.getChainHeight()+1) {
+                timerTask = new DeleteOutputsTask();
+                timer.schedule(timerTask, 30*60*1000);
+                return;
+            }
+            //
+            // Indicate task is active
+            //
             thread = Thread.currentThread();
             try {
                 //
-                // Delete spent transaction outputs at 10 second intervals
+                // Delete spent transaction outputs at 30 second intervals
                 //
                 int count;
                 do {
                     isSleeping = true;
-                    Thread.sleep(10000);
+                    Thread.sleep(30000);
                     isSleeping = false;
                     if (databaseShutdown)
                         break;
@@ -294,6 +308,9 @@ public class DatabaseHandler implements Runnable {
             } catch (Throwable exc) {
                 log.error("Unexpected exception while deleting spent transaction outputs", exc);
             }
+            //
+            // Indicate task is no longer active
+            //
             thread = null;
         }
     
