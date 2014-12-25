@@ -256,7 +256,7 @@ public class BlockStoreSql extends BlockStore {
     public void compactDatabase() throws BlockStoreException {
         File backupFile = new File(String.format("%s%sDatabase%sbackup.sql.gz",
                                             dataPath, Main.fileSeparator, Main.fileSeparator));
-        File databaseFile = new File(String.format("%s%sDatabase%sbitcoin.h2.db",
+        File databaseFile = new File(String.format("%s%sDatabase%sbitcoin.mv.db",
                                             dataPath, Main.fileSeparator, Main.fileSeparator));
         File lockFile = new File(String.format("%s%sDatabase%sbitcoin.lock.db",
                                             dataPath, Main.fileSeparator, Main.fileSeparator));
