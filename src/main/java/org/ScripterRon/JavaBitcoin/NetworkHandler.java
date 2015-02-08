@@ -1180,6 +1180,8 @@ public class NetworkHandler implements Runnable {
                     pos--;
                 }
             }
+            if (invList.isEmpty())
+                invList.add(Parameters.blockStore.getChainHead());
         } catch (BlockStoreException exc) {
             //
             // We can't query the database, so just locate the chain head and hope we
