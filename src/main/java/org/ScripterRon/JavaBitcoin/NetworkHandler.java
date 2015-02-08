@@ -1137,7 +1137,7 @@ public class NetworkHandler implements Runnable {
             // Send a 'getblocks' message if we are down-level and the request is for a block
             //
             if (request.getType() == InventoryItem.INV_BLOCK &&
-                            getBlocksTime < System.currentTimeMillis()/1000-300 &&
+                            getBlocksTime < System.currentTimeMillis()/1000-15 &&
                             Parameters.pendingRequests.size() < 10 &&
                             Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight - 100) {
                 List<Sha256Hash> blockList = getBlockList();
