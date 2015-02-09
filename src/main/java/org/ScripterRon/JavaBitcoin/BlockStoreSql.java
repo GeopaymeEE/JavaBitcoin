@@ -228,16 +228,16 @@ public class BlockStoreSql extends BlockStore {
             log.error("Unable to rollback transaction", exc);
         }
     }
-    
+
     /**
      * Get the hash index for a SHA-256 hash
-     * 
+     *
      * @param       hash                SHA-256 hash
      * @return                          Hash index
      */
     private long getHashIndex(Sha256Hash hash) {
         byte[] bytes = hash.getBytes();
-        return (((long)bytes[24]&0xffL)<<56) | (((long)bytes[25]&0xffL)<<48) | 
+        return (((long)bytes[24]&0xffL)<<56) | (((long)bytes[25]&0xffL)<<48) |
                         (((long)bytes[26]&0xffL)<<40) | (((long)bytes[27]&0xffl)<<32) |
                         (((long)bytes[28]&0xffL)<<24) | (((long)bytes[29]&0xffL)<<16) |
                         (((long)bytes[30]&0xffL)<<8)  | ((long)bytes[31]&0xffL);
@@ -1029,10 +1029,8 @@ public class BlockStoreSql extends BlockStore {
                             onChain = (blockHeight>=0);
                             r.close();
                             if (!onChain) {
-                                if (chainList.size() >= 144) {
-                                    log.warn(String.format("Chain length exceeds 144 blocks\n  Restart %s", blockHash));
+                                if (chainList.size() >= 144)
                                     throw new ChainTooLongException("Chain length too long", blockHash);
-                                }
                                 block = getBlock(fileNumber, fileOffset);
                                 if (block == null) {
                                     log.error(String.format("Chain block file %d is not available\n  Block %s",
@@ -1541,7 +1539,7 @@ public class BlockStoreSql extends BlockStore {
 
     /**
      * Upgrade the database from Version 1.00 to 1.01
-     * 
+     *
      * Due to the size of the Blocks table, we will commit each update.  If an error occurs,
      * the upgrade can be repeated without restoring the table to its original state.
      *
@@ -1609,7 +1607,7 @@ public class BlockStoreSql extends BlockStore {
      *
      * Due to the size of the Blocks and TxOutputs tables, we will commit each update.  If an error occurs,
      * the upgrade can be repeated without restoring the tables to their original state.
-     * 
+     *
      * @param       conn                    Database connection
      * @throws      BlockStoreException     Unable to upgrade the database
      */
@@ -1714,5 +1712,5 @@ public class BlockStoreSql extends BlockStore {
             log.error("Unable to upgrade database version", exc);
             throw new BlockStoreException("Unable to upgrade database version");
         }
-    }    
+    }
 }

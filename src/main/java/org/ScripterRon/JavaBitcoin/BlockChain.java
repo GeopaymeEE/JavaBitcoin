@@ -153,11 +153,11 @@ public class BlockChain {
                 }
             } catch (BlockNotFoundException exc) {
                 onHold = true;
-                PeerRequest request = new PeerRequest(exc.getHash(), InventoryItem.INV_BLOCK);
-                if (Parameters.networkHandler != null) {
+                if (Parameters.databaseQueue.isEmpty() && Parameters.networkHandler != null) {
+                    PeerRequest request = new PeerRequest(exc.getHash(), InventoryItem.INV_BLOCK);
                     synchronized(Parameters.pendingRequests) {
                         if (!Parameters.pendingRequests.contains(request) &&
-                                            !Parameters.processedRequests.contains(request))
+                                                !Parameters.processedRequests.contains(request))
                             Parameters.pendingRequests.add(request);
                     }
                     Parameters.networkHandler.wakeup();

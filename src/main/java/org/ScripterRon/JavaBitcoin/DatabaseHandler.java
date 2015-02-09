@@ -42,12 +42,18 @@ public class DatabaseHandler implements Runnable {
 
     /** Database timer */
     private Timer timer;
-    
+
     /** Timer task to delete spent outputs */
     private TimerTask timerTask;
 
     /** Database shutdown requested */
     private boolean databaseShutdown = false;
+
+    /** 'getblocks' chain height */
+    private int getblocksHeight = 0;
+
+    /** 'getblocks' time */
+    private long getblocksTime = 0;
 
     /**
      * Creates the database listener
@@ -76,6 +82,14 @@ public class DatabaseHandler implements Runnable {
                 if (databaseShutdown)
                     break;
                 processBlock(block);
+                int chainHeight = Parameters.blockStore.getChainHeight();
+                if (chainHeight < Parameters.networkChainHeight-50 &&
+                        (getblocksHeight < chainHeight-200 || getblocksTime < System.currentTimeMillis()-15000) &&
+                        Parameters.networkHandler != null) {
+                    getblocksHeight = chainHeight;
+                    getblocksTime = System.currentTimeMillis();
+                    Parameters.networkHandler.getBlocks();
+                }
             }
         } catch (InterruptedException exc) {
             log.warn("Database handler interrupted", exc);
@@ -249,20 +263,20 @@ public class DatabaseHandler implements Runnable {
      * Timer task to delete spent transaction outputs
      */
     private class DeleteOutputsTask extends TimerTask {
-        
+
         /** Task is active */
         private volatile boolean isSleeping = false;
-        
+
         /** Execution thread */
         private volatile Thread thread;
-        
+
         /**
          * Create the timer task
          */
         public DeleteOutputsTask() {
             super();
         }
-        
+
         /**
          * Delete spent outputs every hour.  The task will run until all spent outputs are deleted before
          * scheduling the next execution.  1000 outputs will be deleted in each batch with a 30-second
@@ -313,10 +327,10 @@ public class DatabaseHandler implements Runnable {
             //
             thread = null;
         }
-    
+
         /**
          * Cancel task execution
-         * 
+         *
          * @return                  TRUE if a future execution was cancelled
          */
         @Override

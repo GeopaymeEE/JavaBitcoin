@@ -145,8 +145,8 @@ public class NetworkHandler implements Runnable {
     /** Static connections */
     private boolean staticConnections = false;
 
-    /** GetBlock time */
-    private long getBlocksTime = 0;
+    /** 'getblocks' message sent */
+    private boolean getblocksSent = false;
 
     /**
      * Creates the network listener
@@ -995,9 +995,8 @@ public class NetworkHandler implements Runnable {
                 // Send a 'getblocks' message if we are down-level and we haven't sent
                 // one yet
                 //
-                if (getBlocksTime == 0 && (peer.getServices()&NetParams.NODE_NETWORK) != 0) {
+                if (!getblocksSent && (peer.getServices()&NetParams.NODE_NETWORK) != 0) {
                     Parameters.networkChainHeight = Math.max(Parameters.networkChainHeight, peer.getHeight());
-                    getBlocksTime = System.currentTimeMillis()/1000;
                     if (peer.getHeight() > Parameters.blockStore.getChainHeight()) {
                         List<Sha256Hash> blockList = getBlockList();
                         Message getMsg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
@@ -1005,6 +1004,7 @@ public class NetworkHandler implements Runnable {
                             peer.getOutputList().add(getMsg);
                             key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                         }
+                        getblocksSent = true;
                         log.info(String.format("Sent 'getblocks' message to %s", address));
                     }
                 }
@@ -1133,22 +1133,52 @@ public class NetworkHandler implements Runnable {
                 SelectionKey key = peer.getKey();
                 key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
             }
-            //
-            // Send a 'getblocks' message if we are down-level and the request is for a block
-            //
-            if (request.getType() == InventoryItem.INV_BLOCK &&
-                            getBlocksTime < System.currentTimeMillis()/1000-15 &&
-                            Parameters.pendingRequests.size() < 10 &&
-                            Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight - 100) {
-                List<Sha256Hash> blockList = getBlockList();
-                msg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
-                synchronized(peer) {
-                    peer.getOutputList().add(msg);
+        }
+    }
+
+    /**
+     * Get more blocks
+     *
+     * This method is called by the database handler when it is loading the initial block chain
+     * and it needs more blocks.  We rely on inventory messages to obtain new blocks once the
+     * block chain has been loaded.
+     */
+    public void getBlocks() {
+        //
+        // Select a random peer
+        //
+        Peer peer = null;
+        int chainHeight = Parameters.blockStore.getChainHeight();
+        synchronized(connections) {
+            int index = (int)(((double)connections.size())*Math.random());
+            for (int i=index; i<connections.size(); i++) {
+                Peer chkPeer = connections.get(i);
+                if (chkPeer.isConnected() && chkPeer.getVersionCount() > 2 && chkPeer.getHeight() > chainHeight &&
+                                (chkPeer.getServices()&NetParams.NODE_NETWORK)!=0) {
+                    peer = chkPeer;
+                    break;
                 }
-                getBlocksTime = System.currentTimeMillis()/1000;
-                log.info(String.format("Sent 'getblocks' message to %s", peer.getAddress()));
+            }
+            if (peer == null) {
+                for (int i=0; i<index; i++) {
+                    Peer chkPeer = connections.get(i);
+                    if (chkPeer.isConnected() && chkPeer.getVersionCount() > 2 && chkPeer.getHeight() > chainHeight &&
+                                (chkPeer.getServices()&NetParams.NODE_NETWORK)!=0) {
+                        peer = chkPeer;
+                        break;
+                    }
+                }
             }
         }
+        if (peer == null)
+            return;
+        //
+        // Send the 'getblocks' message
+        //
+        List<Sha256Hash> blockList = getBlockList();
+        Message msg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
+        sendMessage(msg);
+        log.info(String.format("Sent 'getblocks' message to %s", peer.getAddress()));
     }
 
     /**
