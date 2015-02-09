@@ -1,0 +1,10 @@
+JavaBitcoin Change Log
+======================
+
+Version 4.1.1
+
+  - Handle bind exception during connect
+  - Delete spent outputs using a background thread
+  - Start at chain head if no chain list is available
+  - Improve initial blockchain load performance
+

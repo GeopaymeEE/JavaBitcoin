@@ -78,13 +78,22 @@ public class DatabaseHandler implements Runnable {
         //
         try {
             while (true) {
+                //
+                // Get the next block from the database queue, blocking if no block is available
+                //
                 Block block = Parameters.databaseQueue.take();
                 if (databaseShutdown)
                     break;
+                //
+                // Process the block
+                //
                 processBlock(block);
+                //
+                // Get the next group of blocks if we are synchronizing with the network
+                //
                 int chainHeight = Parameters.blockStore.getChainHeight();
                 if (chainHeight < Parameters.networkChainHeight-50 &&
-                        (getblocksHeight < chainHeight-200 || getblocksTime < System.currentTimeMillis()-15000) &&
+                        (getblocksHeight < chainHeight-200 || getblocksTime < System.currentTimeMillis()-60000) &&
                         Parameters.networkHandler != null) {
                     getblocksHeight = chainHeight;
                     getblocksTime = System.currentTimeMillis();
