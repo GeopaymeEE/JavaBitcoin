@@ -90,8 +90,12 @@ public class BlockChain {
         //
         List<StoredBlock> chainList = null;
         if (Parameters.blockStore.getChainHeight() > Parameters.networkChainHeight-50 ||
-                        block.getPrevBlockHash().equals(Parameters.blockStore.getChainHead()))
+                        block.getPrevBlockHash().equals(Parameters.blockStore.getChainHead())) {
             chainList = updateBlockChain(storedBlock);
+        } else {
+            log.debug(String.format("Holding orphan block during network synchronization\n  Block %s",
+                                    block.getHashAsString()));
+        }
         return chainList;
     }
 

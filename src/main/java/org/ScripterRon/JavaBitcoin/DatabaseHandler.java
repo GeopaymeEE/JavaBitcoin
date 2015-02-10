@@ -73,10 +73,14 @@ public class DatabaseHandler implements Runnable {
         timer = new Timer();
         timerTask = new DeleteOutputsTask();
         timer.schedule(timerTask, 1*60*1000);
-        //
-        // Process blocks until the shutdown() method is called
-        //
         try {
+            //
+            // Handle any pending blocks before accepting new blocks
+            //
+            processPendingBlocks();
+            //
+            // Process blocks until the shutdown() method is called
+            //
             while (true) {
                 //
                 // Get the next block from the database queue, blocking if no block is available
@@ -135,32 +139,39 @@ public class DatabaseHandler implements Runnable {
             //
             // Process the new block
             //
-            if (Parameters.blockStore.isNewBlock(block.getHash())) {
+            List<StoredBlock> chainList = null;
+            StoredBlock storedBlock = Parameters.blockStore.getStoredBlock(block.getHash());
+            if (storedBlock == null) {
                 //
-                // Store the block in our database
+                // Add a new block to our database
                 //
-                List<StoredBlock> chainList = Parameters.blockChain.storeBlock(block);
+                chainList = Parameters.blockChain.storeBlock(block);
+            } else if (!storedBlock.isOnChain()) {
                 //
-                // Notify our peers that we have added new blocks to the chain and then
-                // see if we have a child block which can now be processed.  To avoid
-                // flooding peers with blocks they have already seen, we won't send an
-                // 'inv' message if we are more than 3 blocks behind the best network chain.
+                // Attempt to connect an existing block to the current block chain
                 //
-                if (chainList != null) {
-                    for (StoredBlock storedBlock : chainList) {
-                        Block chainBlock = storedBlock.getBlock();
-                        if (chainBlock != null) {
-                            updateTxPool(chainBlock);
-                            int chainHeight = storedBlock.getHeight();
-                            Parameters.networkChainHeight = Math.max(chainHeight, Parameters.networkChainHeight);
-                            if (chainHeight >= Parameters.networkChainHeight-3)
-                                notifyPeers(storedBlock);
-                        }
+                chainList = Parameters.blockChain.updateBlockChain(storedBlock);
+            }
+            //
+            // Notify our peers that we have added new blocks to the chain and then
+            // see if we have a child block which can now be processed.  To avoid
+            // flooding peers with blocks they have already seen, we won't send an
+            // 'inv' message if we are more than 3 blocks behind the best network chain.
+            //
+            if (chainList != null) {
+                for (StoredBlock chainStoredBlock : chainList) {
+                    Block chainBlock = chainStoredBlock.getBlock();
+                    if (chainBlock != null) {
+                        updateTxPool(chainBlock);
+                        int chainHeight = chainStoredBlock.getHeight();
+                        Parameters.networkChainHeight = Math.max(chainHeight, Parameters.networkChainHeight);
+                        if (chainHeight >= Parameters.networkChainHeight-3)
+                            notifyPeers(chainStoredBlock);
                     }
-                    StoredBlock parentBlock = chainList.get(chainList.size()-1);
-                    while (parentBlock != null)
-                        parentBlock = processChildBlock(parentBlock);
                 }
+                StoredBlock parentBlock = chainList.get(chainList.size()-1);
+                while (parentBlock != null)
+                    parentBlock = processChildBlock(parentBlock);
             }
             //
             // Remove the request from the processedRequests list
@@ -179,6 +190,17 @@ public class DatabaseHandler implements Runnable {
             log.error(String.format("Unable to store block in database\n  Block %s",
                                     block.getHashAsString()), exc);
         }
+    }
+
+    /**
+     * Connect pending blocks to the current block chain
+     *
+     * @throws      BlockStoreException     Database error occurred
+     */
+    private void processPendingBlocks() throws BlockStoreException {
+        StoredBlock parentBlock = Parameters.blockStore.getStoredBlock(Parameters.blockStore.getChainHead());
+        while (parentBlock != null)
+            parentBlock = processChildBlock(parentBlock);
     }
 
     /**
