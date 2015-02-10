@@ -174,24 +174,21 @@ public class BlockChain {
         if (onHold)
             return null;
         //
-        // The new block must have a target difficulty that is equal to or less than the
-        // previous block in the chain (the target difficulty decreases as the work required increases)
-        // Blocks were added to the block chain before this test was implemented, so we need to
-        // allow old blocks even if they fail this test.
+        // The new block must have an acceptable target difficulty.  The target difficulty
+        // decreases as the work required increases (that is, the SHA-256 has more leading zeros).
+        // Note that the difficulty is recalculated every 2016 blocks and can just by as much as 25%.
         //
-        if (Parameters.blockStore.getChainHeight() >= 160000) {
-            BigInteger blockDiff = block.getTargetDifficultyAsInteger();
-            BigInteger chainDiff;
-            Block chainBlock = chainList.get(chainList.size()-1).getBlock();
-            if (chainBlock != null)
-                chainDiff = chainBlock.getTargetDifficultyAsInteger();
-            else
-                chainDiff = Parameters.blockStore.getTargetDifficulty();
-            if (blockDiff.compareTo(chainDiff) > 0) {
-                log.error(String.format("Block target difficulty is greater than chain target difficulty\n  Block %s",
-                                        block.getHashAsString()));
-                onHold = true;
-            }
+        BigInteger blockDiff = block.getTargetDifficultyAsInteger();
+        BigInteger chainDiff;
+        Block chainBlock = chainList.get(chainList.size()-1).getBlock();
+        if (chainBlock != null)
+            chainDiff = chainBlock.getTargetDifficultyAsInteger();
+        else
+            chainDiff = Parameters.blockStore.getTargetDifficulty();
+        if (blockDiff.subtract(chainDiff).abs().compareTo(chainDiff.divide(BigInteger.valueOf(4))) > 0) {
+            log.error(String.format("Block target difficulty is greater than chain target difficulty\n  Block %s",
+                                    block.getHashAsString()));
+            onHold = true;
         }
         //
         // The block version must be 2 (or greater) if the chain height is 250,000 or greater
@@ -212,7 +209,7 @@ public class BlockChain {
             BigInteger chainWork = chainList.get(0).getChainWork();
             int chainHeight = chainList.get(0).getHeight();
             for (StoredBlock chainStoredBlock : chainList) {
-                Block chainBlock = chainStoredBlock.getBlock();
+                chainBlock = chainStoredBlock.getBlock();
                 if (chainBlock != null) {
                     chainWork = chainWork.add(chainBlock.getWork());
                     chainStoredBlock.setChainWork(chainWork);
