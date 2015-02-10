@@ -83,17 +83,16 @@ public class BlockChain {
         StoredBlock storedBlock = new StoredBlock(block, BigInteger.ZERO, 0);
         storedBlock.setHold(true);
         Parameters.blockStore.storeBlock(storedBlock);
-        listeners.stream().forEach((listener) -> {
-            listener.blockStored(storedBlock);
-        });
+        listeners.stream().forEach((listener) -> listener.blockStored(storedBlock));
         //
         // Update the block chain unless we are downloading the initial block chain
         // and this block does not connect to the current chain head
         //
-        if (Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight-50 &&
-                    !block.getPrevBlockHash().equals(Parameters.blockStore.getChainHead()))
-            return null;
-        return updateBlockChain(storedBlock);
+        List<StoredBlock> chainList = null;
+        if (Parameters.blockStore.getChainHeight() > Parameters.networkChainHeight-50 ||
+                        block.getPrevBlockHash().equals(Parameters.blockStore.getChainHead()))
+            chainList = updateBlockChain(storedBlock);
+        return chainList;
     }
 
     /**
@@ -227,9 +226,7 @@ public class BlockChain {
                         Parameters.blockStore.releaseBlock(chainStoredBlock.getHash());
                         log.info(String.format(String.format("Held block released\n  Block %s",
                                                              chainBlock.getHashAsString())));
-                        listeners.stream().forEach((listener) -> {
-                            listener.blockUpdated(chainStoredBlock);
-                        });
+                        listeners.stream().forEach((listener) -> listener.blockUpdated(chainStoredBlock));
                     }
                 }
             }

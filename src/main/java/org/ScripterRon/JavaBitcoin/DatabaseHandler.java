@@ -294,15 +294,6 @@ public class DatabaseHandler implements Runnable {
         @Override
         public void run() {
             //
-            // Don't delete spent outputs if we are catching up to the current network level in order to
-            // avoid database contention and cache purges
-            //
-            if (Parameters.networkChainHeight > Parameters.blockStore.getChainHeight()+1) {
-                timerTask = new DeleteOutputsTask();
-                timer.schedule(timerTask, 30*60*1000);
-                return;
-            }
-            //
             // Indicate task is active
             //
             thread = Thread.currentThread();
