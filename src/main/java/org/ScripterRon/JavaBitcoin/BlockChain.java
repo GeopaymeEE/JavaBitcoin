@@ -179,7 +179,7 @@ public class BlockChain {
         // Blocks were added to the block chain before this test was implemented, so we need to
         // allow old blocks even if they fail this test.
         //
-        if (Parameters.blockStore.getChainHeight() >= 150000) {
+        if (Parameters.blockStore.getChainHeight() >= 160000) {
             BigInteger blockDiff = block.getTargetDifficultyAsInteger();
             BigInteger chainDiff;
             Block chainBlock = chainList.get(chainList.size()-1).getBlock();
