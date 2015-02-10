@@ -87,8 +87,12 @@ public class BlockChain {
             listener.blockStored(storedBlock);
         });
         //
-        // Update the block chain
+        // Update the block chain unless we are downloading the initial block chain
+        // and this block does not connect to the current chain head
         //
+        if (Parameters.blockStore.getChainHeight() < Parameters.networkChainHeight-50 &&
+                    !block.getPrevBlockHash().equals(Parameters.blockStore.getChainHead()))
+            return null;
         return updateBlockChain(storedBlock);
     }
 
