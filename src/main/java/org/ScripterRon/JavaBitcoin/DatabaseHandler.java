@@ -96,8 +96,8 @@ public class DatabaseHandler implements Runnable {
                 // Get the next group of blocks if we are synchronizing with the network
                 //
                 int chainHeight = Parameters.blockStore.getChainHeight();
-                if (chainHeight < Parameters.networkChainHeight-50 &&
-                        (getblocksHeight < chainHeight-200 || getblocksTime < System.currentTimeMillis()-60000) &&
+                if (chainHeight < Parameters.networkChainHeight-100 &&
+                        (getblocksHeight < chainHeight-300 || getblocksTime < System.currentTimeMillis()-60000) &&
                         Parameters.networkHandler != null) {
                     getblocksHeight = chainHeight;
                     getblocksTime = System.currentTimeMillis();
