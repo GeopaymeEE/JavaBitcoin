@@ -85,18 +85,9 @@ public class BlockChain {
         Parameters.blockStore.storeBlock(storedBlock);
         listeners.stream().forEach((listener) -> listener.blockStored(storedBlock));
         //
-        // Update the block chain unless we are downloading the initial block chain
-        // and this block does not connect to the current chain head
+        // Update the block chain and return the chain list to our caller
         //
-        List<StoredBlock> chainList = null;
-        if (Parameters.blockStore.getChainHeight() > Parameters.networkChainHeight-50 ||
-                        block.getPrevBlockHash().equals(Parameters.blockStore.getChainHead())) {
-            chainList = updateBlockChain(storedBlock);
-        } else {
-            log.debug(String.format("Holding orphan block during network synchronization\n  Block %s",
-                                    block.getHashAsString()));
-        }
-        return chainList;
+        return updateBlockChain(storedBlock);
     }
 
     /**

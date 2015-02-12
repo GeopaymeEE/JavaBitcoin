@@ -316,23 +316,26 @@ public class MigrateDatabase {
         //
         log.info("Migrating the LevelDB Blocks table");
         try (PreparedStatement s = conn.prepareStatement("INSERT INTO Blocks "
-                + "(block_hash,prev_hash,timestamp,block_height,chain_work,on_hold,file_number,file_offset,header) "
-                + "VALUES(?,?,?,?,?,?,?,?,?)")) {
+                + "(block_hash_index,block_hash,prev_hash_index, prev_hash,timestamp,"
+                + "block_height,chain_work,on_hold,file_number,file_offset,header) "
+                + "VALUES(?,?,?,?,?,?,?,?,?,?,?)")) {
             DBIterator it = dbBlocks.iterator();
             it.seekToFirst();
             while (it.hasNext()) {
                 dbEntry = it.next();
                 byte[] blockHash = dbEntry.getKey();
                 BlockEntry blockEntry = new BlockEntry(dbEntry.getValue());
-                s.setBytes(1, blockHash);
-                s.setBytes(2, blockEntry.getPrevHash().getBytes());
-                s.setLong(3, blockEntry.getTimeStamp());
-                s.setInt(4, blockEntry.isOnChain() ? blockEntry.getHeight() : -1);
-                s.setBytes(5, blockEntry.getChainWork().toByteArray());
-                s.setBoolean(6, blockEntry.isOnHold());
-                s.setInt(7, blockEntry.getFileNumber());
-                s.setInt(8, blockEntry.getFileOffset());
-                s.setBytes(9, blockEntry.getHeaderBytes());
+                s.setLong(1, getHashIndex(blockHash));
+                s.setBytes(2, blockHash);
+                s.setLong(3, getHashIndex(blockEntry.getPrevHash().getBytes()));
+                s.setBytes(4, blockEntry.getPrevHash().getBytes());
+                s.setLong(5, blockEntry.getTimeStamp());
+                s.setInt(6, blockEntry.isOnChain() ? blockEntry.getHeight() : -1);
+                s.setBytes(7, blockEntry.getChainWork().toByteArray());
+                s.setBoolean(8, blockEntry.isOnHold());
+                s.setInt(9, blockEntry.getFileNumber());
+                s.setInt(10, blockEntry.getFileOffset());
+                s.setBytes(11, blockEntry.getHeaderBytes());
                 s.executeUpdate();
                 if (blockEntry.getHeight() >= 0)
                     chainTime = Math.max(chainTime, blockEntry.getTimeStamp());
@@ -348,8 +351,9 @@ public class MigrateDatabase {
         log.info("Migrating the LevelDB TxOutputs table");
         long pruneTime = chainTime - BlockStore.MAX_TX_AGE;
         try (PreparedStatement s1 = conn.prepareStatement("INSERT INTO TxOutputs "
-                    + "(tx_hash,tx_index,block_hash,block_height,time_spent,is_coinbase,value,script_bytes) "
-                    + "VALUES(?,?,?,?,?,?,?,?)");
+                    + "(tx_hash_index,tx_hash,tx_index,block_hash,block_height,time_spent,"
+                    + "is_coinbase,value,script_bytes) "
+                    + "VALUES(?,?,?,?,?,?,?,?,?)");
                 PreparedStatement s2 = conn.prepareStatement("INSERT INTO TxSpentOutputs "
                         + "(time_spent,db_id) VALUES(?,?)")) {
             DBIterator it = dbTxOutputs.iterator();
@@ -360,14 +364,15 @@ public class MigrateDatabase {
                 TransactionEntry txEntry = new TransactionEntry(dbEntry.getValue());
                 if (txEntry.getTimeSpent() > 0 && txEntry.getTimeSpent() < pruneTime)
                     continue;
-                s1.setBytes(1, txId.getTxHash().getBytes());
-                s1.setShort(2, (short)txId.getTxIndex());
-                s1.setBytes(3, txEntry.getBlockHash().getBytes());
-                s1.setInt(4, txEntry.getBlockHeight());
-                s1.setLong(5, txEntry.getTimeSpent());
-                s1.setBoolean(6, txEntry.isCoinBase());
-                s1.setLong(7, txEntry.getValue().longValue());
-                s1.setBytes(8, txEntry.getScriptBytes());
+                s1.setLong(1, getHashIndex(txId.getTxHash().getBytes()));
+                s1.setBytes(2, txId.getTxHash().getBytes());
+                s1.setShort(3, (short)txId.getTxIndex());
+                s1.setBytes(4, txEntry.getBlockHash().getBytes());
+                s1.setInt(5, txEntry.getBlockHeight());
+                s1.setLong(6, txEntry.getTimeSpent());
+                s1.setBoolean(7, txEntry.isCoinBase());
+                s1.setLong(8, txEntry.getValue().longValue());
+                s1.setBytes(9, txEntry.getScriptBytes());
                 s1.executeUpdate();
                 if (txEntry.getTimeSpent() > 0) {
                     ResultSet r = s1.getGeneratedKeys();
@@ -454,5 +459,18 @@ public class MigrateDatabase {
         longBytes[6] = (byte)(longVal>>>8);
         longBytes[7] = (byte)longVal;
         return longBytes;
+    }
+
+    /**
+     * Get the hash index for a SHA-256 hash
+     *
+     * @param       bytes               SHA-256 hash bytes
+     * @return                          Hash index
+     */
+    private static long getHashIndex(byte[] bytes) {
+        return (((long)bytes[24]&0xffL)<<56) | (((long)bytes[25]&0xffL)<<48) |
+                        (((long)bytes[26]&0xffL)<<40) | (((long)bytes[27]&0xffl)<<32) |
+                        (((long)bytes[28]&0xffL)<<24) | (((long)bytes[29]&0xffL)<<16) |
+                        (((long)bytes[30]&0xffL)<<8)  | ((long)bytes[31]&0xffL);
     }
 }
