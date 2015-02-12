@@ -170,7 +170,7 @@ public class MigrateDatabase {
                 BlockEntry blockEntry = new BlockEntry(prevHash, blockHeight, chainWork, onChain, onHold,
                                                        timestamp, fileNumber, fileOffset, header);
                 dbBlocks.put(blockHash.getBytes(), blockEntry.getBytes());
-                if (onChain) {
+                if (onChain || dbChild.get(prevHash.getBytes()) == null) {
                     dbChild.put(prevHash.getBytes(), blockHash.getBytes());
                     dbBlockChain.put(getIntegerBytes(blockHeight), blockHash.getBytes());
                     chainTime = Math.max(chainTime, timestamp);

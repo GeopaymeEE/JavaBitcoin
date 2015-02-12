@@ -583,8 +583,11 @@ public class BlockStoreLdb extends BlockStore {
         StoredBlock childStoredBlock = null;
         try {
             byte[] childData = dbChild.get(blockHash.getBytes());
-            if (childData != null)
+            if (childData != null) {
                 childStoredBlock = getStoredBlock(new Sha256Hash(childData));
+                if (childStoredBlock == null)
+                    log.error(String.format("Child stored block not found\n  Parent %s", blockHash));
+            }
         } catch (DBException exc) {
             log.error(String.format("Unable to get child block\n  Block %s", blockHash), exc);
             throw new BlockStoreException("Unable to get child block");

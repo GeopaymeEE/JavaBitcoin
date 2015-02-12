@@ -7,5 +7,6 @@ Version 4.1.1
   - Delete spent outputs using a background thread
   - Start at chain head if no chain list is available
   - Improve initial blockchain load performance
-  - Handle target difficulty increases and decreases
+  - Delete spent outputs when compacting database
+  - Hash index values not set when migrating LevelDB database
 
