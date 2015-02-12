@@ -170,7 +170,7 @@ public class DatabaseHandler implements Runnable {
                     }
                 }
                 StoredBlock parentBlock = chainList.get(chainList.size()-1);
-                while (parentBlock != null)
+                while (parentBlock != null && !databaseShutdown)
                     parentBlock = processChildBlock(parentBlock);
             }
             //
@@ -199,7 +199,7 @@ public class DatabaseHandler implements Runnable {
      */
     private void processPendingBlocks() throws BlockStoreException {
         StoredBlock parentBlock = Parameters.blockStore.getStoredBlock(Parameters.blockStore.getChainHead());
-        while (parentBlock != null)
+        while (parentBlock != null && !databaseShutdown)
             parentBlock = processChildBlock(parentBlock);
     }
 
