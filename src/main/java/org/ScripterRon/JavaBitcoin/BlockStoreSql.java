@@ -263,6 +263,25 @@ public class BlockStoreSql extends BlockStore {
         Connection conn = getConnection();
         ResultSet r;
         //
+        // Delete spent transaction outputs before creating the backup script
+        //
+        long ageLimit = Math.max(chainTime-MAX_TX_AGE, 0);
+        int deletedCount = 0;
+        log.info("Deleting spent transaction outputs");
+        try (PreparedStatement s = conn.prepareStatement("DELETE FROM TxOutputs WHERE db_id IN "
+                            + "(SELECT db_id FROM TxSpentOutputs WHERE time_spent<? LIMIT 2000)")) {
+            int count;
+            do {
+                s.setLong(1, ageLimit);
+                count = s.executeUpdate();
+                deletedCount += count;
+            } while(count>0);
+        } catch (SQLException exc) {
+            log.error(String.format("Unable to delete spent transaction outputs", exc));
+            throw new BlockStoreException("Unable to delete spent transaction outputs");
+        }
+        log.info(String.format("Deleted %d spent transaction outputs", deletedCount));
+        //
         // Create the SQL backup script
         //
         try {

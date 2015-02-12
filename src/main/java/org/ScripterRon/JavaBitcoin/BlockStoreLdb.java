@@ -304,6 +304,41 @@ public class BlockStoreLdb extends BlockStore {
         synchronized(lock) {
             try {
                 //
+                // Delete spent transaction outputs before compacting the databases
+                //
+                long ageLimit = chainTime - MAX_TX_AGE;
+                int txPurged = 0;
+                List<byte[]> purgeList = new ArrayList<>(2000);
+                //
+                // Delete spent transaction outputs
+                //
+                log.info("Deleting spent transaction outputs");
+                while (true) {
+                    try (DBIterator it = dbTxSpent.iterator()) {
+                        it.seekToFirst();
+                        while (it.hasNext() && purgeList.size()<2000) {
+                            Entry<byte[], byte[]> dbEntry = it.next();
+                            long timeSpent = getLong(dbEntry.getValue());
+                            if (timeSpent < ageLimit) {
+                                purgeList.add(dbEntry.getKey());
+                                txPurged++;
+                            }
+                        }
+                        if (!purgeList.isEmpty()) {
+                            WriteOptions options = new WriteOptions();
+                            options.sync(false);
+                            for (byte[] purgeList1 : purgeList) {
+                                dbTxSpent.delete(purgeList1, options);
+                                dbTxOutputs.delete(purgeList1, options);
+                            }
+                        }
+                    }
+                    if (purgeList.isEmpty())
+                        break;
+                    purgeList.clear();
+                }
+                log.info(String.format("%,d spent transaction outputs deleted", txPurged));
+                //
                 // Compact the database
                 //
                 log.info("Compacting BlockChain database");
@@ -319,7 +354,7 @@ public class BlockStoreLdb extends BlockStore {
                 log.info("Compacting Alert database");
                 ((JniDB)dbAlert).compactRange(null, null);
                 log.info("Finished compacting databases");
-            } catch (DBException exc) {
+            } catch (DBException | IOException exc) {
                 log.error("Unable to compact database", exc);
                 throw new BlockStoreException("Unable to compact database");
             }
@@ -947,7 +982,7 @@ public class BlockStoreLdb extends BlockStore {
     public int deleteSpentTxOutputs() throws BlockStoreException {
         long ageLimit = chainTime - MAX_TX_AGE;
         int txPurged = 0;
-        List<byte[]> purgeList = new ArrayList<>(1000);
+        List<byte[]> purgeList = new ArrayList<>(2000);
         synchronized(lock) {
             try {
                 //
