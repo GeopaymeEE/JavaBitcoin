@@ -174,67 +174,47 @@ public class BlockChain {
         if (onHold)
             return null;
         //
-        // The new block must have an acceptable target difficulty.  The target difficulty
-        // decreases as the work required increases (that is, the SHA-256 hash has more leading zeros).
-        // Note that the difficulty is recalculated every 2016 blocks and can adjust by as much as 50%.
-        // So the block target difficulty must be within 25% of the current chain target difficulty.
-        //
-        BigInteger blockDiff = block.getTargetDifficultyAsInteger();
-        BigInteger chainDiff;
-        Block chainBlock = chainList.get(chainList.size()-1).getBlock();
-        if (chainBlock != null)
-            chainDiff = chainBlock.getTargetDifficultyAsInteger();
-        else
-            chainDiff = Parameters.blockStore.getTargetDifficulty();
-        if (blockDiff.subtract(chainDiff).abs().compareTo(chainDiff.divide(BigInteger.valueOf(2))) > 0) {
-            log.error(String.format("Block target difficulty is greater than chain target difficulty\n  Block %s",
-                                    block.getHashAsString()));
-            onHold = true;
-        }
-        //
         // The block version must be 2 (or greater) if the chain height is 250,000 or greater
         //
-        if (!onHold) {
-            long version = block.getVersion();
-            if (Parameters.blockStore.getChainHeight() >= 250000 && version < 2) {
-                log.error(String.format("Block version %d is not valid", version));
-                onHold = true;
-            }
+        long version = block.getVersion();
+        if (Parameters.blockStore.getChainHeight() >= 250000 && version < 2) {
+            log.error(String.format("Block version %d is no longer acceptable", version));
+            return null;
         }
         //
         // Check for any held blocks in the chain.  If we find one, attempt to verify it.
         // If the verification fails, we will need to wait until another block is received
         // before we can try to verify the chain again.
         //
-        if (!onHold) {
-            BigInteger chainWork = chainList.get(0).getChainWork();
-            int chainHeight = chainList.get(0).getHeight();
-            for (StoredBlock chainStoredBlock : chainList) {
-                chainBlock = chainStoredBlock.getBlock();
-                if (chainBlock != null) {
-                    chainWork = chainWork.add(chainBlock.getWork());
-                    chainStoredBlock.setChainWork(chainWork);
-                    chainStoredBlock.setHeight(++chainHeight);
-                    if (chainStoredBlock.isOnHold()) {
-                        if (verifyBlocks) {
-                            if (!verifyBlock(chainStoredBlock, chainList.get(0).getHeight(), txMap, outputMap)) {
-                                log.info(String.format("Failed to verify held block\n  Block %s",
-                                                       chainBlock.getHashAsString()));
-                                onHold = true;
-                                break;
-                            }
+        BigInteger chainWork = chainList.get(0).getChainWork();
+        int chainHeight = chainList.get(0).getHeight();
+        for (StoredBlock chainStoredBlock : chainList) {
+            Block chainBlock = chainStoredBlock.getBlock();
+            if (chainBlock != null) {
+                chainWork = chainWork.add(chainBlock.getWork());
+                chainStoredBlock.setChainWork(chainWork);
+                chainStoredBlock.setHeight(++chainHeight);
+                if (chainStoredBlock.isOnHold()) {
+                    if (verifyBlocks) {
+                        if (!verifyBlock(chainStoredBlock, chainList.get(0).getHeight(), txMap, outputMap)) {
+                            log.info(String.format("Failed to verify held block\n  Block %s",
+                                                   chainBlock.getHashAsString()));
+                            onHold = true;
+                            break;
                         }
-                        chainStoredBlock.setHold(false);
-                        Parameters.blockStore.releaseBlock(chainStoredBlock.getHash());
-                        log.info(String.format(String.format("Held block released\n  Block %s",
-                                                             chainBlock.getHashAsString())));
-                        listeners.stream().forEach((listener) -> listener.blockUpdated(chainStoredBlock));
                     }
+                    chainStoredBlock.setHold(false);
+                    Parameters.blockStore.releaseBlock(chainStoredBlock.getHash());
+                    log.info(String.format(String.format("Held block released\n  Block %s",
+                                                         chainBlock.getHashAsString())));
+                    listeners.stream().forEach((listener) -> listener.blockUpdated(chainStoredBlock));
                 }
             }
-            //
-            // Update the new block
-            //
+        }
+        //
+        // Update the new block
+        //
+        if (!onHold) {
             chainWork = chainWork.add(block.getWork());
             storedBlock.setChainWork(chainWork);
             storedBlock.setHeight(++chainHeight);
