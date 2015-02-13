@@ -368,11 +368,12 @@ public class NetworkMessageListener extends AbstractMessageListener {
      */
     @Override
     public void processAddresses(Message msg, List<PeerAddress> addresses) {
-        long oldestTime = System.currentTimeMillis()/1000 - (30*60);
+        long oldestTime = System.currentTimeMillis()/1000 - (24*60*60);
         //
         // Add new addresses to the peer address list and update the timestamp and services
         // for existing entries.  We will not include peers that provide no services or peers
-        // that haven't been seen within the last 30 minutes.
+        // that haven't been seen within the last 24 hours.  The peer list is sorted by
+        // timestamp from newest to oldest.  Existing entries are updated in-place.
         //
         addresses.stream()
             .filter((addr) -> addr.getServices()!=0 && addr.getTimeStamp()>oldestTime &&
