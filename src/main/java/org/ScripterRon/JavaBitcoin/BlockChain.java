@@ -151,7 +151,7 @@ public class BlockChain {
                 }
             } catch (BlockNotFoundException exc) {
                 onHold = true;
-                if (Parameters.databaseQueue.isEmpty() && Parameters.networkHandler != null) {
+                if (Parameters.networkHandler != null) {
                     PeerRequest request = new PeerRequest(exc.getHash(), InventoryItem.INV_BLOCK);
                     synchronized(Parameters.pendingRequests) {
                         if (!Parameters.pendingRequests.contains(request) &&
