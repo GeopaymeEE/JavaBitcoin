@@ -275,12 +275,14 @@ public class BlockStoreSql extends BlockStore {
                 s.setLong(1, ageLimit);
                 count = s.executeUpdate();
                 deletedCount += count;
+                if (deletedCount%100000 == 0)
+                    log.info(String.format("Deleted %,d spent transaction outputs", deletedCount));
             } while(count>0);
         } catch (SQLException exc) {
-            log.error(String.format("Unable to delete spent transaction outputs", exc));
+            log.error("Unable to delete spent transaction outputs", exc);
             throw new BlockStoreException("Unable to delete spent transaction outputs");
         }
-        log.info(String.format("Deleted %d spent transaction outputs", deletedCount));
+        log.info(String.format("%,d spent transaction outputs deleted", deletedCount));
         //
         // Create the SQL backup script
         //

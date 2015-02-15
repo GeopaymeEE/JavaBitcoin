@@ -336,6 +336,8 @@ public class BlockStoreLdb extends BlockStore {
                     if (purgeList.isEmpty())
                         break;
                     purgeList.clear();
+                    if (txPurged%100000 == 0)
+                        log.info(String.format("Deleted %,d spent transaction outputs", txPurged));
                 }
                 log.info(String.format("%,d spent transaction outputs deleted", txPurged));
                 //

@@ -314,12 +314,12 @@ public class NetworkHandler implements Runnable {
                 if (!Parameters.pendingRequests.isEmpty() || !Parameters.processedRequests.isEmpty())
                     processRequests();
                 //
-                // Remove peer addresses that we haven't seen in the last 24 hours and broadcast any
-                // new addresses.  A maximum of 999 addresses will be broadcast in a single
-                // 'addr' message (we always broadcast our own address for a total of 1000 addresses)
+                // Remove peer addresses that are too old and broadcast any new addresses.
+                // A maximum of 999 addresses will be broadcast in a single 'addr' message
+                // since we always broadcast our own address.
                 //
                 long currentTime = System.currentTimeMillis()/1000;
-                if (currentTime > lastPeerUpdateTime + (24*60*60)) {
+                if (currentTime > lastPeerUpdateTime + Parameters.MAX_PEER_ADDRESS_AGE) {
                     List<PeerAddress> newAddresses = new ArrayList<>(Parameters.peerAddresses.size());
                     synchronized(Parameters.peerAddresses) {
                         Iterator<PeerAddress> iterator = Parameters.peerAddresses.iterator();
@@ -333,9 +333,9 @@ public class NetworkHandler implements Runnable {
                             } else if (!address.wasBroadcast()) {
                                 address.setBroadcast(true);
                                 newAddresses.add(address);
+                                if (newAddresses.size() >= 999)
+                                    break;
                             }
-                            if (newAddresses.size() >= 999)
-                                break;
                         }
                     }
                     if (!newAddresses.isEmpty()) {
