@@ -303,6 +303,7 @@ public class Main {
             String softwareName = String.format("%s:%s", applicationID, applicationVersion);
             log.info(String.format("%s Version %s", applicationName, applicationVersion));
             log.info(String.format("Application data path: %s", dataPath));
+            log.info(String.format("Java library path: %s", System.getProperty("java.library.path")));
             log.info(String.format("Block verification is %s", (verifyBlocks?"enabled":"disabled")));
             //
             // Load the saved application properties
@@ -314,6 +315,10 @@ public class Main {
                     properties.load(in);
                 }
             }
+            //
+            // Initialize the Bitcoin consensus library
+            //
+            BitcoinConsensus.init();
             //
             // Initialize the BitcoinCore library
             //

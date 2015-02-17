@@ -7,6 +7,8 @@ It does full verification for blocks that it receives and will reject blocks tha
 
 Starting with JavaBitcoin 4.0.0, the block files can be deleted to reduce the disk space requirement.  If this is done, JavaBitcoin will return a NOT FOUND error if a block in a deleted block file is requested.  Recent block files should not be deleted since a block chain reorganization will require access to all of the blocks in the new chain following the junction block (the block where the current chain and the new chain intersect).  I suggest keeping all block files containing blocks generated within the previous 6 months.
 
+Starting with JavaBitcoin 4.2.0, the Bitcoin Core consensus library can be used instead of the Java consensus routines.  This is supported for Windows and Linux only.  You need to place the correct consensus library in the Windows PATH or the Linux LD_LIBRARY_PATH.  Note that library versioning is used on Linux, so you will need to create a libbitcoinconsensus.so.0 symbolic link in a directory in LD_LIBRARY_PATH and point it to the correct consensus library.  When starting JavaBitcoin, you need to add -Djava.library.path=path-to-JNI-files to the java command line.
+
 There is a graphical user interface that displays alerts, peer connections (network address and client version) and recent blocks (both chain and orphan).  You can use this GUI for a local node or BitcoinMonitor for a remote node.  The SIGTERM signal is used to stop JavaBitcoin when running in headless mode.
 
 The RPC interface currently supports just the requests needed by BitcoinMonitor.  These are based on the Bitcoin reference client and will be expanded as needed.  However, JavaBitcoin does not support mining and does not manage a wallet, so most of the Bitcoin RPC requests are not needed in this environment.
@@ -134,8 +136,7 @@ The following configuration options can be specified in JavaBitcoin.conf.  This 
 	
 Sample Windows shortcut:
 
-	javaw.exe -Xmx512m -Djava.library.path=\Bitcoin\JavaBitcoin -jar \Bitcoin\JavaBitcoin\JavaBitcoin.4.0.0.jar PROD
+	javaw.exe -Xmx512m -Djava.library.path=\Bitcoin\JavaBitcoin\jni -jar \Bitcoin\JavaBitcoin\JavaBitcoin.4.2.0.jar PROD
 	
 Replace javaw.exe with java.exe if you want to run from a command prompt.  This will allow you to view log messages as they occur.
 
-In this example, the leveldbjni.dll file was extracted from the jar file and placed in the \Bitcoin\JavaBitcoin directory.  Specifying java.library.path tells the JVM where to find the native resources.

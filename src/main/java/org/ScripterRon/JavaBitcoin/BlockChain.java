@@ -411,7 +411,7 @@ public class BlockChain {
                     //
                     if (txValid) {
                         try {
-                            txValid = ScriptParser.process(input, output, Parameters.blockStore.getChainHeight());
+                            txValid = BitcoinConsensus.verifyScript(input, output);
                             if (!txValid) {
                                 log.error(String.format("Transaction failed signature verification\n"+
                                                         "  Transaction %s\n  Transaction input %d\n"+

@@ -1,8 +1,11 @@
 JavaBitcoin Change Log
 ======================
 
-Version 4.1.1
+Version 4.2.0
+  - Use Bitcoin Core consensus library
 
+
+Version 4.1.1
   - Handle bind exception during connect
   - Delete spent outputs using a background thread
   - Start at chain head if no chain list is available
