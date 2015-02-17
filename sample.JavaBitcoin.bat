@@ -24,12 +24,12 @@ REM
 setlocal
 REM Directory containing the disk block chain in the Blocks subdirectory
 set Blocks=\Users\user-name\AppData\Roaming\Bitcoin
-REM Directory contain leveldbjni.dll
-set LibPath=\Bitcoin\JavaBitcoin
+REM Directory containing JNI libraries
+set LibPath=\Bitcoin\JavaBitcoin\jni
 REM Jar file to use on the production network
-set ProdJar=\Bitcoin\JavaBitcoin\JavaBitcoin-4.1.1.jar
+set ProdJar=\Bitcoin\JavaBitcoin\JavaBitcoin-4.2.0.jar
 REM Jar file to use on the test network
-set TestJar=\Bitcoin\JavaBitcoin\JavaBitcoin-4.1.1.jar
+set TestJar=\Bitcoin\JavaBitcoin\JavaBitcoin-4.2.0.jar
 
 if .%1==.test goto runTest
 if .%1==.prod goto runProd
