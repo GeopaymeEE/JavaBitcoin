@@ -72,7 +72,7 @@ public class DatabaseHandler implements Runnable {
         //
         timer = new Timer();
         timerTask = new DeleteOutputsTask();
-        timer.schedule(timerTask, 1*60*1000);
+        timer.schedule(timerTask, 15*60*1000);
         try {
             //
             // Handle any pending blocks before accepting new blocks
