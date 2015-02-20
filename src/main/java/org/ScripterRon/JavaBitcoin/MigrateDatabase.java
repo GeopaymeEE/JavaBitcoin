@@ -36,7 +36,7 @@ import org.iq80.leveldb.DB;
 import org.iq80.leveldb.DBException;
 import org.iq80.leveldb.DBIterator;
 import org.iq80.leveldb.Options;
-import org.fusesource.leveldbjni.JniDBFactory;
+import org.iq80.leveldb.impl.Iq80DBFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -114,37 +114,37 @@ public class MigrateDatabase {
             //
             options.maxOpenFiles(32);
             File fileBlockChain = new File(dbPath+"BlockChainDB");
-            dbBlockChain = JniDBFactory.factory.open(fileBlockChain, options);
+            dbBlockChain = Iq80DBFactory.factory.open(fileBlockChain, options);
             //
             // Open the Blocks database
             //
             options.maxOpenFiles(32);
             File fileBlocks = new File(dbPath+"BlocksDB");
-            dbBlocks = JniDBFactory.factory.open(fileBlocks, options);
+            dbBlocks = Iq80DBFactory.factory.open(fileBlocks, options);
             //
             // Open the Child database
             //
             options.maxOpenFiles(32);
             File fileChild = new File(dbPath+"ChildDB");
-            dbChild = JniDBFactory.factory.open(fileChild, options);
+            dbChild = Iq80DBFactory.factory.open(fileChild, options);
             //
             // Open the TxOutputs database
             //
             options.maxOpenFiles(768);
             File fileTxOutputs = new File(dbPath+"TxOutputsDB");
-            dbTxOutputs = JniDBFactory.factory.open(fileTxOutputs, options);
+            dbTxOutputs = Iq80DBFactory.factory.open(fileTxOutputs, options);
             //
             // Open the TxSpent database
             //
             options.maxOpenFiles(32);
             File fileTxSpent = new File(dbPath+"TxSpentDB");
-            dbTxSpent = JniDBFactory.factory.open(fileTxSpent, options);
+            dbTxSpent = Iq80DBFactory.factory.open(fileTxSpent, options);
             //
             // Open the Alert database
             //
             options.maxOpenFiles(16);
             File fileAlert = new File(dbPath+"AlertDB");
-            dbAlert = JniDBFactory.factory.open(fileAlert, options);
+            dbAlert = Iq80DBFactory.factory.open(fileAlert, options);
         } catch (DBException | IOException exc) {
             log.error("Unable to create the LevelDB database", exc);
             throw new BlockStoreException("Unable to create the LevelDB database");
@@ -270,13 +270,13 @@ public class MigrateDatabase {
             //
             options.maxOpenFiles(32);
             File fileBlocks = new File(dbPath+"BlocksDB");
-            dbBlocks = JniDBFactory.factory.open(fileBlocks, options);
+            dbBlocks = Iq80DBFactory.factory.open(fileBlocks, options);
             //
             // Open the TxOutputs database
             //
             options.maxOpenFiles(768);
             File fileTxOutputs = new File(dbPath+"TxOutputsDB");
-            dbTxOutputs = JniDBFactory.factory.open(fileTxOutputs, options);
+            dbTxOutputs = Iq80DBFactory.factory.open(fileTxOutputs, options);
         } catch (DBException | IOException exc) {
             log.error("Unable to open the LevelDB database", exc);
             throw new BlockStoreException("Unable to open the LevelDB database");

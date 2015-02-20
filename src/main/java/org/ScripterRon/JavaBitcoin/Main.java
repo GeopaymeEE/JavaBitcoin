@@ -444,8 +444,11 @@ public class Main {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
                 javax.swing.SwingUtilities.invokeLater(() -> createAndShowGUI());
             }
-        } catch (Throwable exc) {
+        } catch (IllegalArgumentException | UnknownHostException exc) {
             log.error(String.format("%s: %s", exc.getClass().getName(), exc.getMessage()));
+            shutdown();
+        } catch (Throwable exc) {
+            log.error("Exception during program initialization", exc);
             shutdown();
         }
     }

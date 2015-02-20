@@ -36,9 +36,7 @@ import org.iq80.leveldb.DBException;
 import org.iq80.leveldb.DBIterator;
 import org.iq80.leveldb.Options;
 import org.iq80.leveldb.WriteOptions;
-
-import org.fusesource.leveldbjni.JniDBFactory;
-import org.fusesource.leveldbjni.internal.JniDB;
+import org.iq80.leveldb.impl.Iq80DBFactory;
 
 import java.io.EOFException;
 import java.io.File;
@@ -111,7 +109,7 @@ public class BlockStoreLdb extends BlockStore {
         Options options = new Options();
         options.createIfMissing(true);
         options.compressionType(CompressionType.NONE);
-        log.info(String.format("LevelDBJni version %s", JniDBFactory.VERSION));
+        log.info(String.format("LevelDB version %s", Iq80DBFactory.VERSION));
         //
         // Create the LevelDB base directory
         //
@@ -128,44 +126,62 @@ public class BlockStoreLdb extends BlockStore {
             //
             options.maxOpenFiles(32);
             File fileBlockChain = new File(dbPath+"BlockChainDB");
-            dbBlockChain = JniDBFactory.factory.open(fileBlockChain, options);
+            dbBlockChain = Iq80DBFactory.factory.open(fileBlockChain, options);
             //
             // Open the Blocks database
             //
             options.maxOpenFiles(32);
             File fileBlocks = new File(dbPath+"BlocksDB");
-            dbBlocks = JniDBFactory.factory.open(fileBlocks, options);
+            dbBlocks = Iq80DBFactory.factory.open(fileBlocks, options);
             //
             // Open the Child database
             //
             options.maxOpenFiles(32);
             File fileChild = new File(dbPath+"ChildDB");
-            dbChild = JniDBFactory.factory.open(fileChild, options);
+            dbChild = Iq80DBFactory.factory.open(fileChild, options);
             //
             // Open the TxOutputs database
             //
             options.maxOpenFiles(768);
             File fileTxOutputs = new File(dbPath+"TxOutputsDB");
-            dbTxOutputs = JniDBFactory.factory.open(fileTxOutputs, options);
+            dbTxOutputs = Iq80DBFactory.factory.open(fileTxOutputs, options);
             //
             // Open the TxSpent database
             //
             options.maxOpenFiles(32);
             File fileTxSpent = new File(dbPath+"TxSpentDB");
-            dbTxSpent = JniDBFactory.factory.open(fileTxSpent, options);
+            dbTxSpent = Iq80DBFactory.factory.open(fileTxSpent, options);
             //
             // Open the Alert database
             //
             options.maxOpenFiles(16);
             File fileAlert = new File(dbPath+"AlertDB");
-            dbAlert = JniDBFactory.factory.open(fileAlert, options);
+            dbAlert = Iq80DBFactory.factory.open(fileAlert, options);
             //
             // Get the initial values from the database
             //
             try (DBIterator it = dbBlockChain.iterator()) {
-                it.seekToLast();
+                //
+                // Unfortunately, DBIterator.seekToLast() is not implemented by the Java LevelDB.
+                // So we need to find the last entry using DBIterator.seek().
+                //
+                dbEntry = null;
+                it.seek(getIntegerBytes(0));
                 if (it.hasNext()) {
-                    dbEntry = it.next();
+                    int base = 0;
+                    int next = 1000;
+                    while (true) {
+                        it.seek(getIntegerBytes(next));
+                        if (it.hasNext()) {
+                            base = next;
+                            next += 1000;
+                            continue;
+                        }
+                        it.seek(getIntegerBytes(base));
+                        while (it.hasNext())
+                            dbEntry = it.next();
+                        break;
+                    }
                     //
                     // Get the current chain head from the BlockChain database
                     //
@@ -344,18 +360,20 @@ public class BlockStoreLdb extends BlockStore {
                 // Compact the database
                 //
                 log.info("Compacting BlockChain database");
-                ((JniDB)dbBlockChain).compactRange(null, null);
+                dbBlockChain.compactRange(null, null);
                 log.info("Compacting Blocks database");
-                ((JniDB)dbBlocks).compactRange(null, null);
+                dbBlocks.compactRange(null, null);
                 log.info("Compacting Child database");
-                ((JniDB)dbChild).compactRange(null, null);
+                dbChild.compactRange(null, null);
                 log.info("Compacting TxSpent database");
-                ((JniDB)dbTxSpent).compactRange(null, null);
+                dbTxSpent.compactRange(null, null);
                 log.info("Compacting TxOutputs database");
-                ((JniDB)dbTxOutputs).compactRange(null, null);
+                dbTxOutputs.compactRange(null, null);
                 log.info("Compacting Alert database");
-                ((JniDB)dbAlert).compactRange(null, null);
+                dbAlert.compactRange(null, null);
                 log.info("Finished compacting databases");
+            } catch (UnsupportedOperationException exc) {
+                log.error("LevelDB database compact is not available");
             } catch (DBException | IOException exc) {
                 log.error("Unable to compact database", exc);
                 throw new BlockStoreException("Unable to compact database");
