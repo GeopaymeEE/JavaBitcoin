@@ -656,8 +656,8 @@ public class BlockStoreLdb extends BlockStore {
                         blockEntry = new BlockEntry(dbEntry.getValue());
                         if (blockEntry.getTimeStamp() >= earliestBlockTime) {
                             blockStatus = new BlockStatus(blockHash, blockEntry.getTimeStamp(),
-                                                      blockEntry.getHeight(), blockEntry.isOnChain(),
-                                                      blockEntry.isOnHold());
+                                                    blockEntry.getHeight(), blockEntry.getVersion(),
+                                                    blockEntry.isOnChain(), blockEntry.isOnHold());
                             blockList.add(blockStatus);
                         }
                     }

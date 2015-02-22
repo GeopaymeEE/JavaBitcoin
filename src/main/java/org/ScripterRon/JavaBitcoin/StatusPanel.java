@@ -45,15 +45,15 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
 
     /** Block status table column classes */
     private static final Class<?>[] blockColumnClasses = {
-        Date.class, Integer.class, String.class, String.class};
+        Date.class, Integer.class, String.class, Integer.class, String.class};
 
     /** Block status table column names */
     private static final String[] blockColumnNames = {
-        "Date", "Height", "Block", "Status"};
+        "Date", "Height", "Block", "Version", "Status"};
 
     /** Block status table column types */
     private static final int[] blockColumnTypes = {
-        SizedTable.DATE, SizedTable.INTEGER, SizedTable.HASH, SizedTable.STATUS};
+        SizedTable.DATE, SizedTable.INTEGER, SizedTable.HASH, SizedTable.INTEGER, SizedTable.STATUS};
 
     /** Block status table model */
     private BlockTableModel blockTableModel;
@@ -461,7 +461,10 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
                 case 2:                             // Block hash
                     value = status.getHash().toString();
                     break;
-                case 3:                             // Block status
+                case 3:                             // Block version
+                    value = status.getVersion();
+                    break;
+                case 4:                             // Block status
                     if (status.isOnChain())
                         value = "On Chain";
                     else if (status.isOnHold())
@@ -490,8 +493,8 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
                 BlockStatus blockStatus = blockMap.get(blockHash);
                 if (blockStatus == null) {
                     blockStatus = new BlockStatus(blockHash, storedBlock.getBlock().getTimeStamp(),
-                                                  storedBlock.getHeight(), storedBlock.isOnChain(),
-                                                  storedBlock.isOnHold());
+                                                  storedBlock.getHeight(), storedBlock.getBlock().getVersion(),
+                                                  storedBlock.isOnChain(), storedBlock.isOnHold());
                     BlockStatus[] newBlocks = new BlockStatus[blocks.length+1];
                     System.arraycopy(blocks, 0, newBlocks, 0, blocks.length);
                     newBlocks[blocks.length] = blockStatus;

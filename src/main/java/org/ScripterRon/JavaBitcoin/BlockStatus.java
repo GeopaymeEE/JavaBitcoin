@@ -31,6 +31,9 @@ public class BlockStatus {
     /** Block height */
     private int blockHeight;
 
+    /** Block version */
+    private int blockVersion;
+
     /** Block chain status */
     private boolean onChain;
 
@@ -43,13 +46,16 @@ public class BlockStatus {
      * @param       blockHash           Block hash
      * @param       timeStamp           Time block created
      * @param       blockHeight         Block height
+     * @param       blockVersion        Block version
      * @param       onChain             Block chain status
      * @param       onHold              Block hold status
      */
-    public BlockStatus(Sha256Hash blockHash, long timeStamp, int blockHeight, boolean onChain, boolean onHold) {
+    public BlockStatus(Sha256Hash blockHash, long timeStamp, int blockHeight, int blockVersion,
+                                        boolean onChain, boolean onHold) {
         this.blockHash = blockHash;
         this.timeStamp = timeStamp;
         this.blockHeight = blockHeight;
+        this.blockVersion = blockVersion;
         this.onChain = onChain;
         this.onHold = onHold;
     }
@@ -88,6 +94,15 @@ public class BlockStatus {
      */
     public void setHeight(int height) {
         blockHeight = height;
+    }
+
+    /**
+     * Returns the block version
+     *
+     * @return      Block version
+     */
+    public int getVersion() {
+        return blockVersion;
     }
 
     /**

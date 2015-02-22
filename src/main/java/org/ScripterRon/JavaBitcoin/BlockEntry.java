@@ -284,4 +284,17 @@ public class BlockEntry {
     public void setHeaderBytes(byte[] headerBytes) {
         header = headerBytes;
     }
+
+    /**
+     * Return the block version
+     *
+     * @return                      Block version
+     */
+    public int getVersion() {
+        //
+        // The version is stored in the first 4 bytes of the header in little-endian format
+        //
+        return ((int)header[0]&255) | (((int)header[1]&255)<<8) |
+                                   (((int)header[2]&255)<<16) | (((int)header[3]&255)<<24);
+    }
 }

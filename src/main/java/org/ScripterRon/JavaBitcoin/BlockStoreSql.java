@@ -612,7 +612,7 @@ public class BlockStoreSql extends BlockStore {
         List<BlockStatus> blockList = new LinkedList<>();
         Connection conn = getConnection();
         try (PreparedStatement s = conn.prepareStatement(
-                        "SELECT block_hash,timestamp,block_height,on_hold FROM Blocks "+
+                        "SELECT block_hash,timestamp,block_height,on_hold,header FROM Blocks "+
                         "WHERE block_height>=? ORDER BY timestamp DESC")) {
             s.setInt(1, Math.max(chainHeight-maxCount-1, 0));
             ResultSet r = s.executeQuery();
@@ -621,7 +621,11 @@ public class BlockStoreSql extends BlockStore {
                 long timeStamp = r.getLong(2);
                 int blockHeight = r.getInt(3);
                 boolean onHold = r.getBoolean(4);
-                BlockStatus status = new BlockStatus(blockHash, timeStamp, blockHeight, (blockHeight>=0), onHold);
+                byte[] header = r.getBytes(5);
+                int version = ((int)header[0]&255) | (((int)header[1]&255)<<8) |
+                                    (((int)header[2]&255)<<16) | (((int)header[3]&255)<<24);
+                BlockStatus status = new BlockStatus(blockHash, timeStamp, blockHeight, version,
+                                                    (blockHeight>=0), onHold);
                 blockList.add(status);
             }
         } catch (SQLException exc) {
