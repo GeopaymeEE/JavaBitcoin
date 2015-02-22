@@ -169,18 +169,18 @@ public class BlockStoreLdb extends BlockStore {
                 it.seek(getIntegerBytes(0));
                 if (it.hasNext()) {
                     int base = 0;
-                    int next = 1000;
+                    int incr = 100000;
                     while (true) {
+                        int next = base + incr;
                         it.seek(getIntegerBytes(next));
                         if (it.hasNext()) {
-                            base = next;
-                            next += 1000;
-                            continue;
-                        }
-                        it.seek(getIntegerBytes(base));
-                        while (it.hasNext())
                             dbEntry = it.next();
-                        break;
+                            base = next;
+                        } else if (incr == 1) {
+                            break;
+                        } else {
+                            incr = incr/10;
+                        }
                     }
                     //
                     // Get the current chain head from the BlockChain database
