@@ -970,6 +970,15 @@ public class NetworkMessageListener extends AbstractMessageListener {
         Sha256Hash txHash = tx.getHash();
         BigInteger totalInput = BigInteger.ZERO;
         BigInteger totalOutput = BigInteger.ZERO;
+        boolean nonFinalTx = false;
+        boolean nonFinalTxInput = false;
+        //
+        // The transaction must be final.  If the transaction lock time is specified as a block height,
+        // the block height must not be greater than the current chain height+1.  The reference code
+        // does not perform a check if a timestamp is used instead of a block height.
+        //
+        if (tx.getLockTime()<=500000000L && (int)tx.getLockTime()>Parameters.networkChainHeight+1)
+            nonFinalTx = true;
         //
         // Validate the transaction outputs
         //
@@ -1006,6 +1015,9 @@ public class NetworkMessageListener extends AbstractMessageListener {
         boolean duplicateTx = false;
         Sha256Hash orphanHash = null;
         for (TransactionInput input : inputs) {
+            // A transaction input is non-final if the sequence number is not -1
+            if (input.getSeqNumber() != -1)
+                nonFinalTxInput = true;
             // Script size must not exceed 500 bytes
             if (input.getScriptBytes().length > 500)
                 throw new VerificationException("Input script size greater than 500 bytes",
@@ -1113,6 +1125,11 @@ public class NetworkMessageListener extends AbstractMessageListener {
             // Add the output to the spent outputs list
             spentOutputs.add(outPoint);
         }
+        //
+        // Don't relay a non-final transaction
+        //
+        if (nonFinalTx && nonFinalTxInput)
+            throw new VerificationException("Non-final transactions are not relayed");
         //
         // Ignore a duplicate transaction (race condition among message handler threads)
         //
