@@ -60,7 +60,7 @@ public class Parameters {
     public static final int MAX_BAN_SCORE = 100;
 
     /** Maximum peer address age (seconds) */
-    public static final int MAX_PEER_ADDRESS_AGE = 8*60*60;
+    public static final int MAX_PEER_ADDRESS_AGE = 2*60*60;
 
     /** Block store */
     public static BlockStore blockStore;

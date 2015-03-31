@@ -330,11 +330,9 @@ public class NetworkHandler implements Runnable {
                             if (address.getTimeStamp() < lastPeerUpdateTime) {
                                 Parameters.peerMap.remove(address);
                                 iterator.remove();
-                            } else if (!address.wasBroadcast()) {
+                            } else if (!address.wasBroadcast() && newAddresses.size() < 999) {
                                 address.setBroadcast(true);
                                 newAddresses.add(address);
-                                if (newAddresses.size() >= 999)
-                                    break;
                             }
                         }
                     }
