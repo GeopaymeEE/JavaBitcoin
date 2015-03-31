@@ -418,19 +418,19 @@ public class Main {
             threadGroup = new ThreadGroup("Workers");
 
             databaseHandler = new DatabaseHandler();
-            Thread thread = new Thread(threadGroup, databaseHandler);
+            Thread thread = new Thread(threadGroup, databaseHandler, "Database Handler");
             thread.start();
             threads.add(thread);
 
             Parameters.networkMessageListener = new NetworkMessageListener();
             Parameters.networkHandler = new NetworkHandler(maxConnections, maxOutbound, hostName, listenPort,
                                                            peerAddresses);
-            thread = new Thread(threadGroup, Parameters.networkHandler);
+            thread = new Thread(threadGroup, Parameters.networkHandler, "Network Handler");
             thread.start();
             threads.add(thread);
 
             messageHandler = new MessageHandler();
-            thread = new Thread(threadGroup, messageHandler);
+            thread = new Thread(threadGroup, messageHandler, "Message Handler");
             thread.start();
             threads.add(thread);
             //

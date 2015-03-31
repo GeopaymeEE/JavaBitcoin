@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Ronald Hoffman.
+ * Copyright 2014-2015 Ronald Hoffman.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,11 +38,18 @@ import org.json.simple.parser.ParseException;
 import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.management.LockInfo;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MonitorInfo;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
+import java.util.logging.Handler;
+import java.util.logging.Logger;
 
 /**
  * RpcHandler processes JSON-RPC requests
@@ -161,9 +168,9 @@ public class RpcHandler implements HttpHandler {
             responseHeaders.set("Server", "JavaBitcoin");
             byte[] responseBytes = responseBody.getBytes("UTF-8");
             exchange.sendResponseHeaders(responseCode, responseBytes.length);
-            OutputStream out = exchange.getResponseBody();
-            out.write(responseBytes);
-            out.close();
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(responseBytes);
+            }
             log.debug(String.format("RPC request from %s completed", requestAddress.getAddress()));
         } catch (IOException exc) {
             log.error("Unable to process RPC request", exc);
@@ -225,6 +232,9 @@ public class RpcHandler implements HttpHandler {
                     case "getinfo":
                         result = getInfo();
                         break;
+                    case "getlog":
+                        result = getLog();
+                        break;
                     case "getpeerinfo":
                         result = getPeerInfo();
                         break;
@@ -233,6 +243,9 @@ public class RpcHandler implements HttpHandler {
                         break;
                     case "getblockhash":
                         result = getBlockHash(params);
+                        break;
+                    case "getstacktraces":
+                        result = getStackTraces();
                         break;
                     default:
                         errorCode = RPC_METHOD_NOT_FOUND;
@@ -289,6 +302,25 @@ public class RpcHandler implements HttpHandler {
         //
         List<Peer> connectionList = Parameters.networkHandler.getConnections();
         result.put("connections", connectionList.size());
+        return result;
+    }
+
+    /**
+     * Process 'getlog' request
+     *
+     * @return                              Response as a JSONArray
+     */
+    private JSONArray getLog() {
+        log.debug("Processing 'getlog'");
+        JSONArray result = new JSONArray();
+        Logger logger = Logger.getLogger("");
+        Handler[] handlers = logger.getHandlers();
+        for (Handler handler : handlers) {
+            if (handler instanceof MemoryLogHandler) {
+                result.addAll(((MemoryLogHandler)handler).getMessages());
+                break;
+            }
+        }
         return result;
     }
 
@@ -373,6 +405,110 @@ public class RpcHandler implements HttpHandler {
         if (blockHash == null)
             throw new RequestException(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
         return blockHash.toString();
+    }
+
+    /**
+     * Process 'getstacktraces' request
+     *
+     * Response parameters:
+     *   locks   - An array of lock objects for locks with waiters
+     *   threads - An array of thread objects
+     *
+     * Lock object:
+     *   name   - Lock class name
+     *   hash   - Lock identity hash code
+     *   thread - Identifier of thread holding the lock
+     *
+     * Monitor object:
+     *   name    - Monitor class name
+     *   hash    - Monitor identity hash
+     *   depth   - Stack depth where monitor locked
+     *   trace   - Stack element where monitor locked
+     *
+     * Thread object:
+     *   blocked - Lock object if thread is waiting on a lock
+     *   id      - Thread identifier
+     *   locks   - Array of monitor objects for locks held by this thread
+     *   name    - Thread name
+     *   state   - Thread state
+     *   trace   - Array of stack trace elements
+     *
+     * @return                              Response as a JSONObject
+     */
+    private JSONObject getStackTraces() {
+        JSONArray threadsJSON = new JSONArray();
+        JSONArray locksJSON = new JSONArray();
+        ThreadMXBean tmxBean = ManagementFactory.getThreadMXBean();
+        boolean tmxMI = tmxBean.isObjectMonitorUsageSupported();
+        ThreadInfo[] tList = tmxBean.dumpAllThreads(tmxMI, false);
+        //
+        // Generate the response
+        //
+        for (ThreadInfo tInfo : tList) {
+            JSONObject threadJSON = new JSONObject();
+            //
+            // General thread information
+            //
+            threadJSON.put("id", tInfo.getThreadId());
+            threadJSON.put("name", tInfo.getThreadName());
+            threadJSON.put("state", tInfo.getThreadState().toString());
+            //
+            // Gather lock usage
+            //
+            if (tmxMI) {
+                MonitorInfo[] mList = tInfo.getLockedMonitors();
+                if (mList.length > 0) {
+                    JSONArray monitorsJSON = new JSONArray();
+                    for (MonitorInfo mInfo : mList) {
+                        JSONObject lockJSON = new JSONObject();
+                        lockJSON.put("name", mInfo.getClassName());
+                        lockJSON.put("hash", mInfo.getIdentityHashCode());
+                        lockJSON.put("depth", mInfo.getLockedStackDepth());
+                        lockJSON.put("trace", mInfo.getLockedStackFrame().toString());
+                        monitorsJSON.add(lockJSON);
+                    }
+                    threadJSON.put("locks", monitorsJSON);
+                }
+                if (tInfo.getThreadState() == Thread.State.BLOCKED) {
+                    LockInfo lInfo = tInfo.getLockInfo();
+                    if (lInfo != null) {
+                        JSONObject lockJSON = new JSONObject();
+                        lockJSON.put("name", lInfo.getClassName());
+                        lockJSON.put("hash", lInfo.getIdentityHashCode());
+                        lockJSON.put("thread", tInfo.getLockOwnerId());
+                        threadJSON.put("blocked", lockJSON);
+                        boolean addLock = true;
+                        for (Object lock : locksJSON){
+                            if (((String)((JSONObject)lock).get("name")).equals(lInfo.getClassName())) {
+                                addLock = false;
+                                break;
+                            }
+                        }
+                        if (addLock)
+                            locksJSON.add(lockJSON);
+                    }
+                }
+            }
+            //
+            // Add the stack trace
+            //
+            StackTraceElement[] elements = tInfo.getStackTrace();
+            JSONArray traceJSON = new JSONArray();
+            for (StackTraceElement element : elements)
+                traceJSON.add(element.toString());
+            threadJSON.put("trace", traceJSON);
+            //
+            // Add the thread to the response
+            //
+            threadsJSON.add(threadJSON);
+        }
+        //
+        // Return the response
+        //
+        JSONObject response = new JSONObject();
+        response.put("threads", threadsJSON);
+        response.put("locks", locksJSON);
+        return response;
     }
 
     /**

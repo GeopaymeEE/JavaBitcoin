@@ -1,6 +1,10 @@
 JavaBitcoin Change Log
 ======================
 
+Version 4.3.0
+  - Add 'GetLog' and 'GetStackTraces' RPC functions
+
+
 Version 4.2.0
   - Use Bitcoin Core consensus library
 

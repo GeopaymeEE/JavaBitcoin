@@ -132,8 +132,6 @@ public class StatusPanel extends JPanel implements AlertListener, ChainListener,
         //
         // Create the alert table
         //
-        //int tableHeight;
-        //int rowHeight;
         try {
             alertTableModel = new AlertTableModel(alertColumnNames, alertColumnClasses);
             alertTable = new SizedTable(alertTableModel, alertColumnTypes);
