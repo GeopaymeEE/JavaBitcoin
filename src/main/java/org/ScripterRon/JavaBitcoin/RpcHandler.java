@@ -56,6 +56,7 @@ import java.util.logging.Logger;
  *
  * For now, just do as much as is needed by BitcoinMonitor
  */
+@SuppressWarnings("unchecked")
 public class RpcHandler implements HttpHandler {
 
     /** JSON-RPC error codes */
