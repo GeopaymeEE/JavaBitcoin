@@ -1257,6 +1257,7 @@ public class BlockStoreLdb extends BlockStore {
                         blockEntry.setChainWork(BigInteger.ZERO);
                         blockEntry.setHeight(0);
                         dbBlocks.put(blockHash.getBytes(), blockEntry.getBytes());
+                        Parameters.networkChainHeight--;
                         log.info(String.format("Block removed from block chain\n  Block %s", blockHash));
                         //
                         // Advance to the block before this block

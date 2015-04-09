@@ -996,18 +996,17 @@ public class NetworkHandler implements Runnable {
                 // Send a 'getblocks' message if we are down-level and we haven't sent
                 // one yet
                 //
-                if (!getblocksSent && (peer.getServices()&NetParams.NODE_NETWORK) != 0) {
+                if (!getblocksSent && (peer.getServices()&NetParams.NODE_NETWORK) != 0 &&
+                                       peer.getHeight() > Parameters.blockStore.getChainHeight()) {
                     Parameters.networkChainHeight = Math.max(Parameters.networkChainHeight, peer.getHeight());
-                    if (peer.getHeight() > Parameters.blockStore.getChainHeight()) {
-                        List<Sha256Hash> blockList = getBlockList();
-                        Message getMsg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
-                        synchronized(peer) {
-                            peer.getOutputList().add(getMsg);
-                            key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
-                        }
-                        getblocksSent = true;
-                        log.info(String.format("Sent 'getblocks' message to %s", address));
+                    List<Sha256Hash> blockList = getBlockList();
+                    Message getMsg = GetBlocksMessage.buildGetBlocksMessage(peer, blockList, Sha256Hash.ZERO_HASH);
+                    synchronized(peer) {
+                        peer.getOutputList().add(getMsg);
+                        key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                     }
+                    getblocksSent = true;
+                    log.info(String.format("Sent 'getblocks' message to %s", address));
                 }
                 //
                 // Notify listeners of the new connection

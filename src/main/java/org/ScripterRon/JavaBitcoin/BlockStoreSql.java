@@ -1211,6 +1211,7 @@ public class BlockStoreSql extends BlockStore {
                         s4.setLong(1, getHashIndex(blockHash));
                         s4.setBytes(2, blockHash.getBytes());
                         s4.executeUpdate();
+                        Parameters.networkChainHeight--;
                         log.info(String.format("Block removed from block chain\n  Block %s", blockHash));
                         //
                         // Advance to the block before this block
