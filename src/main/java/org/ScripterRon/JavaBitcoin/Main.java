@@ -35,6 +35,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.FileLock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.LogManager;
 import java.util.Properties;
@@ -756,8 +757,8 @@ public class Main {
                         listenPort = Integer.parseInt(value);
                         break;
                     case "rpcallowip":
-                        InetAddress inetAddr = InetAddress.getByName(value);
-                        rpcAllowIp.add(inetAddr);
+                        InetAddress[] inetAddrs = InetAddress.getAllByName(value);
+                        rpcAllowIp.addAll(Arrays.asList(inetAddrs));
                         break;
                     case "rpcpassword":
                         rpcPassword = value;
