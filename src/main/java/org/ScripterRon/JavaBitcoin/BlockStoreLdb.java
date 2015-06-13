@@ -357,28 +357,82 @@ public class BlockStoreLdb extends BlockStore {
                 }
                 log.info(String.format("%,d spent transaction outputs deleted", txPurged));
                 //
-                // Compact the database
+                // Compact the TxOutputs and TxSpent databases by recreating them.  The other
+                // database normally don't need to be compacted since they are either small
+                // or don't have entries deleted.
                 //
-                log.info("Compacting BlockChain database");
-                dbBlockChain.compactRange(null, null);
-                log.info("Compacting Blocks database");
-                dbBlocks.compactRange(null, null);
-                log.info("Compacting Child database");
-                dbChild.compactRange(null, null);
-                log.info("Compacting TxSpent database");
-                dbTxSpent.compactRange(null, null);
-                log.info("Compacting TxOutputs database");
-                dbTxOutputs.compactRange(null, null);
-                log.info("Compacting Alert database");
-                dbAlert.compactRange(null, null);
-                log.info("Finished compacting databases");
-            } catch (UnsupportedOperationException exc) {
-                log.error("LevelDB database compact is not available");
+                String dbPath = dataPath+Main.fileSeparator+"LevelDB"+Main.fileSeparator;
+                log.info("Compacting the TxOutputs database");
+                dbTxOutputs = rewriteDatabase(dbTxOutputs, dbPath+"TxOutputsDB");
+                log.info("Compacting the TxSpent database");
+                dbTxSpent = rewriteDatabase(dbTxSpent, dbPath+"TxSpentDB");
+                log.info("Finished compacting the databases");
             } catch (DBException | IOException exc) {
                 log.error("Unable to compact database", exc);
                 throw new BlockStoreException("Unable to compact database");
             }
         }
+    }
+
+    /**
+     * Rewrite a LevelDB database
+     *
+     * @param       db                  LevelDB database
+     * @param       path                Database path
+     * @return                          New LevelDB database
+     * @throws      DBException         LevelDB error occurred
+     * @throws      IOException         I/O error occurred
+     */
+    private DB rewriteDatabase(DB db, String path) throws DBException, IOException {
+        File oldDbPath = new File(path);
+        File newDbPath = new File(path+"New");
+        //
+        // Create the new database
+        //
+        if (newDbPath.exists())
+            deleteDirectory(newDbPath);
+        Options options = new Options();
+        options.createIfMissing(true);
+        options.compressionType(CompressionType.NONE);
+        options.maxOpenFiles(768);
+        DB newDb = Iq80DBFactory.factory.open(newDbPath, options);
+        //
+        // Copy the existing database
+        //
+        try (DBIterator it = db.iterator()) {
+            it.seekToFirst();
+            while (it.hasNext()) {
+                Entry<byte[], byte[]> dbEntry = it.next();
+                newDb.put(dbEntry.getKey(), dbEntry.getValue());
+            }
+        }
+        //
+        // Replace the current database with the new database
+        //
+        db.close();
+        newDb.close();
+        deleteDirectory(oldDbPath);
+        newDbPath.renameTo(oldDbPath);
+        newDb = Iq80DBFactory.factory.open(oldDbPath, options);
+        return newDb;
+    }
+
+    /**
+     * Delete a directory
+     *
+     * @param       dirPath             Directory path
+     * @throws      IOException         Unable to delete file
+     */
+    private void deleteDirectory(File dirPath) throws IOException {
+        File[] files = dirPath.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (!file.delete())
+                    throw new IOException("Unable to delete '"+file.getPath()+"'");
+            }
+        }
+        if (!dirPath.delete())
+            throw new IOException("Unable to delete '"+dirPath.getPath()+"'");
     }
 
     /**
@@ -391,11 +445,13 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public boolean isNewAlert(int alertID) throws BlockStoreException {
         boolean newAlert;
-        try {
-            newAlert = (dbAlert.get(getIntegerBytes(alertID)) == null);
-        } catch (DBException exc) {
-            log.error(String.format("Unable to check alert status for %d", alertID), exc);
-            throw new BlockStoreException("Unable to check alert status");
+        synchronized(lock) {
+            try {
+                newAlert = (dbAlert.get(getIntegerBytes(alertID)) == null);
+            } catch (DBException exc) {
+                log.error(String.format("Unable to check alert status for %d", alertID), exc);
+                throw new BlockStoreException("Unable to check alert status");
+            }
         }
         return newAlert;
     }
@@ -409,21 +465,23 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public List<Alert> getAlerts() throws BlockStoreException {
         List<Alert> alerts = new ArrayList<>();
-        try {
-            try (DBIterator it = dbAlert.iterator()) {
-                it.seekToFirst();
-                while (it.hasNext()) {
-                    Entry<byte[], byte[]> dbEntry = it.next();
-                    byte[] entryData = dbEntry.getValue();
-                    AlertEntry alertEntry = new AlertEntry(entryData);
-                    Alert alert = new Alert(alertEntry.getPayload(), alertEntry.getSignature());
-                    alert.setCancel(alertEntry.isCanceled());
-                    alerts.add(alert);
+        synchronized(lock) {
+            try {
+                try (DBIterator it = dbAlert.iterator()) {
+                    it.seekToFirst();
+                    while (it.hasNext()) {
+                        Entry<byte[], byte[]> dbEntry = it.next();
+                        byte[] entryData = dbEntry.getValue();
+                        AlertEntry alertEntry = new AlertEntry(entryData);
+                        Alert alert = new Alert(alertEntry.getPayload(), alertEntry.getSignature());
+                        alert.setCancel(alertEntry.isCanceled());
+                        alerts.add(alert);
+                    }
                 }
+            } catch (DBException | IOException exc) {
+                log.error("Unable to get alerts from database", exc);
+                throw new BlockStoreException("Unable to get alerts from database");
             }
-        } catch (DBException | IOException exc) {
-            log.error("Unable to get alerts from database", exc);
-            throw new BlockStoreException("Unable to get alerts from database");
         }
         return alerts;
     }
@@ -436,13 +494,15 @@ public class BlockStoreLdb extends BlockStore {
      */
     @Override
     public void storeAlert(Alert alert) throws BlockStoreException {
-        try {
-            AlertEntry alertEntry = new AlertEntry(alert.getPayload(), alert.getSignature(),
-                                                   alert.isCanceled());
-            dbAlert.put(getIntegerBytes(alert.getID()), alertEntry.getBytes());
-        } catch (DBException exc) {
-            log.error("Unable to store alert in Alerts database", exc);
-            throw new BlockStoreException("Unable to store alert in Alerts database");
+        synchronized(lock) {
+            try {
+                AlertEntry alertEntry = new AlertEntry(alert.getPayload(), alert.getSignature(),
+                                                       alert.isCanceled());
+                dbAlert.put(getIntegerBytes(alert.getID()), alertEntry.getBytes());
+            } catch (DBException exc) {
+                log.error("Unable to store alert in Alerts database", exc);
+                throw new BlockStoreException("Unable to store alert in Alerts database");
+            }
         }
     }
 
@@ -454,17 +514,19 @@ public class BlockStoreLdb extends BlockStore {
      */
     @Override
     public void cancelAlert(int alertID) throws BlockStoreException {
-        try {
-            byte[] idBytes = getIntegerBytes(alertID);
-            byte[] entryData = dbAlert.get(idBytes);
-            if (entryData != null) {
-                AlertEntry alertEntry = new AlertEntry(entryData);
-                alertEntry.setCancel(true);
-                dbAlert.put(idBytes, alertEntry.getBytes());
+        synchronized(lock) {
+            try {
+                byte[] idBytes = getIntegerBytes(alertID);
+                byte[] entryData = dbAlert.get(idBytes);
+                if (entryData != null) {
+                    AlertEntry alertEntry = new AlertEntry(entryData);
+                    alertEntry.setCancel(true);
+                    dbAlert.put(idBytes, alertEntry.getBytes());
+                }
+            } catch (DBException | IOException exc) {
+                log.error("Unable to update the alert in the Alerts database", exc);
+                throw new BlockStoreException("Unable to update the alert in the Alerts database");
             }
-        } catch (DBException | IOException exc) {
-            log.error("Unable to update the alert in the Alerts database", exc);
-            throw new BlockStoreException("Unable to update the alert in the Alerts database");
         }
     }
 
@@ -478,11 +540,13 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public boolean isNewBlock(Sha256Hash blockHash) throws BlockStoreException {
         boolean newBlock;
-        try {
-            newBlock = (dbBlocks.get(blockHash.getBytes()) == null);
-        } catch (DBException exc) {
-            log.error(String.format("Unable to check block status\n  Block %s", blockHash), exc);
-            throw new BlockStoreException("Unable to check block status", blockHash);
+        synchronized(lock) {
+            try {
+                newBlock = (dbBlocks.get(blockHash.getBytes()) == null);
+            } catch (DBException exc) {
+                log.error(String.format("Unable to check block status\n  Block %s", blockHash), exc);
+                throw new BlockStoreException("Unable to check block status", blockHash);
+            }
         }
         return newBlock;
     }
@@ -497,16 +561,18 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public boolean isOnChain(Sha256Hash blockHash) throws BlockStoreException {
         boolean onChain = false;
-        try {
-            byte[] entryData = dbBlocks.get(blockHash.getBytes());
-            if (entryData != null) {
-                BlockEntry blockEntry = new BlockEntry(entryData);
-                if (blockEntry.isOnChain())
-                    onChain = true;
+        synchronized(lock) {
+            try {
+                byte[] entryData = dbBlocks.get(blockHash.getBytes());
+                if (entryData != null) {
+                    BlockEntry blockEntry = new BlockEntry(entryData);
+                    if (blockEntry.isOnChain())
+                        onChain = true;
+                }
+            } catch (DBException | EOFException exc) {
+                log.error(String.format("Unable to check block status\n  Block %s", blockHash), exc);
+                throw new BlockStoreException("Unable to check block status", blockHash);
             }
-        } catch (DBException | EOFException exc) {
-            log.error(String.format("Unable to check block status\n  Block %s", blockHash), exc);
-            throw new BlockStoreException("Unable to check block status", blockHash);
         }
         return onChain;
     }
@@ -523,17 +589,19 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public Block getBlock(Sha256Hash blockHash) throws BlockStoreException {
         Block block = null;
-        try {
-            byte[] entryData = dbBlocks.get(blockHash.getBytes());
-            if (entryData != null) {
-                BlockEntry blockEntry = new BlockEntry(entryData);
-                int fileNumber = blockEntry.getFileNumber();
-                int fileOffset = blockEntry.getFileOffset();
-                block = getBlock(fileNumber, fileOffset);
+        synchronized(lock) {
+            try {
+                byte[] entryData = dbBlocks.get(blockHash.getBytes());
+                if (entryData != null) {
+                    BlockEntry blockEntry = new BlockEntry(entryData);
+                    int fileNumber = blockEntry.getFileNumber();
+                    int fileOffset = blockEntry.getFileOffset();
+                    block = getBlock(fileNumber, fileOffset);
+                }
+            } catch (DBException | EOFException exc) {
+                log.error(String.format("Unable to get block from database\n  Block %s", blockHash), exc);
+                throw new BlockStoreException("Unable to get block from database", blockHash);
             }
-        } catch (DBException | EOFException exc) {
-            log.error(String.format("Unable to get block from database\n  Block %s", blockHash), exc);
-            throw new BlockStoreException("Unable to get block from database", blockHash);
         }
         return block;
     }
@@ -548,13 +616,15 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public Sha256Hash getBlockId(int height) throws BlockStoreException {
         Sha256Hash blockHash = null;
-        try {
-            byte[] value = dbBlockChain.get(getIntegerBytes(height));
-            if (value != null)
-                blockHash = new Sha256Hash(value);
-        } catch (DBException exc) {
-            log.error(String.format("Unable to get block hash from database: Height %d", height), exc);
-            throw new BlockStoreException("Unable to get block hash from database");
+        synchronized(lock) {
+            try {
+                byte[] value = dbBlockChain.get(getIntegerBytes(height));
+                if (value != null)
+                    blockHash = new Sha256Hash(value);
+            } catch (DBException exc) {
+                log.error(String.format("Unable to get block hash from database: Height %d", height), exc);
+                throw new BlockStoreException("Unable to get block hash from database");
+            }
         }
         return blockHash;
     }
@@ -570,23 +640,25 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public StoredBlock getStoredBlock(Sha256Hash blockHash) throws BlockStoreException {
         StoredBlock storedBlock = null;
-        try {
-            byte[] entryData = dbBlocks.get(blockHash.getBytes());
-            if (entryData != null) {
-                BlockEntry blockEntry = new BlockEntry(entryData);
-                int blockHeight = blockEntry.getHeight();
-                BigInteger blockWork = blockEntry.getChainWork();
-                boolean onChain = blockEntry.isOnChain();
-                boolean onHold = blockEntry.isOnHold();
-                int fileNumber = blockEntry.getFileNumber();
-                int fileOffset = blockEntry.getFileOffset();
-                Block block = getBlock(fileNumber, fileOffset);
-                if (block != null)
-                    storedBlock = new StoredBlock(block, blockWork, blockHeight, onChain, onHold);
+        synchronized(lock) {
+            try {
+                byte[] entryData = dbBlocks.get(blockHash.getBytes());
+                if (entryData != null) {
+                    BlockEntry blockEntry = new BlockEntry(entryData);
+                    int blockHeight = blockEntry.getHeight();
+                    BigInteger blockWork = blockEntry.getChainWork();
+                    boolean onChain = blockEntry.isOnChain();
+                    boolean onHold = blockEntry.isOnHold();
+                    int fileNumber = blockEntry.getFileNumber();
+                    int fileOffset = blockEntry.getFileOffset();
+                    Block block = getBlock(fileNumber, fileOffset);
+                    if (block != null)
+                        storedBlock = new StoredBlock(block, blockWork, blockHeight, onChain, onHold);
+                }
+            } catch (DBException | EOFException exc) {
+                log.error(String.format("Unable to get block from database\n  Block %s", blockHash), exc);
+                throw new BlockStoreException("Unable to get block from database", blockHash);
             }
-        } catch (DBException | EOFException exc) {
-            log.error(String.format("Unable to get block from database\n  Block %s", blockHash), exc);
-            throw new BlockStoreException("Unable to get block from database", blockHash);
         }
         return storedBlock;
     }
@@ -601,16 +673,18 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public StoredBlock getChildStoredBlock(Sha256Hash blockHash) throws BlockStoreException {
         StoredBlock childStoredBlock = null;
-        try {
-            byte[] childData = dbChild.get(blockHash.getBytes());
-            if (childData != null) {
-                childStoredBlock = getStoredBlock(new Sha256Hash(childData));
-                if (childStoredBlock == null)
-                    log.error(String.format("Child stored block not found\n  Parent %s", blockHash));
+        synchronized(lock) {
+            try {
+                byte[] childData = dbChild.get(blockHash.getBytes());
+                if (childData != null) {
+                    childStoredBlock = getStoredBlock(new Sha256Hash(childData));
+                    if (childStoredBlock == null)
+                        log.error(String.format("Child stored block not found\n  Parent %s", blockHash));
+                }
+            } catch (DBException exc) {
+                log.error(String.format("Unable to get child block\n  Block %s", blockHash), exc);
+                throw new BlockStoreException("Unable to get child block");
             }
-        } catch (DBException exc) {
-            log.error(String.format("Unable to get child block\n  Block %s", blockHash), exc);
-            throw new BlockStoreException("Unable to get child block");
         }
         return childStoredBlock;
     }
@@ -680,20 +754,22 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public boolean isNewTransaction(Sha256Hash txHash) throws BlockStoreException {
         boolean isNew = true;
-        try {
-            Entry<byte[], byte[]> dbEntry;
-            try (DBIterator it = dbTxOutputs.iterator()) {
-                it.seek(txHash.getBytes());
-                if (it.hasNext()) {
-                    dbEntry = it.next();
-                    TransactionID txID = new TransactionID(dbEntry.getKey());
-                    if (txID.getTxHash().equals(txHash))
-                        isNew = false;
+        synchronized(lock) {
+            try {
+                Entry<byte[], byte[]> dbEntry;
+                try (DBIterator it = dbTxOutputs.iterator()) {
+                    it.seek(txHash.getBytes());
+                    if (it.hasNext()) {
+                        dbEntry = it.next();
+                        TransactionID txID = new TransactionID(dbEntry.getKey());
+                        if (txID.getTxHash().equals(txHash))
+                            isNew = false;
+                    }
                 }
+            } catch (DBException | IOException exc) {
+                log.error(String.format("Unable to check transaction status\n  Tx %s", txHash), exc);
+                throw new BlockStoreException("Unable to check transaction status");
             }
-        } catch (DBException | IOException exc) {
-            log.error(String.format("Unable to check transaction status\n  Tx %s", txHash), exc);
-            throw new BlockStoreException("Unable to check transaction status");
         }
         return isNew;
     }
@@ -746,19 +822,21 @@ public class BlockStoreLdb extends BlockStore {
     @Override
     public StoredOutput getTxOutput(OutPoint outPoint) throws BlockStoreException {
         StoredOutput output = null;
-        try {
-            TransactionID txID = new TransactionID(outPoint.getHash(), outPoint.getIndex());
-            byte[] entryData = dbTxOutputs.get(txID.getBytes());
-            if (entryData != null) {
-                TransactionEntry txEntry = new TransactionEntry(entryData);
-                output = new StoredOutput(outPoint.getIndex(), txEntry.getValue(), txEntry.getScriptBytes(),
-                                          txEntry.isCoinBase(), txEntry.getTimeSpent()!=0,
-                                          txEntry.getBlockHeight());
+        synchronized(lock) {
+            try {
+                TransactionID txID = new TransactionID(outPoint.getHash(), outPoint.getIndex());
+                byte[] entryData = dbTxOutputs.get(txID.getBytes());
+                if (entryData != null) {
+                    TransactionEntry txEntry = new TransactionEntry(entryData);
+                    output = new StoredOutput(outPoint.getIndex(), txEntry.getValue(), txEntry.getScriptBytes(),
+                                              txEntry.isCoinBase(), txEntry.getTimeSpent()!=0,
+                                              txEntry.getBlockHeight());
+                }
+            } catch (DBException | EOFException exc) {
+                log.error(String.format("Unable to get transaction output\n  Tx %s : %d",
+                                        outPoint.getHash(), outPoint.getIndex()), exc);
+                throw new BlockStoreException("Unable to get transaction output");
             }
-        } catch (DBException | EOFException exc) {
-            log.error(String.format("Unable to get transaction output\n  Tx %s : %d",
-                                    outPoint.getHash(), outPoint.getIndex()), exc);
-            throw new BlockStoreException("Unable to get transaction output");
         }
         return output;
     }
@@ -815,18 +893,20 @@ public class BlockStoreLdb extends BlockStore {
     public List<InventoryItem> getChainList(Sha256Hash startBlock, Sha256Hash stopBlock)
                                         throws BlockStoreException {
         List<InventoryItem> chainList;
-        try {
-            int blockHeight = 0;
-            byte[] blockData = dbBlocks.get(startBlock.getBytes());
-            if (blockData != null) {
-                BlockEntry blockEntry = new BlockEntry(blockData);
-                if (blockEntry.isOnChain())
-                    blockHeight = blockEntry.getHeight();
+        synchronized(lock) {
+            try {
+                int blockHeight = 0;
+                byte[] blockData = dbBlocks.get(startBlock.getBytes());
+                if (blockData != null) {
+                    BlockEntry blockEntry = new BlockEntry(blockData);
+                    if (blockEntry.isOnChain())
+                        blockHeight = blockEntry.getHeight();
+                }
+                chainList = getChainList(blockHeight, stopBlock);
+            } catch (DBException | EOFException exc) {
+                log.error("Unable to get data from the block chain", exc);
+                throw new BlockStoreException("Unable to get data from the block chain");
             }
-            chainList = getChainList(blockHeight, stopBlock);
-        } catch (DBException | EOFException exc) {
-            log.error("Unable to get data from the block chain", exc);
-            throw new BlockStoreException("Unable to get data from the block chain");
         }
         return chainList;
     }
