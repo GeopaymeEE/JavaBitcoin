@@ -124,8 +124,8 @@ public class NetworkHandler implements Runnable {
     /** Connection map */
     private final Map<InetAddress, Peer> connectionMap = new HashMap<>();
 
-    /** Banned list */
-    private final List<InetAddress> bannedAddresses = new ArrayList<>();
+    /** Peer blacklist */
+    private final List<BlacklistEntry> peerBlacklist = new ArrayList<>();
 
     /** Time of Last peer database update */
     private long lastPeerUpdateTime;
@@ -156,15 +156,17 @@ public class NetworkHandler implements Runnable {
      * @param       hostName            The host name for this port or null
      * @param       listenPort          The port to listen on
      * @param       staticAddresses     Static peer address
+     * @param       blacklist           Peer blacklist
      * @throws      IOException         I/O error
      */
     public NetworkHandler(int maxConnections, int maxOutbound, String hostName, int listenPort,
-                                        PeerAddress[] staticAddresses)
+                                        PeerAddress[] staticAddresses, List<BlacklistEntry> blacklist)
                                         throws IOException {
         this.maxConnections = maxConnections;
         this.maxOutbound = maxOutbound;
         this.hostName = hostName;
         Parameters.listenPort = listenPort;
+        peerBlacklist.addAll(blacklist);
         //
         // Create the selector for listening for network events
         //
@@ -353,7 +355,7 @@ public class NetworkHandler implements Runnable {
                 if (currentTime > lastConnectionCheckTime+2*60) {
                     lastConnectionCheckTime = currentTime;
                     List<Peer> inactiveList = new ArrayList<>();
-                    connections.stream().forEach((chkPeer) -> {
+                    connections.forEach((chkPeer) -> {
                         PeerAddress chkAddress = chkPeer.getAddress();
                         if (chkAddress.getTimeStamp() < currentTime-5*60) {
                             inactiveList.add(chkPeer);
@@ -372,7 +374,7 @@ public class NetworkHandler implements Runnable {
                             }
                         }
                     });
-                    inactiveList.stream().forEach((chkPeer) -> {
+                    inactiveList.forEach((chkPeer) -> {
                         log.info(String.format("Closing connection due to inactivity: %s", chkPeer.getAddress()));
                         closeConnection(chkPeer);
                     });
@@ -404,7 +406,7 @@ public class NetworkHandler implements Runnable {
                             "=======================================================",
                                 Parameters.networkChainHeight, Parameters.blockStore.getChainHeight(),
                                 outboundCount, connections.size()-outboundCount,
-                                Parameters.peerAddresses.size(), bannedAddresses.size(),
+                                Parameters.peerAddresses.size(), peerBlacklist.size(),
                                 Parameters.blocksReceived.get(), Parameters.blocksSent.get(),
                                 Parameters.filteredBlocksSent.get(), Parameters.txReceived.get(),
                                 Parameters.txSent.get(), Parameters.txMap.size(),
@@ -506,9 +508,8 @@ public class NetworkHandler implements Runnable {
         // Send the message to each connected peer
         //
         synchronized(connections) {
-            connections.stream()
-                .filter((relayPeer) -> relayPeer.getVersionCount() > 2)
-                .forEach((relayPeer) -> {
+            connections.forEach((relayPeer) -> {
+                if (relayPeer.getVersionCount() > 2) {
                     boolean sendMsg = true;
                     MessageHeader.MessageCommand cmd = msg.getCommand();
                     if (cmd == MessageHeader.MessageCommand.INV) {
@@ -524,7 +525,8 @@ public class NetworkHandler implements Runnable {
                             relayKey.interestOps(relayKey.interestOps() | SelectionKey.OP_WRITE);
                         }
                     }
-                });
+                }
+            });
         }
         //
         // Wakeup the network listener to send the broadcast messages
@@ -549,7 +551,7 @@ public class NetworkHandler implements Runnable {
                 if (connections.size() >= maxConnections) {
                     channel.close();
                     log.info(String.format("Max connections reached: Connection rejected from %s", address));
-                } else if (bannedAddresses.contains(address.getAddress())) {
+                } else if (isBlacklisted(address.getAddress())) {
                     channel.close();
                     log.info(String.format("Connection rejected from banned address %s", address));
                 } else if (connectionMap.get(address.getAddress()) != null) {
@@ -598,7 +600,7 @@ public class NetworkHandler implements Runnable {
         synchronized(Parameters.peerAddresses) {
             for (PeerAddress chkAddress : Parameters.peerAddresses) {
                 if (!chkAddress.isConnected() && connectionMap.get(chkAddress.getAddress())==null &&
-                                !bannedAddresses.contains(chkAddress.getAddress()) &&
+                                !isBlacklisted(chkAddress.getAddress()) &&
                                 (!staticConnections || chkAddress.isStatic())) {
                     address = chkAddress;
                     break;
@@ -879,17 +881,16 @@ public class NetworkHandler implements Runnable {
             //
             synchronized(peer) {
                 if (peer.getBanScore() >= Parameters.MAX_BAN_SCORE &&
-                                !bannedAddresses.contains(address.getAddress())) {
-                    bannedAddresses.add(address.getAddress());
-                    log.info(String.format("Peer address %s banned",
-                                           address.getAddress().getHostAddress()));
+                                !isBlacklisted(address.getAddress())) {
+                    peerBlacklist.add(new BlacklistEntry(address.getAddress(), -1));
+                    log.info(String.format("Peer address %s banned", address.getAddress().getHostAddress()));
                 }
             }
             //
             // Notify listeners that a connection has ended
             //
             if (peer.getVersionCount() > 2) {
-                connectionListeners.stream().forEach((listener) -> {
+                connectionListeners.forEach((listener) -> {
                     listener.connectionEnded(peer, connections.size());
                 });
             }
@@ -980,17 +981,16 @@ public class NetworkHandler implements Runnable {
                 //
                 long currentTime = System.currentTimeMillis()/1000;
                 synchronized(Parameters.alerts) {
-                    Parameters.alerts.stream()
-                        .filter((alert) -> (!alert.isCanceled() &&
-                                            alert.getExpireTime() > currentTime))
-                        .forEach((alert) -> {
+                    Parameters.alerts.forEach((alert) -> {
+                        if (!alert.isCanceled() && alert.getExpireTime() > currentTime) {
                             Message alertMsg = AlertMessage.buildAlertMessage(peer, alert);
                             synchronized(peer) {
                                 peer.getOutputList().add(alertMsg);
                                 key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
                             }
                             log.info(String.format("Sent alert %d to %s", alert.getID(), address));
-                        });
+                        }
+                    });
                 }
                 //
                 // Send a 'getblocks' message if we are down-level and we haven't sent
@@ -1011,7 +1011,7 @@ public class NetworkHandler implements Runnable {
                 //
                 // Notify listeners of the new connection
                 //
-                connectionListeners.stream().forEach((listener) -> {
+                connectionListeners.forEach((listener) -> {
                     listener.connectionStarted(peer, connections.size());
                 });
             }
@@ -1289,6 +1289,79 @@ public class NetworkHandler implements Runnable {
             } catch (UnknownHostException exc) {
                 log.warn(String.format("DNS host %s not found", host));
             }
+        }
+    }
+
+    /**
+     * Check if an address is blacklisted
+     *
+     * @param   address             Address to check
+     * @return                      TRUE if the address is blacklisted
+     */
+    private boolean isBlacklisted(InetAddress addr) {
+        boolean blacklisted = false;
+        for (BlacklistEntry entry : peerBlacklist) {
+            if (entry.isBlacklisted(addr)) {
+                blacklisted = true;
+                break;
+            }
+        }
+        return blacklisted;
+    }
+
+    /**
+     * Blacklist entry
+     */
+    public static class BlacklistEntry {
+
+        /** Base address */
+        private final byte[] baseAddr;
+
+        /** Subnet mask */
+        private final byte[] subnetMask;
+
+        /**
+         * Create the blacklist entry
+         *
+         * @param   addr                IP address
+         * @param   maskBits            Number of bits in the address mask or -1 to use entire address
+         */
+        public BlacklistEntry(InetAddress addr, int maskBits) {
+            baseAddr = addr.getAddress();
+            subnetMask = new byte[baseAddr.length];
+            int bitCount = baseAddr.length * 8;
+            if (maskBits >= 0)
+                bitCount = Math.min(bitCount, maskBits);
+            for (int i=0; i<subnetMask.length; i++) {
+                if (bitCount >= 8) {
+                    subnetMask[i] = (byte)0xff;
+                    bitCount -= 8;
+                } else if (bitCount > 0) {
+                    subnetMask[i] = (byte)(0xff << (8-bitCount));
+                    bitCount = 0;
+                }
+                baseAddr[i] &= subnetMask[i];
+            }
+        }
+
+        /**
+         * Check if an address matches this blacklist entry
+         *
+         * @param   addr                IP address
+         * @return                      TRUE if the address matches
+         */
+        public boolean isBlacklisted(InetAddress addr) {
+            byte[] addrBytes = addr.getAddress();
+            if (addrBytes.length != baseAddr.length)
+                return false;
+            boolean matches = true;
+            for (int i=0; i<baseAddr.length; i++) {
+                if ((addrBytes[i] & subnetMask[i]) != baseAddr[i]) {
+                    matches = false;
+                    break;
+                }
+            }
+            return matches;
         }
     }
 }

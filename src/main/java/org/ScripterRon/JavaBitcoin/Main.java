@@ -162,8 +162,11 @@ public class Main {
     /** Retry block hash */
     private static Sha256Hash retryHash;
 
-    /** Peer address */
+    /** Peer addresses */
     private static PeerAddress[] peerAddresses;
+
+    /** Peer blacklist */
+    private static List<NetworkHandler.BlacklistEntry> peerBlacklist = new ArrayList<>();
 
     /** Block store */
     private static BlockStore blockStore;
@@ -425,7 +428,7 @@ public class Main {
 
             Parameters.networkMessageListener = new NetworkMessageListener();
             Parameters.networkHandler = new NetworkHandler(maxConnections, maxOutbound, hostName, listenPort,
-                                                           peerAddresses);
+                                                           peerAddresses, peerBlacklist);
             thread = new Thread(threadGroup, Parameters.networkHandler, "Network Handler");
             thread.start();
             threads.add(thread);
@@ -735,6 +738,22 @@ public class Main {
                 String option = line.substring(0, sep).trim().toLowerCase();
                 String value = line.substring(sep+1).trim();
                 switch (option) {
+                    case "blacklistpeer":
+                        sep = value.indexOf('/');
+                        InetAddress blacklistAddr;
+                        int mask;
+                        if (sep < 0 || sep == value.length()-1) {
+                            blacklistAddr = InetAddress.getByName(value);
+                            mask = -1;
+                        } else if (sep == 0) {
+                            throw new IllegalArgumentException("Invalid blacklist address: " + value);
+                        } else {
+                            blacklistAddr = InetAddress.getByName(value.substring(0, sep));
+                            mask = Integer.parseInt(value.substring(sep+1));
+                        }
+                        peerBlacklist.add(new NetworkHandler.BlacklistEntry(blacklistAddr, mask));
+                        log.info(value + " added to peer blacklist");
+                        break;
                     case "connect":
                         PeerAddress addr = new PeerAddress(value);
                         addressList.add(addr);
